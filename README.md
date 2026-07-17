@@ -1,5 +1,11 @@
 # Claude Export History Viewer
 
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![Single File](https://img.shields.io/badge/single%20file-HTML-orange.svg)](viewer.html)
+[![Offline](https://img.shields.io/badge/runs-offline-brightgreen.svg)](#)
+[![No Build](https://img.shields.io/badge/no%20build-zero%20dependencies-blue.svg)](#)
+[![GitHub stars](https://img.shields.io/github/stars/Artistkisa/claude-rescue-reader?style=social)](https://github.com/Artistkisa/claude-rescue-reader/stargazers)
+
 > Hello,
 >
 > An internal investigation of suspicious signals associated with your account indicates a violation of our Usage Policy. As a result, we have revoked your access to Claude.
