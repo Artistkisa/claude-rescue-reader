@@ -1,0 +1,1069 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Claude Export History Viewer</title>
+<script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/highlight.js@11.9.0/lib/highlight.min.js"></script>
+<link id="hljs-theme" rel="stylesheet" href="https://cdn.jsdelivr.net/npm/highlight.js@11.9.0/styles/github.min.css">
+<style>
+/* ── Light theme (default, Claude-style) ── */
+:root {
+  --bg: #f9f9f8; --bg2: #ffffff; --bg3: #f4f4f0; --bg4: #e8e8e4;
+  --border: #e5e5e2; --border2: #d1d1cc;
+  --text: #1a1a18; --text2: #555550; --text3: #909088;
+  --accent: #c96442; --accent2: #a8513a;
+  --human-bg: #f0eeea; --human-border: #ddddd8;
+  --think: #faf5eb; --think-border: #e8dfc0;
+  --think-text: #7a6830; --think-hover: rgba(180,150,60,.06);
+  --tool-bg: #f0f7f0; --tool-border: #c8dfc8;
+  --tool-result-bg: #f5f9f5; --tool-result-border: #c0d8c0;
+  --badge-bg: rgba(201,100,66,.1); --badge-border: rgba(201,100,66,.25);
+  --green: #1a7f37; --orange: #9a6700; --red: #d1242f; --blue: #0969da;
+  --shadow: 0 1px 3px rgba(0,0,0,.08);
+  --radius: 12px; --radius-sm: 8px;
+  font-size: 14px;
+}
+/* ── Dark theme ── */
+[data-theme=dark] {
+  --bg: #0d1117; --bg2: #161b22; --bg3: #21262d; --bg4: #30363d;
+  --border: #30363d; --border2: #444c56;
+  --text: #e6edf3; --text2: #8b949e; --text3: #6e7681;
+  --accent: #7c6af5; --accent2: #9d8ff5;
+  --human-bg: #1c2128; --human-border: #2d3748;
+  --think: #1a1f2e; --think-border: #3d4461;
+  --think-text: #8090c0; --think-hover: rgba(125,140,200,.08);
+  --tool-bg: #1c2128; --tool-border: #2d4a2d;
+  --tool-result-bg: #0f1a12; --tool-result-border: #2d4a2d;
+  --badge-bg: rgba(124,106,245,.15); --badge-border: rgba(124,106,245,.3);
+  --green: #3fb950; --orange: #d29922; --red: #f85149; --blue: #58a6ff;
+  --shadow: none;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { background: var(--bg); color: var(--text); font-family: -apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif; height: 100vh; display: flex; overflow: hidden; }
+
+/* ── Sidebar ── */
+#sidebar { width: 300px; min-width: 300px; background: var(--bg2); border-right: 1px solid var(--border); display: flex; flex-direction: column; }
+#sidebar-header { padding: 18px 16px 12px; border-bottom: 1px solid var(--border); }
+#sidebar-header h1 { font-size: 15px; font-weight: 600; color: var(--text); display: flex; align-items: center; gap: 8px; }
+#sidebar-header h1 span { background: var(--accent); color: #fff; font-size: 10px; padding: 2px 6px; border-radius: 10px; }
+#load-btn { width: 100%; margin-top: 10px; padding: 8px; background: var(--accent); color: #fff; border: none; border-radius: var(--radius-sm); cursor: pointer; font-size: 13px; font-weight: 500; transition: background .2s; }
+#load-btn:hover { background: var(--accent2); }
+#search-box { width: 100%; margin-top: 8px; padding: 7px 10px; background: var(--bg3); border: 1px solid var(--border); border-radius: var(--radius-sm); color: var(--text); font-size: 13px; }
+#search-box::placeholder { color: var(--text3); }
+#search-box:focus { outline: none; border-color: var(--accent); }
+#tabs { display: flex; gap: 0; border-bottom: 1px solid var(--border); }
+.tab-btn { flex: 1; padding: 9px 4px; background: none; border: none; color: var(--text2); font-size: 12px; cursor: pointer; border-bottom: 2px solid transparent; transition: all .2s; }
+.tab-btn.active { color: var(--accent); border-bottom-color: var(--accent); }
+#conv-list { flex: 1; overflow-y: auto; padding: 6px; }
+.conv-item { padding: 9px 10px; border-radius: var(--radius-sm); cursor: pointer; margin-bottom: 2px; transition: background .15s; border: 1px solid transparent; }
+.conv-item:hover { background: var(--bg3); }
+.conv-item.active { background: var(--bg3); border-color: var(--accent); }
+.conv-title { font-size: 13px; font-weight: 500; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.conv-meta { font-size: 11px; color: var(--text3); margin-top: 3px; display: flex; justify-content: space-between; }
+.conv-count { background: var(--bg4); padding: 1px 5px; border-radius: 8px; }
+
+/* ── Main ── */
+#main { flex: 1; display: flex; flex-direction: column; min-width: 0; }
+#chat-header { padding: 14px 20px; background: var(--bg2); border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+#chat-title { font-size: 15px; font-weight: 600; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#chat-header-meta { font-size: 11px; color: var(--text3); white-space: nowrap; }
+#toggle-summary { padding: 5px 10px; background: var(--bg3); border: 1px solid var(--border); border-radius: 6px; color: var(--text2); font-size: 12px; cursor: pointer; }
+#messages { flex: 1; overflow-y: auto; padding: 20px; display: flex; flex-direction: column; gap: 2px; }
+#messages::-webkit-scrollbar { width: 6px; }
+#messages::-webkit-scrollbar-thumb { background: var(--bg4); border-radius: 3px; }
+#empty-state { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 16px; color: var(--text3); }
+#empty-state svg { opacity: .3; }
+#empty-state p { font-size: 15px; }
+
+/* ── Messages ── */
+#messages { flex: 1; overflow-y: auto; padding: 24px 0; display: flex; flex-direction: column; }
+#messages::-webkit-scrollbar { width: 6px; }
+#messages::-webkit-scrollbar-thumb { background: var(--bg4); border-radius: 3px; }
+
+.msg-wrap { display: flex; gap: 12px; padding: 4px 24px; max-width: 900px; margin: 0 auto; width: 100%; }
+.msg-wrap.human { flex-direction: row-reverse; }
+.msg-avatar { width: 30px; height: 30px; min-width: 30px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 13px; font-weight: 600; flex-shrink: 0; margin-top: 2px; }
+.human .msg-avatar { background: linear-gradient(135deg,#4f7af8,#7c6af5); color: #fff; }
+.assistant .msg-avatar { background: linear-gradient(135deg,#d4a855,#c97b3a); color: #fff; font-size: 11px; }
+[data-theme=dark] .human .msg-avatar { background: linear-gradient(135deg,#3d5fc4,#6254c9); }
+[data-theme=dark] .assistant .msg-avatar { background: linear-gradient(135deg,#b08a3e,#a06228); }
+.msg-body { flex: 1; min-width: 0; }
+.msg-meta { font-size: 11px; color: var(--text3); margin-bottom: 5px; display: flex; align-items: center; gap: 6px; }
+.human .msg-meta { justify-content: flex-end; }
+.msg-name { font-weight: 500; color: var(--text2); }
+
+/* Human bubble */
+.human .msg-content { background: var(--human-bg); border: 1px solid var(--human-border); border-radius: 18px 4px 18px 18px; padding: 10px 16px; display: inline-block; max-width: 75%; float: right; font-size: 14px; line-height: 1.65; word-break: break-word; color: var(--text); box-shadow: var(--shadow); }
+
+/* Assistant: no bubble, full width */
+.assistant .msg-content { font-size: 14.5px; line-height: 1.75; color: var(--text); word-break: break-word; }
+.assistant .msg-content > *:first-child { margin-top: 0 !important; }
+.assistant .msg-content > *:last-child { margin-bottom: 0 !important; }
+
+/* Markdown typography */
+.msg-content p { margin: 0 0 10px; }
+.msg-content p:last-child { margin: 0; }
+.msg-content h1 { font-size: 1.4em; font-weight: 700; margin: 18px 0 8px; border-bottom: 1px solid var(--border); padding-bottom: 6px; }
+.msg-content h2 { font-size: 1.2em; font-weight: 700; margin: 16px 0 6px; }
+.msg-content h3 { font-size: 1.05em; font-weight: 600; margin: 14px 0 5px; }
+.msg-content h4,.msg-content h5 { font-size: 1em; font-weight: 600; margin: 12px 0 4px; }
+.msg-content ul,.msg-content ol { padding-left: 22px; margin: 6px 0 10px; }
+.msg-content li { margin: 4px 0; line-height: 1.65; }
+.msg-content li > ul,.msg-content li > ol { margin: 3px 0; }
+.msg-content blockquote { border-left: 3px solid var(--accent); padding: 4px 14px; color: var(--text2); margin: 8px 0; font-style: italic; }
+.msg-content hr { border: none; border-top: 1px solid var(--border); margin: 14px 0; }
+.msg-content table { border-collapse: collapse; font-size: 13px; margin: 10px 0; width: 100%; }
+.msg-content th,.msg-content td { border: 1px solid var(--border); padding: 7px 12px; text-align: left; }
+.msg-content th { background: var(--bg3); font-weight: 600; }
+.msg-content tr:nth-child(even) td { background: rgba(255,255,255,.02); }
+.msg-content a { color: var(--blue); text-decoration: none; }
+.msg-content a:hover { text-decoration: underline; }
+.msg-content strong { font-weight: 600; }
+.msg-content em { color: var(--text2); }
+
+/* Code inline */
+.msg-content code:not(pre code) { background: rgba(110,118,129,.2); padding: 2px 6px; border-radius: 5px; font-size: 0.875em; font-family: 'SFMono-Regular',Consolas,'Liberation Mono',Menlo,monospace; }
+
+/* Code block */
+.code-block { background: var(--bg3); border: 1px solid var(--border); border-radius: 10px; margin: 10px 0; overflow: hidden; }
+.code-block-header { display: flex; align-items: center; justify-content: space-between; padding: 8px 14px; background: var(--bg3); border-bottom: 1px solid var(--border); }
+.code-lang { font-size: 11.5px; color: var(--text3); font-family: monospace; text-transform: lowercase; }
+.copy-btn { background: none; border: 1px solid var(--border2); color: var(--text3); font-size: 11px; padding: 3px 9px; border-radius: 5px; cursor: pointer; transition: all .15s; }
+.copy-btn:hover { border-color: var(--text2); color: var(--text); }
+.copy-btn.copied { color: var(--green); border-color: var(--green); }
+.code-block pre { margin: 0; padding: 14px 16px; overflow-x: auto; font-size: 13px; line-height: 1.55; }
+.code-block pre code { background: none; padding: 0; font-size: inherit; }
+
+.date-divider { text-align: center; margin: 20px 0; padding: 0 24px; }
+.date-divider span { background: var(--bg3); color: var(--text3); font-size: 11.5px; padding: 4px 12px; border-radius: 12px; }
+.think-block { background: var(--think); border: 1px solid var(--think-border); border-radius: var(--radius-sm); margin: 6px 0; overflow: hidden; }
+.think-header { padding: 7px 12px; cursor: pointer; display: flex; align-items: center; gap: 7px; font-size: 12px; color: var(--think-text); user-select: none; }
+.think-header:hover { background: var(--think-hover); }
+.think-header svg { transition: transform .2s; }
+.think-header.open svg { transform: rotate(90deg); }
+.think-body { padding: 10px 14px 12px; font-size: 12.5px; color: var(--think-text); line-height: 1.6; font-style: italic; border-top: 1px solid var(--think-border); }
+.tool-block { background: var(--tool-bg); border: 1px solid var(--tool-border); border-radius: var(--radius-sm); margin: 6px 0; overflow: hidden; }
+.tool-header { padding: 7px 12px; cursor: pointer; display: flex; align-items: center; gap: 8px; font-size: 12px; user-select: none; }
+.tool-header:hover { background: rgba(60,200,80,.05); }
+.tool-header svg { transition: transform .2s; flex-shrink: 0; }
+.tool-header.open svg { transform: rotate(90deg); }
+.tool-name { font-weight: 600; color: var(--green); }
+.tool-sub { color: var(--text3); font-size: 11px; }
+.tool-msg { color: var(--text2); font-size: 12px; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tool-body { padding: 10px 14px 12px; font-size: 12px; border-top: 1px solid var(--tool-border); }
+.tool-body pre { background: var(--bg); border: none; padding: 10px 12px; border-radius: 6px; overflow-x: auto; margin: 0; font-size: 11.5px; }
+.tool-result-block { background: var(--tool-result-bg); border: 1px solid var(--tool-result-border); border-radius: var(--radius-sm); margin: 6px 0; overflow: hidden; }
+.tool-result-header { padding: 7px 12px; cursor: pointer; display: flex; align-items: center; gap: 8px; font-size: 12px; user-select: none; }
+.tool-result-header:hover { background: rgba(60,200,80,.05); }
+.tool-result-header svg { transition: transform .2s; flex-shrink: 0; }
+.tool-result-header.open svg { transform: rotate(90deg); }
+.tool-result-label { color: var(--green); font-weight: 600; }
+.tool-result-body { padding: 10px 14px; font-size: 12px; border-top: 1px solid var(--tool-result-border); color: var(--text2); max-height: 300px; overflow-y: auto; }
+.img-block { margin: 8px 0; }
+.img-block img { max-width: 100%; border-radius: 8px; border: 1px solid var(--border); }
+.img-placeholder { padding: 10px 14px; background: var(--bg3); border: 1px dashed var(--border); border-radius: 8px; font-size: 12px; color: var(--text3); display: flex; align-items: center; gap: 8px; }
+.attachment-block { display: flex; align-items: center; gap: 8px; padding: 8px 12px; background: var(--bg3); border: 1px solid var(--border); border-radius: 8px; margin: 4px 0; font-size: 12px; }
+.attachment-block .file-icon { color: var(--orange); }
+.date-divider { text-align: center; margin: 16px 0 8px; }
+.date-divider span { background: var(--bg3); color: var(--text3); font-size: 11px; padding: 3px 10px; border-radius: 10px; }
+
+/* ── Summary panel ── */
+#summary { width: 300px; min-width: 300px; background: var(--bg2); border-left: 1px solid var(--border); display: flex; flex-direction: column; overflow: hidden; transition: width .25s, min-width .25s; }
+#summary.hidden { width: 0; min-width: 0; }
+#summary-inner { padding: 18px 16px; overflow-y: auto; flex: 1; min-width: 300px; }
+#summary-inner h2 { font-size: 13px; font-weight: 600; color: var(--text2); text-transform: uppercase; letter-spacing: .06em; margin-bottom: 10px; }
+#summary-text { font-size: 13px; line-height: 1.65; color: var(--text2); }
+#summary-text p { margin-bottom: 8px; } #summary-text p:last-child { margin: 0; }
+.meta-row { display: flex; justify-content: space-between; padding: 6px 0; border-bottom: 1px solid var(--border); font-size: 12px; }
+.meta-row:last-child { border-bottom: none; }
+.meta-key { color: var(--text3); }
+.meta-val { color: var(--text); font-weight: 500; }
+.proj-card { background: var(--bg3); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 10px 12px; margin-bottom: 6px; cursor: pointer; transition: border-color .15s; }
+.proj-card:hover { border-color: var(--accent); }
+.proj-card.active { border-color: var(--accent); background: var(--bg4); }
+.proj-card-name { font-size: 13px; font-weight: 600; }
+.proj-card-desc { font-size: 11px; color: var(--text3); margin-top: 3px; }
+.proj-doc { padding: 6px 10px; margin: 4px 0; background: var(--bg3); border-radius: 6px; font-size: 12px; color: var(--text2); cursor: pointer; }
+.proj-doc:hover { color: var(--accent2); }
+.sort-btn { padding: 2px 7px; background: none; border: 1px solid var(--border); border-radius: 5px; color: var(--text3); font-size: 11px; cursor: pointer; transition: all .15s; }
+.sort-btn:hover { border-color: var(--border2); color: var(--text2); }
+.sort-btn.active { background: var(--accent); border-color: var(--accent); color: #fff; }
+
+/* ── Collapsible headers (think/tool blocks) ── */
+.collapsible-header { cursor: pointer; user-select: none; }
+.collapsible-header svg { transition: transform .2s; }
+.collapsible-header.open svg { transform: rotate(90deg); }
+
+/* ── Table even rows ── */
+.msg-content tr:nth-child(even) td { background: var(--bg3); }
+
+/* ── Responsive ── */
+@media (max-width: 640px) {
+  #sidebar { width: 100%; min-width: 0; max-width: 100%; height: 40vh; border-right: none; border-bottom: 1px solid var(--border); }
+  #main { height: 60vh; }
+  #summary { width: 100%; min-width: 0; }
+  body { flex-direction: column; }
+  .msg-wrap { padding: 4px 12px; }
+  .msg-content { max-width: 88% !important; }
+}
+::-webkit-scrollbar { width: 5px; } ::-webkit-scrollbar-thumb { background: var(--bg4); border-radius: 3px; }
+input[type=file] { display: none; }
+.spinner { display: inline-block; width: 14px; height: 14px; border: 2px solid var(--bg4); border-top-color: var(--accent); border-radius: 50%; animation: spin .6s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* ── Memory Tab ── */
+#conv-list .mem-page { padding: 10px 8px; }
+.mem-section-label { font-size: 10px; font-weight: 700; color: var(--text3); text-transform: uppercase; letter-spacing: .1em; padding: 14px 4px 6px; }
+.mem-section-label:first-child { padding-top: 4px; }
+.mem-card { background: var(--bg3); border: 1px solid var(--border); border-radius: 10px; margin-bottom: 8px; overflow: hidden; transition: border-color .15s; }
+.mem-card:hover { border-color: var(--border2); }
+.mem-card-header { padding: 10px 14px; cursor: pointer; display: flex; align-items: center; gap: 10px; user-select: none; }
+.mem-card-icon { font-size: 16px; flex-shrink: 0; }
+.mem-card-title { font-size: 13px; font-weight: 600; color: var(--text); flex: 1; }
+.mem-card-meta { font-size: 11px; color: var(--text3); white-space: nowrap; }
+.mem-card-chevron { color: var(--text3); transition: transform .2s; flex-shrink: 0; }
+.mem-card-header.open .mem-card-chevron { transform: rotate(90deg); }
+.mem-card-body { display: none; padding: 0 14px 14px; font-size: 12.5px; line-height: 1.7; color: var(--text2); border-top: 1px solid var(--border); padding-top: 12px; }
+.mem-card-body p { margin: 0 0 8px; } .mem-card-body p:last-child { margin: 0; }
+.mem-card-body strong { color: var(--text); font-weight: 600; }
+.mem-card-body ul,.mem-card-body ol { padding-left: 18px; margin: 4px 0 8px; }
+.mem-card-body li { margin: 3px 0; }
+.mem-card-body h1,.mem-card-body h2,.mem-card-body h3 { font-size: 12.5px; font-weight: 700; color: var(--text); margin: 10px 0 4px; }
+.mem-card-body hr { border: none; border-top: 1px solid var(--border); margin: 10px 0; }
+.mem-card-body a { color: var(--blue); }
+.mem-proj-badge { background: var(--badge-bg); color: var(--accent); font-size: 10px; padding: 2px 7px; border-radius: 8px; border: 1px solid var(--badge-border); white-space: nowrap; }
+.mem-preview { font-size: 11.5px; color: var(--text3); margin-top: 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; line-height: 1.4; }
+</style>
+</head>
+<body>
+
+<!-- Sidebar -->
+<div id="sidebar">
+  <div id="sidebar-header">
+    <h1>💬 Claude Export <span id="conv-total">0</span></h1>
+    <button id="load-btn" onclick="document.getElementById('file-input').click()">📂 选择导出文件夹</button>
+    <input type="file" id="file-input" webkitdirectory multiple accept=".json">
+    <div id="stats-bar" style="display:none;margin-top:8px;padding:8px 10px;background:var(--bg3);border-radius:8px;font-size:11.5px;color:var(--text3);line-height:1.8;"></div>
+    <input type="text" id="search-box" placeholder="搜索对话…" oninput="filterConvs(this.value)">
+    <div style="display:flex;align-items:center;gap:6px;margin-top:6px;">
+      <label style="font-size:11px;color:var(--text3);display:flex;align-items:center;gap:4px;cursor:pointer;">
+        <input type="checkbox" id="search-fulltext" style="width:12px;height:12px;"> 全文搜索
+      </label>
+      <span style="flex:1"></span>
+      <button class="sort-btn active" data-sort="updated" onclick="setSort('updated')" title="按最近更新时间排序">最新</button>
+      <button class="sort-btn" data-sort="created" onclick="setSort('created')" title="按最早创建时间排序">最早</button>
+      <button class="sort-btn" data-sort="msgs" onclick="setSort('msgs')" title="按消息数量排序">最多</button>
+    </div>
+  </div>
+  <div id="tabs">
+    <button class="tab-btn active" onclick="switchTab('convs',this)">对话</button>
+    <button class="tab-btn" onclick="switchTab('projects',this)">项目</button>
+    <button class="tab-btn" onclick="switchTab('memory',this)">记忆</button>
+  </div>
+  <div id="conv-list"></div>
+</div>
+
+<!-- Main -->
+<div id="main">
+  <div id="chat-header">
+    <div id="chat-title" style="color:var(--text3)">← 选择一个对话</div>
+    <div id="chat-header-meta"></div>
+    <button id="toggle-summary" onclick="toggleSummary()">摘要 ▶</button>
+    <button id="export-btn" onclick="exportConv()" title="导出为 Markdown" style="padding:5px 9px;background:var(--bg3);border:1px solid var(--border);border-radius:6px;color:var(--text2);font-size:13px;cursor:pointer;display:none;">⬇ 导出</button>
+    <button id="theme-btn" onclick="toggleTheme()" title="切换明暗主题" style="padding:5px 9px;background:var(--bg3);border:1px solid var(--border);border-radius:6px;color:var(--text2);font-size:14px;cursor:pointer;line-height:1;">🌙</button>
+  </div>
+  <div id="messages">
+    <div id="empty-state">
+      <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>
+      <p style="font-size:17px;font-weight:600;color:var(--text2);margin-bottom:4px;">Claude 历史记录查看器</p>
+      <p style="font-size:13px;color:var(--text3);">点击左侧按钮，选择 Claude 导出的文件夹</p>
+
+      <div style="margin-top:8px;background:var(--bg3);border:1px solid var(--border);border-radius:10px;padding:16px 20px;text-align:left;width:380px;max-width:90vw;">
+        <div style="font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.08em;margin-bottom:10px;">📦 导出文件夹结构</div>
+        <div style="font-family:'SFMono-Regular',Consolas,monospace;font-size:12.5px;line-height:2;color:var(--text2);">
+          <div><span style="color:var(--accent);font-weight:600;">claude-export/</span></div>
+          <div style="padding-left:16px;">
+            <span style="color:var(--text3);">├─ </span><span style="color:var(--blue);">conversations.json</span>
+            <span style="margin-left:8px;font-size:11px;color:var(--green);background:rgba(31,136,61,.1);padding:1px 6px;border-radius:4px;">必须</span>
+          </div>
+          <div style="padding-left:16px;">
+            <span style="color:var(--text3);">├─ </span><span style="color:var(--blue);">users.json</span>
+            <span style="margin-left:8px;font-size:11px;color:var(--text3);">账号信息</span>
+          </div>
+          <div style="padding-left:16px;">
+            <span style="color:var(--text3);">├─ </span><span style="color:var(--blue);">memories.json</span>
+            <span style="margin-left:8px;font-size:11px;color:var(--orange);background:rgba(154,103,0,.08);padding:1px 6px;border-radius:4px;">可选</span>
+          </div>
+          <div style="padding-left:16px;">
+            <span style="color:var(--text3);">└─ </span><span style="color:var(--accent);font-weight:600;">projects/</span>
+            <span style="margin-left:8px;font-size:11px;color:var(--orange);background:rgba(154,103,0,.08);padding:1px 6px;border-radius:4px;">可选</span>
+          </div>
+          <div style="padding-left:40px;">
+            <span style="color:var(--text3);">├─ </span><span style="color:var(--blue);">&lt;uuid&gt;.json</span>
+          </div>
+          <div style="padding-left:40px;">
+            <span style="color:var(--text3);">└─ </span><span style="color:var(--blue);">…</span>
+          </div>
+        </div>
+
+        <div style="margin-top:12px;padding-top:12px;border-top:1px solid var(--border);font-size:12px;color:var(--text3);line-height:1.7;">
+          <b style="color:var(--text2);">如何导出？</b><br>
+          claude.ai → Settings → Account → <b style="color:var(--text2);">Export Data</b><br>
+          下载 ZIP 后解压，选择解压后的整个文件夹
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Summary Panel -->
+<div id="summary" class="hidden">
+  <div id="summary-inner">
+    <h2>📋 对话摘要</h2>
+    <div id="summary-text"></div>
+    <div style="margin-top:16px;"><h2>🗂 元数据</h2></div>
+    <div id="meta-box" style="margin-top:8px;"></div>
+  </div>
+</div>
+<script>
+const ICON='<svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 2l4 4-4 4"/></svg>';
+let allConvs=[],allProjects=[],memoryData=null,currentConv=null,summaryVisible=false;
+
+document.getElementById('file-input').addEventListener('change',async e=>{
+  const files=[...e.target.files];
+  const btn=document.getElementById('load-btn');
+  btn.innerHTML='<span class="spinner"></span> 解析中，请稍候…';
+  // yield to browser to render spinner before blocking JSON.parse
+  await new Promise(r=>setTimeout(r,30));
+  try{
+    const cf=files.find(f=>f.name==='conversations.json');
+    const pf=files.filter(f=>f.webkitRelativePath.includes('/projects/')&&f.name.endsWith('.json'));
+    const mf=files.find(f=>f.name==='memories.json');
+    if(!cf){btn.textContent='⚠️ 未找到 conversations.json';return;}
+    allConvs=JSON.parse(await cf.text());
+    if(!Array.isArray(allConvs))throw new Error('conversations.json 格式不正确');
+    for(const p of pf){try{allProjects.push(JSON.parse(await p.text()));}catch(e2){console.warn('跳过损坏的项目文件',e2);}}
+    if(mf){try{const ms=JSON.parse(await mf.text());memoryData=(Array.isArray(ms)?ms[0]:ms)||null;}catch(e2){console.warn('memories.json 解析失败',e2);}}
+    document.getElementById('conv-total').textContent=allConvs.length;
+    renderConvList(getSortedConvs());
+    // hide tabs with no data
+    document.querySelector('.tab-btn[onclick*="projects"]').style.display=allProjects.length?'':'none';
+    document.querySelector('.tab-btn[onclick*="memory"]').style.display=memoryData?'':'none';
+    // build project<->conversation map
+    if(allProjects.length) buildConvProjectMap();
+    btn.textContent='✅ 已加载 '+allConvs.length+' 条对话';
+    const totalMsgs=allConvs.reduce((s,c)=>s+(Array.isArray(c.chat_messages)?c.chat_messages.length:0),0);
+    const dates=allConvs.map(c=>c.created_at).filter(Boolean).sort();
+    const span=dates.length?fmtDateOnly(dates[0])+' — '+fmtDateOnly(dates[dates.length-1]):'';
+    const sb=document.getElementById('stats-bar');
+    sb.style.display='';
+    sb.innerHTML='📊 <b>'+allConvs.length+'</b> 条对话 · <b>'+totalMsgs.toLocaleString()+'</b> 条消息'
+      +(allProjects.length?' · 📁 <b>'+allProjects.length+'</b> 个项目':'')
+      +(span?'<br>📅 '+esc(span):'');
+  }catch(err){btn.textContent='❌ 加载失败：'+err.message;console.error(err);}
+});
+
+function switchTab(tab,btn){
+  document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+  if(tab==='convs')renderConvList(getSortedConvs());
+  else if(tab==='projects')renderProjectList();
+  else renderMemoryTab();
+}
+function renderConvList(convs){
+  const el=document.getElementById('conv-list');
+  if(!convs.length){el.innerHTML='<div style="padding:20px;text-align:center;color:var(--text3)">暂无对话</div>';return;}
+  el.innerHTML=convs.map(c=>{
+    const ac=currentConv&&currentConv.uuid===c.uuid?' active':'';
+    return '<div class="conv-item'+ac+'" data-conv-uuid="'+c.uuid+'" role="button" tabindex="0">'
+      +'<div class="conv-title">'+esc(c.name||'(无标题)')+'</div>'
+      +'<div class="conv-meta"><span>'+fmtDate(c.updated_at)+'</span><span class="conv-count">'+(c.chat_messages||[]).length+'条</span></div></div>';
+  }).join('');
+  el.querySelectorAll('[data-conv-uuid]').forEach(item=>item.addEventListener('click',()=>openConv(item.dataset.convUuid)));
+}
+function renderProjectList(){
+  const el=document.getElementById('conv-list');
+  if(!allProjects.length){el.innerHTML='<div style="padding:20px;text-align:center;color:var(--text3)">暂无项目</div>';return;}
+  el.innerHTML=allProjects.map(p=>'<div class="proj-card" data-proj-uuid="'+p.uuid+'" role="button" tabindex="0">'
+    +'<div class="proj-card-name">'+esc(p.name||'无名称')+'</div>'
+    +'<div class="proj-card-desc">'+esc((p.description||'').slice(0,80)||'无描述')+'</div></div>').join('');
+  el.querySelectorAll('[data-proj-uuid]').forEach(item=>item.addEventListener('click',()=>openProject(item.dataset.projUuid)));
+}
+function renderMemoryTab(){
+  const el=document.getElementById('conv-list');
+  if(!memoryData){el.innerHTML='<div style="padding:20px;text-align:center;color:var(--text3)">暂无记忆</div>';return;}
+
+  // Section config for conversations_memory
+  const globalSections=[
+    {key:'Work context',icon:'💼',title:'工作背景'},
+    {key:'Personal context',icon:'🧑',title:'个人背景'},
+    {key:'Top of mind',icon:'🔥',title:'当前重点'},
+    {key:'Brief history',icon:'📅',title:'历史摘要'},
+  ];
+  // Section config for project memories
+  const projSections=[
+    {key:'Purpose & context',icon:'🎯',title:'目的与背景'},
+    {key:'Current state',icon:'📌',title:'当前状态'},
+    {key:'On the horizon',icon:'🔭',title:'未来规划'},
+    {key:'Key learnings & principles',icon:'💡',title:'关键经验'},
+    {key:'Approach & patterns',icon:'🔄',title:'工作方式'},
+    {key:'Tools & resources',icon:'🛠',title:'工具资源'},
+  ];
+
+  function parseSections(text,sectionDefs){
+    const result=[];
+    for(let i=0;i<sectionDefs.length;i++){
+      const {key,icon,title}=sectionDefs[i];
+      const startMarker='**'+key+'**';
+      const startIdx=text.indexOf(startMarker);
+      if(startIdx===-1)continue;
+      // find next section start
+      let endIdx=text.length;
+      for(let j=i+1;j<sectionDefs.length;j++){
+        const nextIdx=text.indexOf('**'+sectionDefs[j].key+'**');
+        if(nextIdx>startIdx){endIdx=nextIdx;break;}
+      }
+      // also check for --- dividers
+      const hrIdx=text.indexOf('\n---',startIdx);
+      if(hrIdx>startIdx&&hrIdx<endIdx)endIdx=hrIdx;
+      const content=text.slice(startIdx+startMarker.length,endIdx).trim();
+      result.push({icon,title,content,chars:content.length});
+    }
+    return result;
+  }
+
+  function memCard(icon,title,meta,content,open){
+    const bodyHtml=typeof marked!=='undefined'?marked.parse(content):esc(content);
+    const preview=content.replace(/[*_#\[\]]/g,'').replace(/\n+/g,' ').slice(0,90);
+    return '<div class="mem-card">'
+      +'<div class="mem-card-header'+(open?' open':'')+'" onclick="toggleMemCard(this)">'
+      +'<span class="mem-card-icon">'+icon+'</span>'
+      +'<div style="flex:1;min-width:0;">'
+      +'<div class="mem-card-title">'+esc(title)+'</div>'
+      +(open?'':'<div class="mem-preview">'+esc(preview)+'…</div>')
+      +'</div>'
+      +'<span class="mem-card-meta">'+esc(meta)+'</span>'
+      +'<span class="mem-card-chevron">'+ICON+'</span>'
+      +'</div>'
+      +'<div class="mem-card-body" style="display:'+(open?'block':'none')+'">'+bodyHtml+'</div>'
+      +'</div>';
+  }
+
+  let h='<div class="mem-page">';
+
+  // Global memory sections
+  if(memoryData.conversations_memory){
+    const secs=parseSections(memoryData.conversations_memory,globalSections);
+    h+='<div class="mem-section-label">🌐 全局对话记忆</div>';
+    if(secs.length){
+      secs.forEach((s,i)=>{ h+=memCard(s.icon,s.title,s.chars+'字',s.content,i===0); });
+    } else {
+      // fallback: show raw
+      h+=memCard('📝','全局记忆','',memoryData.conversations_memory,true);
+    }
+  }
+
+  // Project memories
+  const pm=memoryData.project_memories;
+  if(pm&&Object.keys(pm).length){
+    h+='<div class="mem-section-label">📁 项目级记忆 ('+Object.keys(pm).length+'个项目)</div>';
+    for(const[pid,mem] of Object.entries(pm)){
+      const proj=allProjects.find(p=>p.uuid===pid);
+      const projName=proj?proj.name:pid.slice(0,12)+'…';
+      const secs=parseSections(mem,projSections);
+      const totalChars=mem.length;
+      // project container card
+      h+='<div class="mem-card" style="margin-bottom:12px;">';
+      h+='<div class="mem-card-header" onclick="toggleMemCard(this)">'
+        +'<span class="mem-card-icon">📁</span>'
+        +'<div style="flex:1;min-width:0;">'
+        +'<div class="mem-card-title">'+esc(projName)+'</div>'
+        +'<div class="mem-preview">'+(secs.length?secs.map(s=>s.title).join(' · '):mem.replace(/[*_#]/g,'').slice(0,60))+'</div>'
+        +'</div>'
+        +'<span class="mem-card-meta">'+totalChars+'字</span>'
+        +'<span class="mem-card-chevron">'+ICON+'</span>'
+        +'</div>';
+      h+='<div class="mem-card-body" style="display:none;padding:0;">';
+      if(secs.length){
+        secs.forEach(s=>{
+          h+='<div style="border-top:1px solid var(--border);padding:10px 14px 2px;">'
+            +'<div style="font-size:11px;font-weight:700;color:var(--accent2);margin-bottom:6px;">'+s.icon+' '+esc(s.title)+'</div>'
+            +'<div style="font-size:12.5px;line-height:1.7;color:var(--text2);">'+(typeof marked!=='undefined'?marked.parse(s.content):esc(s.content))+'</div>'
+            +'</div>';
+        });
+      } else {
+        h+='<div style="padding:10px 14px;font-size:12.5px;line-height:1.7;color:var(--text2);">'+(typeof marked!=='undefined'?marked.parse(mem):esc(mem))+'</div>';
+      }
+      h+='</div></div>';
+    }
+  }
+
+  h+='</div>';
+  el.innerHTML=h;
+}
+function filterConvs(q){
+  clearTimeout(filterConvs._t);
+  filterConvs._t=setTimeout(()=>{
+    const lq=q.trim().toLowerCase();
+    if(!lq){renderConvList(getSortedConvs());return;}
+    const fullText=document.getElementById('search-fulltext')&&document.getElementById('search-fulltext').checked;
+    const f=allConvs.filter(c=>{
+      if((c.name||'').toLowerCase().includes(lq))return true;
+      if((c.summary||'').toLowerCase().includes(lq))return true;
+      if(fullText){
+        for(const m of(c.chat_messages||[])){
+          if((m.text||'').toLowerCase().includes(lq))return true;
+          for(const b of(m.content||[])){if(b.type==='text'&&(b.text||'').toLowerCase().includes(lq))return true;}
+        }
+      }
+      return false;
+    });
+    renderConvList(f);
+  },200);
+}
+
+let sortMode='updated';
+function getSortedConvs(){
+  const copy=[...allConvs];
+  if(sortMode==='created')     // 最早创建：升序，最老的在最上面
+    copy.sort((a,b)=>new Date(a.created_at)-new Date(b.created_at));
+  else if(sortMode==='msgs')   // 消息最多：降序
+    copy.sort((a,b)=>(b.chat_messages||[]).length-(a.chat_messages||[]).length);
+  else                         // 最近更新（默认）：降序
+    copy.sort((a,b)=>new Date(b.updated_at)-new Date(a.updated_at));
+  return copy;
+}
+function setSort(mode){
+  sortMode=mode;
+  document.querySelectorAll('.sort-btn').forEach(b=>b.classList.toggle('active',b.dataset.sort===mode));
+  renderConvList(getSortedConvs());
+}
+function toggleMemCard(header){
+  const body=header.nextElementSibling;
+  if(!body)return;
+  const open=body.style.display!=='none';
+  body.style.display=open?'none':'block';
+  header.classList.toggle('open',!open);
+  const preview=header.querySelector('.mem-preview');
+  if(preview)preview.style.display=open?'':'none';
+}
+
+function openConv(uuid){
+  currentConv=allConvs.find(c=>c.uuid===uuid);
+  if(!currentConv)return;
+  document.querySelectorAll('.conv-item').forEach(el=>el.classList.toggle('active',el.dataset.convUuid===uuid));
+  document.getElementById('chat-title').textContent=currentConv.name||'(无标题)';
+  document.getElementById('chat-title').style.color='';
+  const msgs=currentConv.chat_messages||[];
+  document.getElementById('chat-header-meta').textContent=fmtDate(currentConv.created_at)+' · '+msgs.length+'条消息';
+  renderMessages(msgs);
+  document.getElementById('export-btn').style.display='';
+  const st=document.getElementById('summary-text');
+  st.innerHTML=currentConv.summary?(typeof marked!=='undefined'?marked.parse(currentConv.summary):esc(currentConv.summary)):'<span style="color:var(--text3)">无摘要</span>';
+  document.getElementById('meta-box').innerHTML=metaRow('创建时间',fmtDate(currentConv.created_at))+metaRow('更新时间',fmtDate(currentConv.updated_at))+metaRow('消息数',msgs.length)+metaRow('UUID',currentConv.uuid.slice(0,18)+'…');
+}
+function metaRow(k,v){return '<div class="meta-row"><span class="meta-key">'+esc(String(k))+'</span><span class="meta-val">'+esc(String(v))+'</span></div>';}
+
+// Keyword extraction used as Layer 3 fallback in buildConvProjectMap
+function getProjectKeywords(p){
+  if(!memoryData||!memoryData.project_memories||!memoryData.project_memories[p.uuid])return[];
+  const mem=memoryData.project_memories[p.uuid];
+  const generic=new Set(['the','and','for','with','from','this','have','been','which','they','will','also','can','was','has','is','in','of','to','an','on','at','by','or','as','it','be','do','new','old','use','get','now','key','core','main','next','work','role','plot','style','tone','type','note','view','mode','case','plan','code','data','file','time','way','day','war','era','world','story','design','level','group','class','state','space','power','point','event','order','scene','phase','layer','agent','model','frame','part','side','unit','step','flow','task','name','text','path','city','ship','army','force','trade','race','land','area','zone','team','lead','head','body','mind','soul','heart','past','future','history','nature','culture','structure','narrative','development','architecture','identity','literary','emotional','historical']);
+  const skipRe=/^(Purpose|Current state|On the horizon|Key learnings|Approach|Tools|Work|Personal|Top|Brief|On the|For|AAD narr|Publishing|Next arc|On craft|The |A |An )/;
+  const words=new Set();
+  const bold=mem.match(/\*\*([^*]+)\*\*/g)||[];
+  for(const raw of bold){
+    const term=raw.replace(/\*\*/g,'').trim();
+    if(skipRe.test(term))continue;
+    const parts=term.replace(/[()（）：:,，、\/\s]+/g,' ').trim().split(' ').filter(Boolean);
+    for(const part of parts){
+      const clean=part.replace(/[^\w\u4e00-\u9fff]/g,'');
+      if(clean.length<2||clean.length>20)continue;
+      const lc=clean.toLowerCase();
+      if(generic.has(lc)||/^[a-z]{1,4}$/.test(lc)||/^\d+$/.test(lc))continue;
+      words.add(lc);
+    }
+  }
+  return[...words];
+}
+
+// Build conversation->project map once after data loads
+let convProjectMap = {};  // uuid -> project uuid
+
+function buildConvProjectMap(){
+  convProjectMap = {};
+
+  // ── Layer 1: exact match via /mnt/project/<filename> in tool_results ──
+  const docToProj = {};
+  for (const p of allProjects){
+    for (const d of (p.docs||[])){
+      if(d.filename) docToProj[d.filename.toLowerCase()] = p.uuid;
+    }
+  }
+
+  for (const c of allConvs){
+    if(convProjectMap[c.uuid]) continue;
+    for (const m of (c.chat_messages||[])){
+      for (const b of (m.content||[])){
+        if(!b) continue;
+        // tool_result text content
+        if(b.type==='tool_result'){
+          for(const bc of (b.content||[])){
+            if(!bc||bc.type!=='text') continue;
+            const refs=(bc.text||'').match(/\/mnt\/project\/([^\n\t ]+)/g)||[];
+            for(const ref of refs){
+              const fname=ref.replace('/mnt/project/','').toLowerCase().replace(/[?#].*/,'');
+              if(docToProj[fname]){convProjectMap[c.uuid]=docToProj[fname];break;}
+            }
+            if(convProjectMap[c.uuid]) break;
+          }
+        }
+        // local_resource
+        if(!convProjectMap[c.uuid]&&b.type==='local_resource'){
+          const fname=(b.file_path||'').replace('/mnt/project/','').toLowerCase();
+          if(docToProj[fname]) convProjectMap[c.uuid]=docToProj[fname];
+        }
+        if(convProjectMap[c.uuid]) break;
+      }
+      if(convProjectMap[c.uuid]) break;
+    }
+  }
+
+  // ── Layer 2: project_knowledge_search query matches project doc content ──
+  // Build per-project searchable text from doc filenames + content snippets
+  const projDocText = {};
+  for(const p of allProjects){
+    const parts=[];
+    for(const d of (p.docs||[])){
+      if(d.filename) parts.push(d.filename.toLowerCase());
+      if(d.content) parts.push(d.content.slice(0,2000).toLowerCase());
+    }
+    projDocText[p.uuid]=parts.join(' ');
+  }
+
+  for(const c of allConvs){
+    if(convProjectMap[c.uuid]) continue;
+    // collect all PKS queries for this conv
+    const queries=[];
+    for(const m of (c.chat_messages||[])){
+      for(const b of (m.content||[])){
+        if(b&&b.type==='tool_use'&&b.name==='project_knowledge_search'&&b.input&&b.input.query){
+          queries.push(b.input.query.toLowerCase());
+        }
+      }
+    }
+    if(!queries.length) continue;
+
+    // Score each project
+    const scores={};
+    for(const p of allProjects){
+      const docText=projDocText[p.uuid]||'';
+      let score=0;
+      for(const q of queries){
+        // split query into tokens, count how many appear in project docs
+        const tokens=q.split(/\s+/).filter(t=>t.length>=2);
+        for(const tok of tokens){
+          if(docText.includes(tok)) score++;
+        }
+      }
+      if(score>0) scores[p.uuid]=score;
+    }
+    if(Object.keys(scores).length){
+      const best=Object.entries(scores).sort((a,b)=>b[1]-a[1])[0];
+      if(best[1]>=2) convProjectMap[c.uuid]=best[0];
+    }
+  }
+
+  // ── Layer 3: keyword matching (fallback for remaining) ──
+  for(const c of allConvs){
+    if(convProjectMap[c.uuid]) continue;
+    let bestProj=null, bestScore=0;
+    for(const p of allProjects){
+      const kws=getProjectKeywords(p);
+      if(!kws.length) continue;
+      const text=((c.name||'')+' '+(c.summary||'')).toLowerCase();
+      let hits=0;
+      for(const kw of kws){ if(text.includes(kw)) hits++; }
+      if(hits>bestScore){bestScore=hits;bestProj=p.uuid;}
+    }
+    if(bestScore>=3) convProjectMap[c.uuid]=bestProj;
+  }
+}
+
+function findProjectConvs(p){
+  return allConvs.filter(c=>convProjectMap[c.uuid]===p.uuid);
+}
+
+function openProject(uuid){
+  const p=allProjects.find(x=>x.uuid===uuid);if(!p)return;
+  // Highlight active in sidebar
+  document.querySelectorAll('.proj-card').forEach(el=>el.classList.toggle('active',el.dataset.projUuid===uuid));
+  document.getElementById('chat-title').textContent='📁 '+(p.name||'项目');
+  document.getElementById('chat-title').style.color='';
+
+  const relatedConvs=findProjectConvs(p);
+  document.getElementById('chat-header-meta').textContent=(p.docs||[]).length+'个文档 · '+relatedConvs.length+'条关联对话';
+
+  const el=document.getElementById('messages');
+  let h='<div style="max-width:860px;margin:0 auto;padding:24px;">';
+
+  // Description
+  if(p.description){
+    h+='<div style="background:var(--bg3);border:1px solid var(--border);border-radius:10px;padding:14px 18px;margin-bottom:20px;font-size:14px;color:var(--text2);line-height:1.6;">'+esc(p.description)+'</div>';
+  }
+
+  // Docs section
+  if((p.docs||[]).length){
+    h+='<div style="font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.08em;margin-bottom:10px;">📄 项目文档</div>';
+    for(const doc of p.docs){
+      const id='doc_'+doc.uuid;
+      h+='<div style="border:1px solid var(--border);border-radius:10px;margin-bottom:10px;overflow:hidden;">'
+        +'<div style="padding:10px 16px;background:var(--bg3);cursor:pointer;display:flex;align-items:center;justify-content:space-between;" onclick="toggleDoc(this)">'
+        +'<span style="font-size:13px;font-weight:600;">📄 '+esc(doc.filename||'未命名')+'</span>'
+        +'<span style="font-size:11px;color:var(--text3);">'+((doc.content||'').length)+'字 '+ICON+'</span>'
+        +'</div>'
+        +'<div id="'+id+'" style="display:none;padding:16px 18px;font-size:13.5px;line-height:1.7;color:var(--text);">'
+        +(doc.content?(typeof marked!=='undefined'?marked.parse(doc.content):esc(doc.content)):'<span style="color:var(--text3)">无内容</span>')
+        +'</div></div>';
+    }
+    h+='<div style="margin-bottom:24px;"></div>';
+  }
+
+  // Related conversations section
+  h+='<div style="font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.08em;margin-bottom:8px;">💬 关联对话 ('+relatedConvs.length+')</div>';
+  h+='<div style="font-size:11.5px;color:var(--text3);background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:8px 12px;margin-bottom:12px;line-height:1.6;">'
+    +'⚠️ <b style="color:var(--text2);">局限性说明</b>：Claude 官方导出文件中不包含对话与项目的归属关系。'
+    +'本查看器通过以下三种方式推断：① 工具调用中的项目文件路径（精确）；② 知识搜索查询词与项目文档的匹配（较准确）；③ 项目记忆关键词匹配（模糊）。'
+    +'<b style="color:var(--text2);">结果仅供参考</b>，可能存在遗漏或误判。'
+    +'</div>';
+  if(relatedConvs.length){
+    h+=relatedConvs.map(c=>'<div class="conv-item" data-conv-uuid="'+c.uuid+'" role="button" tabindex="0" style="border:1px solid var(--border);border-radius:10px;margin-bottom:6px;padding:10px 14px;cursor:pointer;">'
+      +'<div class="conv-title">'+esc(c.name||'(无标题)')+'</div>'
+      +'<div class="conv-meta"><span>'+fmtDate(c.updated_at)+'</span><span class="conv-count">'+(c.chat_messages||[]).length+'条</span></div>'
+      +'</div>').join('');
+  } else {
+    h+='<div style="color:var(--text3);font-size:13px;padding:12px 0;">未能从对话名称/摘要中自动识别关联对话</div>';
+  }
+  h+='</div>';
+
+  el.innerHTML=h;
+  el.querySelectorAll('[data-conv-uuid]').forEach(item=>item.addEventListener('click',()=>openConvAndSwitch(item.dataset.convUuid)));
+  el.querySelectorAll('pre code').forEach(b=>{try{hljs.highlightElement(b);}catch(e){}});
+  el.scrollTop=0;
+}
+
+function toggleDoc(header){
+  const body=header.nextElementSibling;
+  if(!body)return;
+  const open=body.style.display!=='none';
+  body.style.display=open?'none':'block';
+  const chevron=header.querySelector('span:last-child');
+  if(chevron)chevron.style.transform=open?'':'rotate(90deg)';
+  if(!open)body.querySelectorAll('pre code').forEach(b=>{try{hljs.highlightElement(b);}catch(e){}});
+}
+
+function openConvAndSwitch(uuid){
+  // Switch sidebar to conversations tab and open the conversation
+  const convTab=document.querySelectorAll('.tab-btn')[0];
+  document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));
+  if(convTab)convTab.classList.add('active');
+  renderConvList(getSortedConvs());
+  openConv(uuid);
+  setTimeout(()=>{
+    const active=document.querySelector('.conv-item.active');
+    if(active)active.scrollIntoView({block:'nearest'});
+  },50);
+}
+function toggleSummary(){
+  summaryVisible=!summaryVisible;
+  document.getElementById('summary').classList.toggle('hidden',!summaryVisible);
+  document.getElementById('toggle-summary').textContent=summaryVisible?'摘要 ◀':'摘要 ▶';
+}
+
+function renderMessages(msgs){
+  const container=document.getElementById('messages');
+  if(!msgs.length){container.innerHTML='<div style="display:flex;align-items:center;justify-content:center;height:100%;color:var(--text3)">此对话无消息</div>';return;}
+  const byParent={};
+  for(const m of msgs){const p=m.parent_message_uuid||'root';if(!byParent[p])byParent[p]=[];byParent[p].push(m);}
+  const root='00000000-0000-4000-8000-000000000000';
+  // Build longest path from root: at each branch, prefer the child that leads to the longest sub-path
+  // This ensures we don't get cut short by an empty/stub message at a branch point
+  function longestFrom(uuid){
+    const children=byParent[uuid];
+    if(!children||!children.length)return[];
+    // score each child by sub-path length; prefer content-bearing messages on ties
+    let best=null,bestLen=-1;
+    for(const child of children){
+      const sub=longestFrom(child.uuid);
+      const len=1+sub.length;
+      const hasContent=(child.content||[]).some(b=>b&&b.type==='text'&&b.text)||!!child.text;
+      // prefer longer path; on equal length prefer path with content
+      if(len>bestLen||(len===bestLen&&hasContent&&best&&!(best.content||[]).some(b=>b&&b.type==='text'&&b.text))){
+        best=child;bestLen=len;
+        best._sub=sub;
+      }
+    }
+    return best?[best,...(best._sub||[])]:[];
+  }
+  let linear=longestFrom(root);
+  if(!linear.length)linear=msgs;
+  let h='',lastDate='';
+  for(const msg of linear){
+    if(!msg||typeof msg!=='object')continue;
+    const d=fmtDateOnly(msg.created_at);
+    if(d!==lastDate){h+='<div class="date-divider"><span>'+esc(d)+'</span></div>';lastDate=d;}
+    try{h+=renderMsg(msg);}
+    catch(e){h+='<div style="padding:8px 16px;color:var(--text3);font-size:12px;">⚠️ 此消息渲染出错</div>';console.warn('renderMsg error',e);}
+  }
+  container.innerHTML=h;
+  container.querySelectorAll('pre code').forEach(el=>{try{hljs.highlightElement(el);}catch(e){}});
+  container.querySelectorAll('.collapsible-header').forEach(el=>el.addEventListener('click',function(){
+    const body=this.nextElementSibling;
+    const open=body.style.display!=='none';
+    body.style.display=open?'none':'';
+    this.classList.toggle('open',!open);
+  }));
+  // scroll to bottom
+  setTimeout(()=>container.scrollTop=container.scrollHeight,50);
+}
+function renderMsg(msg){
+  const role=msg.sender||'human';
+  const time=fmtTime(msg.created_at);
+  const content=msg.content||[];
+  // Collect attachments: both structured attachment objects and raw file objects
+  const atts=[...(msg.attachments||[]),...(msg.files||[])];
+  let inner='';
+  for(const att of atts){
+    const name=att.file_name||att.filename||att.name||'';
+    const type=att.file_type||att.media_type||'';
+    const label=name||type||(att.file_uuid?'文件 ('+att.file_uuid.slice(0,8)+'…)':'附件');
+    inner+='<div class="attachment-block"><span class="file-icon">📎</span>'+esc(label)+'</div>';
+  }
+  for(const block of content)inner+=renderBlock(block);
+  // Top-level msg.text fallback (older export format)
+  if(!inner.trim()&&msg.text)inner='<div>'+renderMd(msg.text)+'</div>';
+  // If still nothing visible, show a subtle placeholder so the bubble isn't invisible
+  if(!inner.trim())inner='<span style="color:var(--text3);font-size:12px;font-style:italic;">(空消息)</span>';
+  const avatarLabel=role==='human'?'你':'✦';
+  const nameLabel=role==='human'?'你':'Claude';
+  return '<div class="msg-wrap '+role+'">'
+    +'<div class="msg-avatar">'+avatarLabel+'</div>'
+    +'<div class="msg-body">'
+    +'<div class="msg-meta"><span class="msg-name">'+nameLabel+'</span><span>'+time+'</span></div>'
+    +'<div class="msg-content">'+inner+'</div>'
+    +'</div></div>';
+}
+
+function renderBlock(block){
+  if(!block||typeof block!=='object')return '';
+  const t=block.type||'unknown';
+  if(t==='text')return '<div>'+renderMd(block.text||'')+'</div>';
+  if(t==='thinking'){
+    return '<div class="think-block"><div class="collapsible-header think-header">'+ICON+' <span>💭 思考过程</span></div><div class="think-body" style="display:none">'+esc(block.thinking||'')+'</div></div>';
+  }
+  if(t==='tool_use'){
+    const nm=block.name||'工具';
+    const intg=block.integration_name||'';
+    const msg=block.message||'';
+    const inp=block.input?JSON.stringify(block.input,null,2):'';
+    return '<div class="tool-block"><div class="collapsible-header tool-header">'+ICON+'<span class="tool-name">⚙ '+esc(nm)+'</span>'
+      +(intg?'<span class="tool-sub">('+esc(intg)+')</span>':'')
+      +'<span class="tool-msg">'+esc(msg)+'</span></div>'
+      +'<div class="tool-body" style="display:none"><pre><code class="language-json">'+esc(inp)+'</code></pre></div></div>';
+  }
+  if(t==='tool_result'){
+    const nm=block.name||'结果';
+    const isErr=block.is_error;
+    const content=block.content||[];
+    let body='';
+    for(const c of content){
+      if(c.type==='text')body+='<div style="white-space:pre-wrap;word-break:break-word;">'+esc(c.text||'')+'</div>';
+      else if(c.type==='image')body+='<div class="img-placeholder">🖼 图片 ('+esc(c.file_uuid||'')+')</div>';
+      else if(c.type==='knowledge')body+='<div class="attachment-block">📚 <a href="'+esc(c.url||'')+'" target="_blank" style="color:var(--blue);text-decoration:none;">'+esc(c.title||'知识引用')+'</a></div>';
+      else if(c.type==='local_resource')body+='<div class="attachment-block"><span class="file-icon">📄</span>'+esc(c.name||c.file_path||'文件')+' <span style="color:var(--text3);font-size:11px;">('+esc(c.mime_type||'')+')</span></div>';
+      else body+='<div style="color:var(--text3)">['+esc(c.type)+']</div>';
+    }
+    if(!body&&block.structured_content)body='<pre><code>'+esc(JSON.stringify(block.structured_content,null,2))+'</code></pre>';
+    const label=(isErr?'❌ ':'✅ ')+esc(nm);
+    return '<div class="tool-result-block"><div class="collapsible-header tool-result-header">'+ICON+'<span class="tool-result-label">'+label+'</span></div>'
+      +'<div class="tool-result-body" style="display:none">'+(body||'<span style="color:var(--text3)">无内容</span>')+'</div></div>';
+  }
+  if(t==='image'){
+    return '<div class="img-placeholder">🖼 图片 ('+esc(block.file_uuid||'')+')</div>';
+  }
+  if(t==='rich_content'||t==='rich_link'||t==='webpage_metadata'){
+    const url=block.url||(block.metadata&&block.metadata.url)||'';
+    const title=block.title||(block.metadata&&block.metadata.title)||t;
+    return '<div class="attachment-block">🔗 <a href="'+esc(url)+'" target="_blank" style="color:var(--blue);text-decoration:none;">'+esc(title)+'</a></div>';
+  }
+  if(t==='web_search_citation')return '<div class="attachment-block" style="font-size:11px;color:var(--text3)">🔍 '+esc(block.title||block.url||'搜索引用')+'</div>';
+  if(t==='knowledge')return '<div class="attachment-block">📚 <a href="'+esc(block.url||'')+'" target="_blank" style="color:var(--blue);text-decoration:none;">'+esc(block.title||'知识引用')+'</a></div>';
+  if(t==='local_resource')return '<div class="attachment-block"><span class="file-icon">📄</span>'+esc(block.name||block.file_path||'文件')+'</div>';
+  return '<div style="font-size:11px;color:var(--text3);padding:4px 0">['+esc(t)+']</div>';
+}
+
+function exportConv(){
+  if(!currentConv)return;
+  // Build linear thread (same logic as renderMessages)
+  const msgs=currentConv.chat_messages||[];
+  const byParent={};
+  for(const m of msgs){const p=m.parent_message_uuid||'root';if(!byParent[p])byParent[p]=[];byParent[p].push(m);}
+  const root='00000000-0000-4000-8000-000000000000';
+  // Build longest path from root: at each branch, prefer the child that leads to the longest sub-path
+  // This ensures we don't get cut short by an empty/stub message at a branch point
+  function longestFrom(uuid){
+    const children=byParent[uuid];
+    if(!children||!children.length)return[];
+    // score each child by sub-path length; prefer content-bearing messages on ties
+    let best=null,bestLen=-1;
+    for(const child of children){
+      const sub=longestFrom(child.uuid);
+      const len=1+sub.length;
+      const hasContent=(child.content||[]).some(b=>b&&b.type==='text'&&b.text)||!!child.text;
+      // prefer longer path; on equal length prefer path with content
+      if(len>bestLen||(len===bestLen&&hasContent&&best&&!(best.content||[]).some(b=>b&&b.type==='text'&&b.text))){
+        best=child;bestLen=len;
+        best._sub=sub;
+      }
+    }
+    return best?[best,...(best._sub||[])]:[];
+  }
+  let linear=longestFrom(root);
+  if(!linear.length)linear=msgs;
+
+  let md='# '+((currentConv.name||'对话').replace(/[<>]/g,''))+'\n\n';
+  md+='> 创建：'+fmtDate(currentConv.created_at)+'　更新：'+fmtDate(currentConv.updated_at)+'　共 '+linear.length+' 条消息\n\n';
+  if(currentConv.summary)md+='## 摘要\n\n'+currentConv.summary+'\n\n---\n\n';
+  md+='## 对话内容\n\n';
+
+  for(const msg of linear){
+    const role=msg.sender==='human'?'**你**':'**Claude**';
+    md+=role+' · '+fmtTime(msg.created_at)+'\n\n';
+    // Attachments
+    for(const att of[...(msg.attachments||[]),...(msg.files||[])]){
+      md+='> 📎 附件：'+(att.file_name||att.name||'文件')+'\n\n';
+    }
+    // Content blocks
+    const content=msg.content||[];
+    let hasContent=false;
+    for(const b of content){
+      if(!b||typeof b!=='object')continue;
+      if(b.type==='text'){md+=(b.text||'')+'\n\n';hasContent=true;}
+      else if(b.type==='thinking'){md+='<details>\n<summary>💭 思考过程</summary>\n\n'+(b.thinking||'')+'\n\n</details>\n\n';hasContent=true;}
+      else if(b.type==='tool_use'){md+='> ⚙ 工具调用：`'+(b.name||'unknown')+'`'+(b.message?' — '+b.message:'')+'\n\n';hasContent=true;}
+      else if(b.type==='tool_result'){md+='> ✅ 工具结果：`'+(b.name||'')+'`\n\n';hasContent=true;}
+    }
+    if(!hasContent&&msg.text)md+=msg.text+'\n\n';
+    md+='---\n\n';
+  }
+
+  const blob=new Blob([md],{type:'text/markdown;charset=utf-8'});
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(blob);
+  a.download=(currentConv.name||'conversation').replace(/[\\/:*?"<>|]/g,'_').slice(0,80)+'.md';
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+
+function renderMd(text){
+  if(!text)return '';
+  try{return typeof marked!=='undefined'?marked.parse(text):esc(text).replace(/\n/g,'<br>');}
+  catch(e){return esc(text).replace(/\n/g,'<br>');}
+}
+function esc(s){
+  const d=document.createElement('div');
+  d.appendChild(document.createTextNode(String(s)));
+  return d.innerHTML;
+}
+function fmtDate(iso){
+  if(!iso)return '';
+  try{return new Date(iso).toLocaleDateString('zh-CN',{year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'});}
+  catch(e){return iso;}
+}
+function fmtDateOnly(iso){
+  if(!iso)return '';
+  try{return new Date(iso).toLocaleDateString('zh-CN',{year:'numeric',month:'long',day:'numeric'});}
+  catch(e){return iso;}
+}
+function fmtTime(iso){
+  if(!iso)return '';
+  try{return new Date(iso).toLocaleTimeString('zh-CN',{hour:'2-digit',minute:'2-digit'});}
+  catch(e){return '';}
+}
+if(typeof marked!=='undefined'){
+  marked.setOptions({breaks:true,gfm:true});
+  const renderer=new marked.Renderer();
+  renderer.code=function(code,lang){
+    // marked v5+ passes a token object {text,lang,escaped}; older versions pass (code,lang) directly
+    let rawCode, l;
+    if(code&&typeof code==='object'){
+      rawCode=code.text||'';
+      l=(code.lang||lang||'').trim();
+    } else {
+      rawCode=String(code||'');
+      l=(lang||'').trim();
+    }
+    const safeCode=rawCode.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    const id='cb_'+Math.random().toString(36).slice(2);
+    const highlighted=typeof hljs!=='undefined'&&l&&hljs.getLanguage(l)
+      ?hljs.highlight(safeCode,{language:l}).value
+      :safeCode;
+    return '<div class="code-block">'
+      +'<div class="code-block-header">'
+      +'<span class="code-lang">'+l+'</span>'
+      +'<button class="copy-btn" onclick="copyCode(this,\''+id+'\')">复制</button>'
+      +'</div>'
+      +'<pre><code id="'+id+'" class="'+(l?'language-'+l:'')+'">'+highlighted+'</code></pre>'
+      +'</div>';
+  };
+  marked.setOptions({renderer});
+}
+
+function copyCode(btn,id){
+  const el=document.getElementById(id);
+  if(!el)return;
+  navigator.clipboard.writeText(el.innerText).then(()=>{
+    btn.textContent='✓ 已复制';btn.classList.add('copied');
+    setTimeout(()=>{btn.textContent='复制';btn.classList.remove('copied');},2000);
+  });
+}
+
+function toggleTheme(){
+  const isDark=document.documentElement.getAttribute('data-theme')==='dark';
+  const newTheme=isDark?'light':'dark';
+  applyTheme(newTheme);
+  localStorage.setItem('cv-theme',newTheme);
+}
+function applyTheme(theme){
+  const dark=theme==='dark';
+  document.documentElement.setAttribute('data-theme',dark?'dark':'');
+  document.getElementById('theme-btn').textContent=dark?'☀️':'🌙';
+  document.getElementById('hljs-theme').href='https://cdn.jsdelivr.net/npm/highlight.js@11.9.0/styles/'+(dark?'github-dark':'github')+'.min.css';
+}
+// Init: load saved preference, default = light
+(function(){
+  const saved=localStorage.getItem('cv-theme')||'light';
+  applyTheme(saved);
+  // Keyboard navigation: j/k or ↑↓ to move between conversations (convs tab only)
+  document.addEventListener('keydown',e=>{
+    if(['INPUT','TEXTAREA'].includes(document.activeElement.tagName))return;
+    const onConvsTab=document.querySelectorAll('#conv-list [data-conv-uuid]').length>0;
+    if(e.key==='ArrowDown'||e.key==='j'){if(onConvsTab){e.preventDefault();navigateConv(1);}}
+    else if(e.key==='ArrowUp'||e.key==='k'){if(onConvsTab){e.preventDefault();navigateConv(-1);}}
+    else if((e.ctrlKey||e.metaKey)&&e.key==='e'){e.preventDefault();exportConv();}
+  });
+})();
+
+function navigateConv(dir){
+  const items=[...document.querySelectorAll('#conv-list [data-conv-uuid]')];
+  if(!items.length)return;
+  const curIdx=items.findIndex(el=>el.classList.contains('active'));
+  const nextIdx=Math.max(0,Math.min(items.length-1,(curIdx<0?(dir>0?0:items.length-1):curIdx)+dir));
+  const target=items[nextIdx];
+  if(target&&target.dataset.convUuid!==currentConv?.uuid){target.click();target.scrollIntoView({block:'nearest'});}
+}
+</script>
+</body>
+</html>
