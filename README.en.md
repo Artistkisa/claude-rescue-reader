@@ -1,3 +1,5 @@
+[中文](README.md) | [English](README.en.md)
+
 # Claude Export History Viewer
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
