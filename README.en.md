@@ -99,7 +99,9 @@ claude-export/
 ### Step 2: Open the Viewer
 
 1. Download [`viewer.html`](viewer.html) and open it directly in a browser (Chrome / Edge / Firefox recommended)
-2. Click **"📂 Select Export Folder"** and choose the unzipped folder
+2. Load your data either way:
+   - Click **"🗜️ Select ZIP Archive"** and pick the ZIP from the email (**no unzipping needed**)
+   - Or click **"📂 Select Export Folder"** and choose the manually unzipped folder
 3. Wait for loading to complete (a few seconds for large files; ~3–5s for 150MB)
 
 > **Note:** An internet connection is required to load rendering dependencies (from jsDelivr CDN). For offline use, see [Offline Mode](#offline-mode) below.
@@ -147,6 +149,7 @@ To use without an internet connection, place these files in the same directory a
 ```
 marked.min.js          ← https://cdn.jsdelivr.net/npm/marked/marked.min.js
 highlight.min.js       ← https://cdn.jsdelivr.net/npm/highlight.js@11.9.0/lib/highlight.min.js
+jszip.min.js           ← https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js
 github.min.css         ← https://cdn.jsdelivr.net/npm/highlight.js@11.9.0/styles/github.min.css
 github-dark.min.css    ← https://cdn.jsdelivr.net/npm/highlight.js@11.9.0/styles/github-dark.min.css
 ```
@@ -183,8 +186,14 @@ This tool parses the Claude export format (as of 2026):
 - Pure vanilla HTML + CSS + JavaScript — no build step, no framework dependencies
 - [marked.js](https://marked.js.org/) — Markdown rendering
 - [highlight.js](https://highlightjs.org/) — Code syntax highlighting
+- [JSZip](https://stuk.github.io/jszip/) — Direct ZIP archive loading (no unzipping)
 
 ## Changelog
+
+**v1.2**
+- New: Load the official ZIP archive directly, no manual unzipping (`conversations.json` / `memories.json` / `projects/*.json` extracted in parallel)
+  - Handles ZIPs with a top-level wrapper folder and macOS `__MACOSX` entries
+  - Clear error with fallback guidance when the JSZip CDN fails to load — no silent failure
 
 **v1.1** *(2026-07-17)*
 - **Fix: Wrong message count** (e.g. showing 3 messages when there are actually 7)
