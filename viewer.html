@@ -6,6 +6,7 @@
 <title>Claude Export History Viewer</title>
 <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/highlight.js@11.9.0/lib/highlight.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
 <link id="hljs-theme" rel="stylesheet" href="https://cdn.jsdelivr.net/npm/highlight.js@11.9.0/styles/github.min.css">
 <style>
 /* ── Light theme (default, Claude-style) ── */
@@ -50,6 +51,8 @@ body { background: var(--bg); color: var(--text); font-family: -apple-system,Bli
 #sidebar-header h1 span { background: var(--accent); color: #fff; font-size: 10px; padding: 2px 6px; border-radius: 10px; }
 #load-btn { width: 100%; margin-top: 10px; padding: 8px; background: var(--accent); color: #fff; border: none; border-radius: var(--radius-sm); cursor: pointer; font-size: 13px; font-weight: 500; transition: background .2s; }
 #load-btn:hover { background: var(--accent2); }
+#load-zip-btn { width: 100%; margin-top: 6px; padding: 7px; background: var(--bg3); color: var(--text2); border: 1px solid var(--border); border-radius: var(--radius-sm); cursor: pointer; font-size: 12.5px; transition: all .2s; }
+#load-zip-btn:hover { border-color: var(--accent); color: var(--text); }
 #search-box { width: 100%; margin-top: 8px; padding: 7px 10px; background: var(--bg3); border: 1px solid var(--border); border-radius: var(--radius-sm); color: var(--text); font-size: 13px; }
 #search-box::placeholder { color: var(--text3); }
 #search-box:focus { outline: none; border-color: var(--accent); }
@@ -245,6 +248,8 @@ input[type=file] { display: none; }
     <h1>💬 Claude Export <span id="conv-total">0</span></h1>
     <button id="load-btn" onclick="document.getElementById('file-input').click()">📂 选择导出文件夹</button>
     <input type="file" id="file-input" webkitdirectory multiple accept=".json">
+    <button id="load-zip-btn" onclick="document.getElementById('zip-input').click()">🗜️ 直接选择 ZIP 压缩包（免解压）</button>
+    <input type="file" id="zip-input" accept=".zip,application/zip" style="display:none;">
     <div id="stats-bar" style="display:none;margin-top:8px;padding:8px 10px;background:var(--bg3);border-radius:8px;font-size:11.5px;color:var(--text3);line-height:1.8;"></div>
     <input type="text" id="search-box" placeholder="搜索对话…" oninput="filterConvs(this.value)">
     <div style="display:flex;align-items:center;gap:6px;margin-top:6px;">
@@ -311,7 +316,7 @@ input[type=file] { display: none; }
         <div style="margin-top:12px;padding-top:12px;border-top:1px solid var(--border);font-size:12px;color:var(--text3);line-height:1.7;">
           <b style="color:var(--text2);">如何导出？</b><br>
           claude.ai → Settings → Account → <b style="color:var(--text2);">Export Data</b><br>
-          下载 ZIP 后解压，选择解压后的整个文件夹
+          下载 ZIP 后可直接选择 ZIP 加载（免解压），或解压后选择整个文件夹
         </div>
       </div>
     </div>
@@ -335,17 +340,52 @@ document.getElementById('file-input').addEventListener('change',async e=>{
   const files=[...e.target.files];
   const btn=document.getElementById('load-btn');
   btn.innerHTML='<span class="spinner"></span> 解析中，请稍候…';
-  // yield to browser to render spinner before blocking JSON.parse
-  await new Promise(r=>setTimeout(r,30));
   try{
     const cf=files.find(f=>f.name==='conversations.json');
     const pf=files.filter(f=>f.webkitRelativePath.includes('/projects/')&&f.name.endsWith('.json'));
     const mf=files.find(f=>f.name==='memories.json');
     if(!cf){btn.textContent='⚠️ 未找到 conversations.json';return;}
-    allConvs=JSON.parse(await cf.text());
+    await ingestData(await cf.text(),await Promise.all(pf.map(p=>p.text())),mf?await mf.text():null,btn);
+  }catch(err){btn.textContent='❌ 加载失败：'+err.message;console.error(err);}
+});
+
+// ZIP 直读：免去手动解压一步（封号抢救场景下少一个操作环节）
+document.getElementById('zip-input').addEventListener('change',async e=>{
+  const file=e.target.files[0];
+  e.target.value=''; // allow re-selecting the same file
+  if(!file)return;
+  const btn=document.getElementById('load-zip-btn');
+  if(typeof JSZip==='undefined'){btn.textContent='⚠️ ZIP 解析库未加载，请联网刷新，或手动解压后选文件夹';return;}
+  btn.innerHTML='<span class="spinner"></span> 解压中，请稍候…';
+  // yield to browser to render spinner before blocking ZIP parsing
+  await new Promise(r=>setTimeout(r,30));
+  try{
+    const zip=await JSZip.loadAsync(file);
+    // 官方 ZIP 可能多一层顶层目录，且 macOS 压缩会带 __MACOSX 垃圾条目，统一按路径后缀匹配
+    const entries=Object.keys(zip.files).filter(n=>!n.startsWith('__MACOSX/')&&!zip.files[n].dir);
+    const convName=entries.find(n=>/(^|\/)conversations\.json$/i.test(n));
+    const projNames=entries.filter(n=>/(^|\/)projects\/[^/]+\.json$/i.test(n));
+    const memName=entries.find(n=>/(^|\/)memories\.json$/i.test(n));
+    if(!convName){btn.textContent='⚠️ ZIP 中未找到 conversations.json';return;}
+    // 并行解压，避免大文件串行等待
+    const [convText,memText]=await Promise.all([
+      zip.files[convName].async('text'),
+      memName?zip.files[memName].async('text'):Promise.resolve(null)
+    ]);
+    const projTexts=await Promise.all(projNames.map(n=>zip.files[n].async('text')));
+    await ingestData(convText,projTexts,memText,btn);
+  }catch(err){btn.textContent='❌ ZIP 加载失败：'+err.message;console.error(err);}
+});
+
+// 共用的解析 + 渲染流程（文件夹与 ZIP 两条入口复用）
+async function ingestData(convText,projTexts,memText,btn){
+  // yield to browser to render spinner before blocking JSON.parse
+  await new Promise(r=>setTimeout(r,30));
+  try{
+    allConvs=JSON.parse(convText);
     if(!Array.isArray(allConvs))throw new Error('conversations.json 格式不正确');
-    for(const p of pf){try{allProjects.push(JSON.parse(await p.text()));}catch(e2){console.warn('跳过损坏的项目文件',e2);}}
-    if(mf){try{const ms=JSON.parse(await mf.text());memoryData=(Array.isArray(ms)?ms[0]:ms)||null;}catch(e2){console.warn('memories.json 解析失败',e2);}}
+    for(const t of projTexts){try{allProjects.push(JSON.parse(t));}catch(e2){console.warn('跳过损坏的项目文件',e2);}}
+    if(memText){try{const ms=JSON.parse(memText);memoryData=(Array.isArray(ms)?ms[0]:ms)||null;}catch(e2){console.warn('memories.json 解析失败',e2);}}
     document.getElementById('conv-total').textContent=allConvs.length;
     renderConvList(getSortedConvs());
     // hide tabs with no data
@@ -363,7 +403,7 @@ document.getElementById('file-input').addEventListener('change',async e=>{
       +(allProjects.length?' · 📁 <b>'+allProjects.length+'</b> 个项目':'')
       +(span?'<br>📅 '+esc(span):'');
   }catch(err){btn.textContent='❌ 加载失败：'+err.message;console.error(err);}
-});
+}
 
 function switchTab(tab,btn){
   document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));
