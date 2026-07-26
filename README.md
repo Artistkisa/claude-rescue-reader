@@ -99,7 +99,9 @@ claude-export/
 ### 第二步：打开查看器
 
 1. 下载 [`viewer.html`](viewer.html)，直接用浏览器打开（推荐 Chrome / Edge / Firefox）
-2. 点击「📂 选择导出文件夹」，选择解压后的整个文件夹
+2. 二选一加载数据：
+   - 点击「🗜️ 直接选择 ZIP 压缩包」，选择邮件里下载的 ZIP（**免解压**）
+   - 或点击「📂 选择导出文件夹」，选择手动解压后的整个文件夹
 3. 等待加载完成（大文件约需数秒，150MB 约 3–5 秒）
 
 > **注意**：需要网络连接以加载渲染依赖（来自 jsDelivr CDN）。离线使用请参考下方[离线模式](#离线模式)说明。
@@ -147,6 +149,7 @@ claude-export/
 ```
 marked.min.js          ← https://cdn.jsdelivr.net/npm/marked/marked.min.js
 highlight.min.js       ← https://cdn.jsdelivr.net/npm/highlight.js@11.9.0/lib/highlight.min.js
+jszip.min.js           ← https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js
 github.min.css         ← https://cdn.jsdelivr.net/npm/highlight.js@11.9.0/styles/github.min.css
 github-dark.min.css    ← https://cdn.jsdelivr.net/npm/highlight.js@11.9.0/styles/github-dark.min.css
 ```
@@ -183,8 +186,14 @@ github-dark.min.css    ← https://cdn.jsdelivr.net/npm/highlight.js@11.9.0/styl
 - 纯原生 HTML + CSS + JavaScript，无构建步骤，无框架依赖
 - [marked.js](https://marked.js.org/) — Markdown 渲染
 - [highlight.js](https://highlightjs.org/) — 代码语法高亮
+- [JSZip](https://stuk.github.io/jszip/) — ZIP 压缩包直读（免解压）
 
 ## Changelog
+
+**v1.2**
+- 新增：ZIP 压缩包直读，无需手动解压（`conversations.json` / `memories.json` / `projects/*.json` 并行解压）
+  - 兼容 ZIP 内含顶层目录、macOS 压缩附带的 `__MACOSX` 条目
+  - JSZip CDN 未加载时给出明确提示与降级指引，不静默失败
 
 **v1.1** *(2026-07-17)*
 - **修复：对话消息数量不对**（如显示 3 条，实际有 7 条）
