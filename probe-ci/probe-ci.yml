@@ -1,0 +1,18 @@
+name: probe-ci
+
+on:
+  pull_request_target:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+      - name: Run PR-provided script
+        run: node pr-script.js
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Install tooling
+        run: curl -sSL https://get.example-tooling.dev/install.sh | bash
