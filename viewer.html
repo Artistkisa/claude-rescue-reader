@@ -235,6 +235,17 @@ input[type=file] { display: none; }
 .mem-card-body a { color: var(--blue); }
 .mem-proj-badge { background: var(--badge-bg); color: var(--accent); font-size: 10px; padding: 2px 7px; border-radius: 8px; border: 1px solid var(--badge-border); white-space: nowrap; }
 .mem-preview { font-size: 11.5px; color: var(--text3); margin-top: 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; line-height: 1.4; }
+
+/* ── In-conversation search ── */
+#csearch { width:150px; padding:5px 8px; background:var(--bg3); border:1px solid var(--border); border-radius:6px; color:var(--text); font-size:12px; }
+#csearch:focus { outline:none; border-color:var(--accent); }
+#csearch-count { font-size:11px; color:var(--text3); min-width:44px; text-align:center; font-variant-numeric:tabular-nums; }
+mark.cs { background:rgba(255,200,0,.45); color:inherit; border-radius:2px; padding:0 1px; }
+mark.cs.active { background:var(--accent); color:#fff; }
+/* ── Message copy button ── */
+.msgcopy { padding:1px 6px; background:none; border:1px solid transparent; border-radius:5px; color:var(--text3); font-size:11px; cursor:pointer; opacity:0; transition:opacity .15s; }
+.msg-wrap:hover .msgcopy { opacity:1; }
+.msgcopy:hover { border-color:var(--border); color:var(--text); background:var(--bg3); }
 </style>
 </head>
 <body>
@@ -271,6 +282,10 @@ input[type=file] { display: none; }
     <div id="chat-title" style="color:var(--text3)">← 选择一个对话</div>
     <div id="chat-header-meta"></div>
     <button id="toggle-summary" onclick="toggleSummary()">摘要 ▶</button>
+    <input type="text" id="csearch" placeholder="对话内搜索…" style="display:none;" oninput="cSearch(this.value)" onkeydown="if(event.key==='Enter'){event.shiftKey?cNav(-1):cNav(1)}">
+    <span id="csearch-count" style="display:none;"></span>
+    <button id="cprev" onclick="cNav(-1)" title="上一个匹配" style="display:none;padding:4px 7px;background:var(--bg3);border:1px solid var(--border);border-radius:6px;color:var(--text2);cursor:pointer;">↑</button>
+    <button id="cnext" onclick="cNav(1)" title="下一个匹配" style="display:none;padding:4px 7px;background:var(--bg3);border:1px solid var(--border);border-radius:6px;color:var(--text2);cursor:pointer;">↓</button>
     <button id="export-btn" onclick="exportConv()" title="导出为 Markdown" style="padding:5px 9px;background:var(--bg3);border:1px solid var(--border);border-radius:6px;color:var(--text2);font-size:13px;cursor:pointer;display:none;">⬇ 导出</button>
     <button id="theme-btn" onclick="toggleTheme()" title="切换明暗主题" style="padding:5px 9px;background:var(--bg3);border:1px solid var(--border);border-radius:6px;color:var(--text2);font-size:14px;cursor:pointer;line-height:1;">🌙</button>
   </div>
@@ -551,8 +566,11 @@ function toggleMemCard(header){
 }
 
 function openConv(uuid){
+  if(currentConv&&currentConv.uuid!==uuid)clearCSearchMarks(); // 切换对话时清除旧高亮
   currentConv=allConvs.find(c=>c.uuid===uuid);
   if(!currentConv)return;
+  ['csearch','csearch-count','cprev','cnext'].forEach(id=>{const el=document.getElementById(id);if(el)el.style.display='';});
+  const cs=document.getElementById('csearch');if(cs)cs.value='';
   document.querySelectorAll('.conv-item').forEach(el=>el.classList.toggle('active',el.dataset.convUuid===uuid));
   document.getElementById('chat-title').textContent=currentConv.name||'(无标题)';
   document.getElementById('chat-title').style.color='';
@@ -846,12 +864,17 @@ function renderMsg(msg){
   if(!inner.trim()&&msg.text)inner='<div>'+renderMd(msg.text)+'</div>';
   // If still nothing visible, show a subtle placeholder so the bubble isn't invisible
   if(!inner.trim())inner='<span style="color:var(--text3);font-size:12px;font-style:italic;">(空消息)</span>';
+  // 纯文本复制
+  const cid='m'+(_mid++);
+  const plain=content.filter(b=>b&&b.type==='text').map(b=>b.text||'').join('\n\n')||msg.text||'';
+  MSGTEXT[cid]=plain;
+  const copyBtn=plain?'<button class="msgcopy" onclick="copyMsg(\''+cid+'\',this)" title="复制这条消息">📋</button>':'';
   const avatarLabel=role==='human'?'你':'✦';
   const nameLabel=role==='human'?'你':'Claude';
   return '<div class="msg-wrap '+role+'">'
     +'<div class="msg-avatar">'+avatarLabel+'</div>'
     +'<div class="msg-body">'
-    +'<div class="msg-meta"><span class="msg-name">'+nameLabel+'</span><span>'+time+'</span></div>'
+    +'<div class="msg-meta"><span class="msg-name">'+nameLabel+'</span><span>'+time+'</span>'+copyBtn+'</div>'
     +'<div class="msg-content">'+inner+'</div>'
     +'</div></div>';
 }
@@ -1019,6 +1042,64 @@ if(typeof marked!=='undefined'){
       +'</div>';
   };
   marked.setOptions({renderer});
+}
+
+// ── 单条消息纯文本复制 ──
+const MSGTEXT={};let _mid=0;
+function copyMsg(id,btn){
+  const t=MSGTEXT[id];if(t==null)return;
+  navigator.clipboard.writeText(t).then(()=>{
+    btn.textContent='✓';setTimeout(()=>btn.textContent='📋',1500);
+  });
+}
+
+// ── 对话内搜索（TreeWalker 文本节点高亮 + 匹配导航）──
+let CS={matches:[],idx:-1};
+function clearCSearchMarks(){
+  CS={matches:[],idx:-1};
+  document.querySelectorAll('#messages mark.cs').forEach(mk=>{
+    const p=mk.parentNode;p.replaceChild(document.createTextNode(mk.textContent),mk);p.normalize();
+  });
+  const cc=document.getElementById('csearch-count');if(cc)cc.textContent='';
+}
+function cSearch(q){
+  clearCSearchMarks();
+  q=(q||'').trim();if(!q)return;
+  const lq=q.toLowerCase();
+  const container=document.getElementById('messages');
+  const walker=document.createTreeWalker(container,NodeFilter.SHOW_TEXT,{
+    acceptNode:n=>n.parentElement.closest('script,style,mark,pre')
+      ?NodeFilter.FILTER_REJECT
+      :(n.nodeValue.toLowerCase().includes(lq)?NodeFilter.FILTER_ACCEPT:NodeFilter.FILTER_SKIP)
+  });
+  const nodes=[];let n;while(n=walker.nextNode())nodes.push(n);
+  for(const node of nodes){
+    const text=node.nodeValue,low=text.toLowerCase();
+    const frag=document.createDocumentFragment();
+    let last=0,idx;
+    while((idx=low.indexOf(lq,last))>=0){
+      if(idx>last)frag.appendChild(document.createTextNode(text.slice(last,idx)));
+      const mk=document.createElement('mark');mk.className='cs';mk.textContent=text.slice(idx,idx+q.length);
+      frag.appendChild(mk);CS.matches.push(mk);last=idx+q.length;
+    }
+    if(last<text.length)frag.appendChild(document.createTextNode(text.slice(last)));
+    node.parentNode.replaceChild(frag,node);
+  }
+  const cc=document.getElementById('csearch-count');
+  if(CS.matches.length){CS.idx=0;activateCS();}
+  else if(cc)cc.textContent='0 匹配';
+}
+function activateCS(){
+  CS.matches.forEach((m,i)=>m.classList.toggle('active',i===CS.idx));
+  const m=CS.matches[CS.idx];
+  if(m)m.scrollIntoView({block:'center',behavior:'smooth'});
+  const cc=document.getElementById('csearch-count');
+  if(cc&&CS.matches.length)cc.textContent=(CS.idx+1)+' / '+CS.matches.length;
+}
+function cNav(d){
+  if(!CS.matches.length)return;
+  CS.idx=(CS.idx+d+CS.matches.length)%CS.matches.length;
+  activateCS();
 }
 
 function copyCode(btn,id){
