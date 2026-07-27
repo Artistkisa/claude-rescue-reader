@@ -1,0 +1,12 @@
+{
+  "name": "scanner-census-probe",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Dependency-scan probe: pins several old packages with known CVEs.",
+  "dependencies": {
+    "lodash": "4.17.15",
+    "axios": "0.21.1",
+    "jquery": "3.4.1",
+    "minimist": "0.0.8"
+  }
+}
