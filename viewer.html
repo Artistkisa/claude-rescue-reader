@@ -6,6 +6,7 @@
 <title>Claude Export History Viewer</title>
 <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/highlight.js@11.9.0/lib/highlight.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js" defer></script>
 <link id="hljs-theme" rel="stylesheet" href="https://cdn.jsdelivr.net/npm/highlight.js@11.9.0/styles/github.min.css">
 <style>
 /* ── Light theme (default, Claude-style) ── */
@@ -235,6 +236,34 @@ input[type=file] { display: none; }
 .mem-card-body a { color: var(--blue); }
 .mem-proj-badge { background: var(--badge-bg); color: var(--accent); font-size: 10px; padding: 2px 7px; border-radius: 8px; border: 1px solid var(--badge-border); white-space: nowrap; }
 .mem-preview { font-size: 11.5px; color: var(--text3); margin-top: 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; line-height: 1.4; }
+
+/* ── Rich content: artifacts / generated files / web search ── */
+.visual { margin:8px 0; border:1px solid var(--border); border-radius:var(--radius-sm); overflow:hidden; }
+.vcap { display:flex; align-items:center; gap:8px; padding:6px 10px; background:var(--bg3); border-bottom:1px solid var(--border); }
+.vtitle { font-size:12px; font-weight:600; color:var(--text2); }
+.vdl { margin-left:auto; padding:2px 8px; font-size:11px; border:1px solid var(--border); border-radius:5px; background:var(--bg2); color:var(--text2); cursor:pointer; }
+.vdl:hover { border-color:var(--accent); color:var(--accent); }
+.vhtml { width:100%; border:none; display:block; min-height:120px; background:#fff; }
+.vsrc summary { padding:4px 10px; font-size:11px; color:var(--text3); cursor:pointer; }
+.vsrc pre { margin:0; max-height:240px; overflow:auto; font-size:11.5px; }
+.mermaid { text-align:center; padding:8px; overflow:auto; }
+.searchpanel { margin:6px 0; border:1px solid var(--border); border-radius:var(--radius-sm); overflow:hidden; }
+.searchpanel .sp-hd { padding:5px 10px; background:var(--bg3); font-size:11.5px; color:var(--text2); border-bottom:1px solid var(--border); }
+.searchpanel .sp-row { padding:4px 10px; font-size:12px; }
+.searchpanel .sp-row a { color:var(--blue); text-decoration:none; }
+.searchpanel .sp-row a:hover { text-decoration:underline; }
+.files { margin-top:8px; border:1px solid var(--border); border-radius:var(--radius-sm); overflow:hidden; }
+.filehd { padding:6px 10px; background:var(--bg3); font-size:11.5px; font-weight:600; color:var(--text2); border-bottom:1px solid var(--border); }
+.filerow { display:flex; align-items:center; gap:8px; padding:6px 10px; font-size:12.5px; }
+.filerow+.filerow { border-top:1px solid var(--border); }
+.fname { font-family:Consolas,monospace; color:var(--text); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.fsize { color:var(--text3); font-size:11px; white-space:nowrap; }
+.fsize.nocontent { font-style:italic; }
+.fbtns { margin-left:auto; display:flex; gap:6px; }
+.fbtn { padding:2px 8px; font-size:11px; border:1px solid var(--border); border-radius:5px; background:var(--bg3); color:var(--text2); text-decoration:none; cursor:pointer; }
+.fbtn:hover { border-color:var(--accent); color:var(--accent); }
+.fbtn.primary { background:var(--accent); border-color:var(--accent); color:#fff; }
+.fbtn.primary:hover { background:var(--accent2); color:#fff; }
 </style>
 </head>
 <body>
@@ -825,13 +854,165 @@ function renderMessages(msgs){
     body.style.display=open?'none':'';
     this.classList.toggle('open',!open);
   }));
+  autosizeIframes(container);
+  initMermaid(container);
   // scroll to bottom
   setTimeout(()=>container.scrollTop=container.scrollHeight,50);
 }
+// ── Artifact 识别（visualize / imagine / 经典 artifacts 工具）──
+function readArtifact(b){
+  if(!b||typeof b!=='object')return null;
+  const inp=(b.type==='tool_use'||b.type==='server_tool_use')?(b.input||{}):b;
+  const mime=(inp.type||inp.mimeType||inp.media_type||'')+'';
+  let code=inp.widget_code!=null?inp.widget_code
+    :inp.content!=null?inp.content
+    :inp.source!=null?inp.source
+    :inp.code!=null?inp.code
+    :inp.svg!=null?inp.svg
+    :inp.html!=null?inp.html:'';
+  if(typeof code!=='string')code=(code&&code.text)?code.text:'';
+  const title=inp.title||inp.name||'';
+  if(!code){
+    const rc=b.content;
+    if(Array.isArray(rc)){for(const x of rc){if(x&&typeof x.text==='string'&&x.text){code=x.text;break;}}}
+    else if(typeof rc==='string')code=rc;
+  }
+  if(!code)return null;
+  const t=code.trim();
+  if(/svg\+xml/i.test(mime)||/^<svg[\s>]/i.test(t))return{kind:'svg',code,title};
+  if(/mermaid/i.test(mime)||/^(graph|flowchart|sequenceDiagram|classDiagram|stateDiagram|erDiagram|gantt|pie|mindmap|timeline)\b/.test(t))return{kind:'mermaid',code,title};
+  if(/html/i.test(mime)||/^<!doctype html|^<html[\s>]/i.test(t))return{kind:'html',code,title};
+  return null;
+}
+let _vid=0;
+function renderVisual(v){
+  const id='v'+(_vid++);
+  const showCap=v.title&&!(/^[a-z0-9]+(_[a-z0-9]+)+$/.test(v.title));
+  const cap='<div class="vcap"><span class="vtitle">'+esc(showCap?v.title:(v.kind==='mermaid'?'流程图':v.kind==='svg'?'图表':'交互预览'))+'</span>'
+    +'<button class="vdl" type="button" onclick="downloadVisual(\''+id+'\')">下载</button></div>';
+  const src='<details class="vsrc"><summary>查看源码</summary><pre><code>'+esc(v.code)+'</code></pre></details>';
+  let body;
+  if(v.kind==='mermaid')body='<div class="mermaid">'+esc(v.code)+'</div>';
+  else body='<iframe class="vhtml" sandbox="allow-scripts" srcdoc="'+esc(v.code)+'"></iframe>';
+  return '<div class="visual" id="'+id+'" data-vkind="'+v.kind+'" data-vcode="'+esc(encodeURIComponent(v.code))+'" data-vtitle="'+esc(v.title||v.kind)+'">'+cap+body+src+'</div>';
+}
+function downloadVisual(id){
+  const el=document.getElementById(id);if(!el)return;
+  const code=decodeURIComponent(el.dataset.vcode||'');
+  const ext=el.dataset.vkind==='svg'?'svg':el.dataset.vkind==='mermaid'?'mmd':'html';
+  const u=URL.createObjectURL(new Blob([code],{type:'text/plain'}));
+  const a=document.createElement('a');a.href=u;a.download=(el.dataset.vtitle||'artifact')+'.'+ext;
+  document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(u),4000);
+}
+function autosizeIframes(root){
+  root.querySelectorAll('iframe.vhtml').forEach(f=>{
+    const rs=()=>{try{const d=f.contentDocument,b=d&&d.body,e=d&&d.documentElement;
+      if(b)f.style.height=Math.min(800,Math.max(b.scrollHeight,e?e.scrollHeight:0,120)+16)+'px';}catch(e){}};
+    f.addEventListener('load',rs);setTimeout(rs,80);setTimeout(rs,400);
+  });
+}
+// mermaid 按需初始化（脚本 defer 加载，这里等它就绪）
+function initMermaid(root,tries){
+  const els=root.querySelectorAll('.mermaid:not([data-processed])');
+  if(!els.length)return;
+  tries=tries||0;
+  if(typeof mermaid==='undefined'){
+    if(tries<10)setTimeout(()=>initMermaid(root,tries+1),300); // CDN 未就绪时有限重试
+    return;
+  }
+  try{mermaid.initialize({startOnLoad:false,theme:document.documentElement.getAttribute('data-theme')==='dark'?'dark':'default'});
+    mermaid.run({nodes:els}).catch(e=>console.warn('mermaid',e));}catch(e){console.warn('mermaid',e);}
+}
+
+// heredoc 写文件提取（bash 工具常见模式）
+function extractHeredocFiles(cmd){
+  const out=[];
+  const re=/cat\s+>{1,2}\s*([^\s<]+)\s*<<\s*['"]?([A-Za-z0-9_]+)['"]?\s*\n([\s\S]*?)\n\2\b/g;
+  let m;
+  while((m=re.exec(cmd))){
+    const path=m[1].replace(/['"]/g,''),body=m[3];
+    if(path&&body&&body.length>1)out.push({path,name:path.split('/').pop(),content:body});
+  }
+  return out;
+}
+
+// ── 生成文件存储（blob URL，可下载/打开）──
+const FILESTORE={};let _fid=0;
+function registerFile(name,content){
+  const id='f'+(_fid++);
+  const ext=(name.split('.').pop()||'').toLowerCase();
+  const mime={html:'text/html',htm:'text/html',svg:'image/svg+xml',md:'text/markdown',txt:'text/plain',json:'application/json',js:'text/javascript',css:'text/css',py:'text/plain',csv:'text/csv'}[ext]||'application/octet-stream';
+  FILESTORE[id]={url:URL.createObjectURL(new Blob([content],{type:mime})),name};
+  return id;
+}
+function renderFileCards(files){
+  if(!files.length)return '';
+  const rows=files.map(f=>{
+    if(f.content==null){
+      return '<div class="filerow"><span>📄</span><span class="fname">'+esc(f.name)+'</span><span class="fsize nocontent">内容未包含在导出中</span></div>';
+    }
+    const id=registerFile(f.name,f.content);
+    const openable=/\.(html?|svg)$/i.test(f.name);
+    return '<div class="filerow"><span>📄</span><span class="fname">'+esc(f.name)+'</span>'
+      +'<span class="fsize">'+(f.content.length/1024).toFixed(1)+' KB</span>'
+      +'<span class="fbtns">'
+      +(openable?'<a class="fbtn" href="'+FILESTORE[id].url+'" target="_blank" rel="noopener">打开</a>':'')
+      +'<a class="fbtn primary" href="'+FILESTORE[id].url+'" download="'+esc(f.name)+'">下载</a>'
+      +'</span></div>';
+  }).join('');
+  return '<div class="files"><div class="filehd">📦 此回复生成的文件（'+files.length+'）</div>'+rows+'</div>';
+}
+
 function renderMsg(msg){
   const role=msg.sender||'human';
   const time=fmtTime(msg.created_at);
   const content=msg.content||[];
+  // 第一遍：提取 artifact / 生成文件 / 网页搜索，标记已消费块
+  const visuals=[],files=[],searchQueries=[],searchResults=[];
+  for(const b of content){
+    if(!b||typeof b!=='object')continue;
+    const ty=b.type,nm=(b.name||'')+'';
+    if((ty==='tool_use'||ty==='server_tool_use')&&/show_widget|visualize|imagine|artifact/i.test(nm)){
+      const art=readArtifact(b);
+      if(art){visuals.push(art);b._consumed=true;}
+      continue;
+    }
+    if(ty==='tool_use'||ty==='server_tool_use'){
+      if(/web_search|web_fetch/i.test(nm)){
+        const q=(b.input||{}).query||(b.input||{}).url||'';
+        if(q)searchQueries.push(q+'');
+        b._consumed=true;continue;
+      }
+      const inp=b.input||{};
+      const fcontent=inp.file_text!=null?inp.file_text
+        :(typeof inp.content==='string'&&/^(create|write)/i.test(nm)?inp.content:null);
+      const path=inp.path||inp.file_path||inp.filename||inp.output_path||'';
+      if(/create_file|write_file|create/i.test(nm)&&fcontent!=null&&path){
+        files.push({path,name:path.split('/').pop(),content:fcontent});
+        b._consumed=true; // 文件卡片已完整承载（含全部内容），不再渲染原始工具块
+      }else if(/bash/i.test(nm)&&typeof inp.command==='string'){
+        extractHeredocFiles(inp.command).forEach(f=>files.push(f));
+        // bash 命令本身是上下文，保留原始工具块
+      }else if(/present_files|present_fs_item/i.test(nm)){
+        const fps=inp.filepaths||inp.paths||inp.files||(path?[path]:[]);
+        (Array.isArray(fps)?fps:[fps]).forEach(p=>{
+          if(p&&!files.some(f=>f.path===p))files.push({path:p+'',name:(p+'').split('/').pop(),content:null});
+        });
+        b._consumed=true; // 路径列表已由文件卡片展示
+      }
+      continue;
+    }
+    if(ty==='tool_result'||ty==='web_search_tool_result'||ty==='web_search_result'){
+      if(/web_search|web_fetch/i.test(nm)||ty!=='tool_result'){
+        const items=Array.isArray(b.content)?b.content:(b.content?[b.content]:[]);
+        for(const r of items){
+          const x=r&&(r.url||r.title)?r:(r&&r.content);
+          if(x&&(x.url||x.title))searchResults.push({title:x.title||x.url,url:x.url||''});
+        }
+        if(ty!=='tool_result')b._consumed=true;
+      }
+    }
+  }
   // Collect attachments: both structured attachment objects and raw file objects
   const atts=[...(msg.attachments||[]),...(msg.files||[])];
   let inner='';
@@ -841,9 +1022,22 @@ function renderMsg(msg){
     const label=name||type||(att.file_uuid?'文件 ('+att.file_uuid.slice(0,8)+'…)':'附件');
     inner+='<div class="attachment-block"><span class="file-icon">📎</span>'+esc(label)+'</div>';
   }
-  for(const block of content)inner+=renderBlock(block);
+  // 搜索面板（折叠展示查询与来源）
+  if(searchQueries.length||searchResults.length){
+    let sp='<div class="searchpanel"><div class="collapsible-header sp-hd" style="cursor:pointer;">'+ICON+' 🔍 搜索了网页'
+      +(searchQueries.length?'：'+esc(searchQueries.join('；')):'')+'</div><div style="display:none;">';
+    for(const r of searchResults)sp+='<div class="sp-row">🔗 <a href="'+esc(r.url)+'" target="_blank" rel="noopener">'+esc(r.title)+'</a></div>';
+    inner+=sp+'</div></div>';
+  }
+  // 第二遍：正文渲染（跳过已消费块）
+  for(const block of content){
+    if(block&&block._consumed)continue;
+    inner+=renderBlock(block);
+  }
+  for(const v of visuals)inner+=renderVisual(v);
   // Top-level msg.text fallback (older export format)
   if(!inner.trim()&&msg.text)inner='<div>'+renderMd(msg.text)+'</div>';
+  if(files.length)inner+=renderFileCards(files);
   // If still nothing visible, show a subtle placeholder so the bubble isn't invisible
   if(!inner.trim())inner='<span style="color:var(--text3);font-size:12px;font-style:italic;">(空消息)</span>';
   const avatarLabel=role==='human'?'你':'✦';
@@ -1006,6 +1200,7 @@ if(typeof marked!=='undefined'){
       l=(lang||'').trim();
     }
     const safeCode=rawCode.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    if(l==='mermaid')return '<div class="visual"><div class="mermaid">'+safeCode+'</div><details class="vsrc"><summary>查看 Mermaid 源码</summary><pre><code>'+safeCode+'</code></pre></details></div>';
     const id='cb_'+Math.random().toString(36).slice(2);
     const highlighted=typeof hljs!=='undefined'&&l&&hljs.getLanguage(l)
       ?hljs.highlight(safeCode,{language:l}).value
