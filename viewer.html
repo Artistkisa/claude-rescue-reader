@@ -948,7 +948,7 @@ function renderBlock(block){
     return '<div class="attachment-block">🔗 <a href="'+esc(url)+'" target="_blank" style="color:var(--blue);text-decoration:none;">'+esc(title)+'</a></div>';
   }
   if(t==='web_search_citation')return '<div class="attachment-block" style="font-size:11px;color:var(--text3)">🔍 '+esc(block.title||block.url||'搜索引用')+'</div>';
-  if(t==='knowledge')return '<div class="attachment-block">📚 <a href="'+esc(c.url||'')+'" target="_blank" style="color:var(--blue);text-decoration:none;">'+esc(block.title||'知识引用')+'</a></div>';
+  if(t==='knowledge')return '<div class="attachment-block">📚 <a href="'+esc(block.url||'')+'" target="_blank" style="color:var(--blue);text-decoration:none;">'+esc(block.title||'知识引用')+'</a></div>';
   if(t==='local_resource')return '<div class="attachment-block"><span class="file-icon">📄</span>'+esc(block.name||block.file_path||'文件')+'</div>';
   return '<div style="font-size:11px;color:var(--text3);padding:4px 0">['+esc(t)+']</div>';
 }
