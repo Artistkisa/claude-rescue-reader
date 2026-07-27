@@ -1,0 +1,20 @@
+commit_review:
+  enabled: true
+  branches:
+    - test/ghost-review-commit-stage11-20260727
+  include_created_branches: true
+  skip_if_open_pr: true
+  skip_merged_pr_commits: true
+  severity_threshold: medium
+  issues:
+    enabled: true
+    severity_threshold: high
+    require_confirmation: true
+    auto_close: true
+    reopen_on_regression: true
+    labels:
+      - ghost-review
+      - direct-push
+
+instructions:
+  - 这是 Stage 11 Direct Push 验收分支；只报告可从当前 diff 直接确认的问题
