@@ -235,6 +235,13 @@ input[type=file] { display: none; }
 .mem-card-body a { color: var(--blue); }
 .mem-proj-badge { background: var(--badge-bg); color: var(--accent); font-size: 10px; padding: 2px 7px; border-radius: 8px; border: 1px solid var(--badge-border); white-space: nowrap; }
 .mem-preview { font-size: 11.5px; color: var(--text3); margin-top: 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; line-height: 1.4; }
+
+/* ── Branch navigation (message versions) ── */
+.brnav { display:inline-flex; align-items:center; gap:3px; margin-left:6px; font-size:11px; color:var(--text3); }
+.brnav button { padding:0 6px; height:18px; line-height:1; background:var(--bg3); border:1px solid var(--border); border-radius:5px; color:var(--text2); cursor:pointer; font-size:12px; }
+.brnav button:hover:not(:disabled) { border-color:var(--accent); color:var(--accent); }
+.brnav button:disabled { opacity:.35; cursor:default; }
+.brcount { font-variant-numeric:tabular-nums; }
 </style>
 </head>
 <body>
@@ -551,6 +558,7 @@ function toggleMemCard(header){
 }
 
 function openConv(uuid){
+  if(!currentConv||currentConv.uuid!==uuid)branchChoices={}; // 切换对话时重置分支选择
   currentConv=allConvs.find(c=>c.uuid===uuid);
   if(!currentConv)return;
   document.querySelectorAll('.conv-item').forEach(el=>el.classList.toggle('active',el.dataset.convUuid===uuid));
@@ -782,33 +790,63 @@ function toggleSummary(){
   document.getElementById('toggle-summary').textContent=summaryVisible?'摘要 ◀':'摘要 ▶';
 }
 
+// ── 分支状态：parentKey -> 选中的兄弟索引（切换对话时重置）──
+let branchChoices={};
+const ROOT_ID='00000000-0000-4000-8000-000000000000';
+
+// 从对话树构建当前路径：默认走最长路径（与 claude.ai 一致），
+// 用户切换过分支的节点按 branchChoices 走；整树 O(n)（深度记忆化）
+function buildPath(msgs){
+  const byParent={};
+  for(const m of msgs){const p=m.parent_message_uuid||ROOT_ID;(byParent[p]=byParent[p]||[]).push(m);}
+  for(const p in byParent)byParent[p].sort((a,b)=>new Date(a.created_at||0)-new Date(b.created_at||0));
+  const dc=new Map();
+  function depth(u){
+    if(dc.has(u))return dc.get(u);
+    const ch=byParent[u];let d=0;
+    if(ch)for(const c of ch){const s=1+depth(c.uuid);if(s>d)d=s;}
+    dc.set(u,d);return d;
+  }
+  function hasContent(m){return (m.content||[]).some(b=>b&&b.type==='text'&&b.text)||!!m.text;}
+  function defaultIdx(sibs){
+    let bi=0,bd=-1;
+    for(let i=0;i<sibs.length;i++){
+      const d=1+depth(sibs[i].uuid);
+      if(d>bd||(d===bd&&hasContent(sibs[i])&&!hasContent(sibs[bi]))){bd=d;bi=i;}
+    }
+    return bi;
+  }
+  const path=[];
+  let key=ROOT_ID,sibs=byParent[ROOT_ID];
+  if(!sibs||!sibs.length){
+    // 兜底：父节点不在导出中的消息作为根
+    const ids=new Set(msgs.map(m=>m.uuid));
+    sibs=msgs.filter(m=>!m.parent_message_uuid||!ids.has(m.parent_message_uuid));
+    sibs.sort((a,b)=>new Date(a.created_at||0)-new Date(b.created_at||0));
+    key='__orphan__';
+  }
+  while(sibs&&sibs.length){
+    let idx=branchChoices[key]!=null?branchChoices[key]:defaultIdx(sibs);
+    idx=Math.max(0,Math.min(sibs.length-1,idx));
+    const node=sibs[idx];
+    node._br=sibs.length>1?{key,index:idx,count:sibs.length}:null;
+    path.push(node);
+    key=node.uuid;sibs=byParent[node.uuid];
+  }
+  return path;
+}
+
+function switchBranch(key,idx,ev){
+  if(ev){ev.stopPropagation();ev.preventDefault();}
+  branchChoices[key]=idx;
+  if(currentConv)renderMessages(currentConv.chat_messages||[],{keepScroll:true});
+}
+
 function renderMessages(msgs){
   const container=document.getElementById('messages');
   if(!msgs.length){container.innerHTML='<div style="display:flex;align-items:center;justify-content:center;height:100%;color:var(--text3)">此对话无消息</div>';return;}
-  const byParent={};
-  for(const m of msgs){const p=m.parent_message_uuid||'root';if(!byParent[p])byParent[p]=[];byParent[p].push(m);}
-  const root='00000000-0000-4000-8000-000000000000';
-  // Build longest path from root: at each branch, prefer the child that leads to the longest sub-path
-  // This ensures we don't get cut short by an empty/stub message at a branch point
-  function longestFrom(uuid){
-    const children=byParent[uuid];
-    if(!children||!children.length)return[];
-    // score each child by sub-path length; prefer content-bearing messages on ties
-    let best=null,bestLen=-1;
-    for(const child of children){
-      const sub=longestFrom(child.uuid);
-      const len=1+sub.length;
-      const hasContent=(child.content||[]).some(b=>b&&b.type==='text'&&b.text)||!!child.text;
-      // prefer longer path; on equal length prefer path with content
-      if(len>bestLen||(len===bestLen&&hasContent&&best&&!(best.content||[]).some(b=>b&&b.type==='text'&&b.text))){
-        best=child;bestLen=len;
-        best._sub=sub;
-      }
-    }
-    return best?[best,...(best._sub||[])]:[];
-  }
-  let linear=longestFrom(root);
-  if(!linear.length)linear=msgs;
+  const linear=buildPath(msgs);
+  const scrollPos=(arguments[1]&&arguments[1].keepScroll)?container.scrollTop:null;
   let h='',lastDate='';
   for(const msg of linear){
     if(!msg||typeof msg!=='object')continue;
@@ -825,8 +863,9 @@ function renderMessages(msgs){
     body.style.display=open?'none':'';
     this.classList.toggle('open',!open);
   }));
-  // scroll to bottom
-  setTimeout(()=>container.scrollTop=container.scrollHeight,50);
+  // scroll
+  if(scrollPos!=null)container.scrollTop=scrollPos;
+  else setTimeout(()=>container.scrollTop=container.scrollHeight,50);
 }
 function renderMsg(msg){
   const role=msg.sender||'human';
@@ -846,12 +885,22 @@ function renderMsg(msg){
   if(!inner.trim()&&msg.text)inner='<div>'+renderMd(msg.text)+'</div>';
   // If still nothing visible, show a subtle placeholder so the bubble isn't invisible
   if(!inner.trim())inner='<span style="color:var(--text3);font-size:12px;font-style:italic;">(空消息)</span>';
+  // 分支导航（编辑/重新生成的多个版本）
+  let brNav='';
+  const br=msg._br;
+  if(br){
+    brNav='<span class="brnav" title="此处有多个版本（编辑或重新生成），切换后后续对话随之改变">'
+      +'<button onclick="switchBranch(\''+esc(br.key)+'\','+(br.index-1)+',event)" '+(br.index<=0?'disabled':'')+'>‹</button>'
+      +'<span class="brcount">'+(br.index+1)+'/'+br.count+'</span>'
+      +'<button onclick="switchBranch(\''+esc(br.key)+'\','+(br.index+1)+',event)" '+(br.index>=br.count-1?'disabled':'')+'>›</button>'
+      +'</span>';
+  }
   const avatarLabel=role==='human'?'你':'✦';
   const nameLabel=role==='human'?'你':'Claude';
   return '<div class="msg-wrap '+role+'">'
     +'<div class="msg-avatar">'+avatarLabel+'</div>'
     +'<div class="msg-body">'
-    +'<div class="msg-meta"><span class="msg-name">'+nameLabel+'</span><span>'+time+'</span></div>'
+    +'<div class="msg-meta"><span class="msg-name">'+nameLabel+'</span><span>'+time+'</span>'+brNav+'</div>'
     +'<div class="msg-content">'+inner+'</div>'
     +'</div></div>';
 }
@@ -899,7 +948,7 @@ function renderBlock(block){
     return '<div class="attachment-block">🔗 <a href="'+esc(url)+'" target="_blank" style="color:var(--blue);text-decoration:none;">'+esc(title)+'</a></div>';
   }
   if(t==='web_search_citation')return '<div class="attachment-block" style="font-size:11px;color:var(--text3)">🔍 '+esc(block.title||block.url||'搜索引用')+'</div>';
-  if(t==='knowledge')return '<div class="attachment-block">📚 <a href="'+esc(block.url||'')+'" target="_blank" style="color:var(--blue);text-decoration:none;">'+esc(block.title||'知识引用')+'</a></div>';
+  if(t==='knowledge')return '<div class="attachment-block">📚 <a href="'+esc(c.url||'')+'" target="_blank" style="color:var(--blue);text-decoration:none;">'+esc(block.title||'知识引用')+'</a></div>';
   if(t==='local_resource')return '<div class="attachment-block"><span class="file-icon">📄</span>'+esc(block.name||block.file_path||'文件')+'</div>';
   return '<div style="font-size:11px;color:var(--text3);padding:4px 0">['+esc(t)+']</div>';
 }
@@ -908,30 +957,7 @@ function exportConv(){
   if(!currentConv)return;
   // Build linear thread (same logic as renderMessages)
   const msgs=currentConv.chat_messages||[];
-  const byParent={};
-  for(const m of msgs){const p=m.parent_message_uuid||'root';if(!byParent[p])byParent[p]=[];byParent[p].push(m);}
-  const root='00000000-0000-4000-8000-000000000000';
-  // Build longest path from root: at each branch, prefer the child that leads to the longest sub-path
-  // This ensures we don't get cut short by an empty/stub message at a branch point
-  function longestFrom(uuid){
-    const children=byParent[uuid];
-    if(!children||!children.length)return[];
-    // score each child by sub-path length; prefer content-bearing messages on ties
-    let best=null,bestLen=-1;
-    for(const child of children){
-      const sub=longestFrom(child.uuid);
-      const len=1+sub.length;
-      const hasContent=(child.content||[]).some(b=>b&&b.type==='text'&&b.text)||!!child.text;
-      // prefer longer path; on equal length prefer path with content
-      if(len>bestLen||(len===bestLen&&hasContent&&best&&!(best.content||[]).some(b=>b&&b.type==='text'&&b.text))){
-        best=child;bestLen=len;
-        best._sub=sub;
-      }
-    }
-    return best?[best,...(best._sub||[])]:[];
-  }
-  let linear=longestFrom(root);
-  if(!linear.length)linear=msgs;
+  const linear=buildPath(msgs); // 跟随界面当前的分支选择
 
   let md='# '+((currentConv.name||'对话').replace(/[<>]/g,''))+'\n\n';
   md+='> 创建：'+fmtDate(currentConv.created_at)+'　更新：'+fmtDate(currentConv.updated_at)+'　共 '+linear.length+' 条消息\n\n';
