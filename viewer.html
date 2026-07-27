@@ -795,16 +795,32 @@ let branchChoices={};
 const ROOT_ID='00000000-0000-4000-8000-000000000000';
 
 // 从对话树构建当前路径：默认走最长路径（与 claude.ai 一致），
-// 用户切换过分支的节点按 branchChoices 走；整树 O(n)（深度记忆化）
+// 用户切换过分支的节点按 branchChoices 走；整树 O(n)（深度记忆化）。
+// 返回数组中可能混入分隔标记对象 {_divider:'linear'|'orphan',count}，渲染层与导出层负责识别：
+//  - linear：结构异常（无标准根，或孤儿比主线还多），放弃分支导航按时间展示全部
+//  - orphan：主路径之后的孤儿消息分隔（已删除分支的残留等，不静默丢弃）
+// 分支导航元数据放在 brMeta（uuid -> {key,index,count}），不改动消息对象本身
+let brMeta={};
 function buildPath(msgs){
+  brMeta={};
   const byParent={};
   for(const m of msgs){const p=m.parent_message_uuid||ROOT_ID;(byParent[p]=byParent[p]||[]).push(m);}
-  for(const p in byParent)byParent[p].sort((a,b)=>new Date(a.created_at||0)-new Date(b.created_at||0));
+  const byTime=(a,b)=>new Date(a.created_at||0)-new Date(b.created_at||0);
+  for(const p in byParent)byParent[p].sort(byTime);
+  const rootKids=byParent[ROOT_ID];
+  // 场景一：无标准根（老版导出用 00000000-…-0000 根 uuid，或导出不完整）
+  // → 没有可导航的树，放弃分支导航，按时间线性展示全部消息
+  if(!rootKids||!rootKids.length){
+    const all=[...msgs].sort(byTime);
+    if(all.length)all.unshift({_divider:'linear'});
+    return all;
+  }
   const dc=new Map();
-  function depth(u){
+  function depth(u,g){
     if(dc.has(u))return dc.get(u);
+    if((g||0)>msgs.length)return 0; // 环保护：真实深度不可能超过消息总数
     const ch=byParent[u];let d=0;
-    if(ch)for(const c of ch){const s=1+depth(c.uuid);if(s>d)d=s;}
+    if(ch)for(const c of ch){const s=1+depth(c.uuid,(g||0)+1);if(s>d)d=s;}
     dc.set(u,d);return d;
   }
   function hasContent(m){return (m.content||[]).some(b=>b&&b.type==='text'&&b.text)||!!m.text;}
@@ -817,22 +833,39 @@ function buildPath(msgs){
     return bi;
   }
   const path=[];
-  let key=ROOT_ID,sibs=byParent[ROOT_ID];
-  if(!sibs||!sibs.length){
-    // 兜底：父节点不在导出中的消息作为根
-    const ids=new Set(msgs.map(m=>m.uuid));
-    sibs=msgs.filter(m=>!m.parent_message_uuid||!ids.has(m.parent_message_uuid));
-    sibs.sort((a,b)=>new Date(a.created_at||0)-new Date(b.created_at||0));
-    key='__orphan__';
-  }
+  const walked=new Set();
+  let key=ROOT_ID,sibs=rootKids;
   while(sibs&&sibs.length){
     let idx=branchChoices[key]!=null?branchChoices[key]:defaultIdx(sibs);
     idx=Math.max(0,Math.min(sibs.length-1,idx));
     const node=sibs[idx];
-    node._br=sibs.length>1?{key,index:idx,count:sibs.length}:null;
+    if(walked.has(node.uuid))break; // 环保护（异常数据下 a↔b 互指）
+    walked.add(node.uuid);
+    if(sibs.length>1)brMeta[node.uuid]={key,index:idx,count:sibs.length};
     path.push(node);
     key=node.uuid;sibs=byParent[node.uuid];
   }
+  // 场景二：标准根存在，但混有 parent 指向不存在 uuid 的孤儿消息。
+  // 从 ROOT_ID 求可达集（带环保护），差集即为孤儿
+  const reachable=new Set([ROOT_ID]);
+  const stack=[...rootKids];
+  while(stack.length){
+    const n=stack.pop();
+    if(!n||reachable.has(n.uuid))continue;
+    reachable.add(n.uuid);
+    const ch=byParent[n.uuid];
+    if(ch)for(const c of ch)stack.push(c);
+  }
+  const orphans=msgs.filter(m=>!reachable.has(m.uuid)).sort(byTime);
+  if(!orphans.length)return path;
+  if(orphans.length>path.length){
+    // 极端：孤儿比主线还多（导出结构基本损坏）→ 全量线性降级 + 警告
+    const all=[...msgs].sort(byTime);
+    all.unshift({_divider:'linear'});
+    return all;
+  }
+  // 常规：孤儿按时间追加到主路径之后，带分隔标记（数据完整性优先）
+  path.push({_divider:'orphan',count:orphans.length},...orphans);
   return path;
 }
 
@@ -842,14 +875,16 @@ function switchBranch(key,idx,ev){
   if(currentConv)renderMessages(currentConv.chat_messages||[],{keepScroll:true});
 }
 
-function renderMessages(msgs){
+function renderMessages(msgs,opts){
   const container=document.getElementById('messages');
   if(!msgs.length){container.innerHTML='<div style="display:flex;align-items:center;justify-content:center;height:100%;color:var(--text3)">此对话无消息</div>';return;}
   const linear=buildPath(msgs);
-  const scrollPos=(arguments[1]&&arguments[1].keepScroll)?container.scrollTop:null;
+  const scrollPos=(opts&&opts.keepScroll)?container.scrollTop:null;
   let h='',lastDate='';
   for(const msg of linear){
     if(!msg||typeof msg!=='object')continue;
+    if(msg._divider==='linear'){h+='<div class="date-divider"><span>⚠️ 对话分支结构异常，已按时间顺序展示全部消息</span></div>';lastDate='';continue;}
+    if(msg._divider==='orphan'){h+='<div class="date-divider"><span>🧩 以下 '+msg.count+' 条消息无法归入对话分支（可能是已删除分支的残留）</span></div>';lastDate='';continue;}
     const d=fmtDateOnly(msg.created_at);
     if(d!==lastDate){h+='<div class="date-divider"><span>'+esc(d)+'</span></div>';lastDate=d;}
     try{h+=renderMsg(msg);}
@@ -887,7 +922,7 @@ function renderMsg(msg){
   if(!inner.trim())inner='<span style="color:var(--text3);font-size:12px;font-style:italic;">(空消息)</span>';
   // 分支导航（编辑/重新生成的多个版本）
   let brNav='';
-  const br=msg._br;
+  const br=brMeta[msg.uuid];
   if(br){
     brNav='<span class="brnav" title="此处有多个版本（编辑或重新生成），切换后后续对话随之改变">'
       +'<button onclick="switchBranch(\''+esc(br.key)+'\','+(br.index-1)+',event)" '+(br.index<=0?'disabled':'')+'>‹</button>'
@@ -958,13 +993,17 @@ function exportConv(){
   // Build linear thread (same logic as renderMessages)
   const msgs=currentConv.chat_messages||[];
   const linear=buildPath(msgs); // 跟随界面当前的分支选择
+  const msgCount=linear.filter(m=>m&&!m._divider).length;
 
   let md='# '+((currentConv.name||'对话').replace(/[<>]/g,''))+'\n\n';
-  md+='> 创建：'+fmtDate(currentConv.created_at)+'　更新：'+fmtDate(currentConv.updated_at)+'　共 '+linear.length+' 条消息\n\n';
+  md+='> 创建：'+fmtDate(currentConv.created_at)+'　更新：'+fmtDate(currentConv.updated_at)+'　共 '+msgCount+' 条消息\n\n';
   if(currentConv.summary)md+='## 摘要\n\n'+currentConv.summary+'\n\n---\n\n';
   md+='## 对话内容\n\n';
 
   for(const msg of linear){
+    if(!msg||typeof msg!=='object')continue;
+    if(msg._divider==='linear'){md+='## ⚠️ 对话分支结构异常，以下按时间顺序展示全部消息\n\n';continue;}
+    if(msg._divider==='orphan'){md+='## 🧩 以下 '+msg.count+' 条消息无法归入对话分支（可能是已删除分支的残留）\n\n';continue;}
     const role=msg.sender==='human'?'**你**':'**Claude**';
     md+=role+' · '+fmtTime(msg.created_at)+'\n\n';
     // Attachments
