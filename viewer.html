@@ -235,6 +235,9 @@ input[type=file] { display: none; }
 .mem-card-body a { color: var(--blue); }
 .mem-proj-badge { background: var(--badge-bg); color: var(--accent); font-size: 10px; padding: 2px 7px; border-radius: 8px; border: 1px solid var(--badge-border); white-space: nowrap; }
 .mem-preview { font-size: 11.5px; color: var(--text3); margin-top: 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; line-height: 1.4; }
+
+/* ── Render progress ── */
+.render-prog { padding:8px 16px; font-size:11.5px; color:var(--text3); text-align:center; }
 </style>
 </head>
 <body>
@@ -512,16 +515,28 @@ function filterConvs(q){
     const f=allConvs.filter(c=>{
       if((c.name||'').toLowerCase().includes(lq))return true;
       if((c.summary||'').toLowerCase().includes(lq))return true;
-      if(fullText){
-        for(const m of(c.chat_messages||[])){
-          if((m.text||'').toLowerCase().includes(lq))return true;
-          for(const b of(m.content||[])){if(b.type==='text'&&(b.text||'').toLowerCase().includes(lq))return true;}
-        }
-      }
+      if(fullText&&searchCorpus(c).includes(lq))return true;
       return false;
     });
     renderConvList(f);
   },200);
+}
+
+// 全文搜索语料缓存（uuid -> 小写拼接文本，懒构建，每条对话只算一次）
+const corpusCache=new Map();
+function searchCorpus(c){
+  if(corpusCache.has(c.uuid))return corpusCache.get(c.uuid);
+  const parts=[];
+  for(const m of(c.chat_messages||[])){
+    if(m.text)parts.push(m.text);
+    for(const b of(m.content||[])){
+      if(b.type==='text'&&b.text)parts.push(b.text);
+      else if(b.type==='thinking'&&b.thinking)parts.push(b.thinking);
+    }
+  }
+  const s=parts.join('\n').toLowerCase();
+  corpusCache.set(c.uuid,s);
+  return s;
 }
 
 let sortMode='updated';
@@ -782,9 +797,21 @@ function toggleSummary(){
   document.getElementById('toggle-summary').textContent=summaryVisible?'摘要 ◀':'摘要 ▶';
 }
 
+// ── 渲染缓存：打开过的对话整页 HTML 直接恢复，零解析零渲染 ──
+const convCache=new Map();
+const CACHE_MAX=12; // 上限防内存膨胀，超限时淘汰最早条目
+const CHUNK=40; // 首屏消息数，之后每块增量
+
 function renderMessages(msgs){
   const container=document.getElementById('messages');
   if(!msgs.length){container.innerHTML='<div style="display:flex;align-items:center;justify-content:center;height:100%;color:var(--text3)">此对话无消息</div>';return;}
+  const cacheKey=currentConv?currentConv.uuid:'';
+  // 缓存命中：整页 HTML 直接恢复
+  if(cacheKey&&convCache.has(cacheKey)){
+    container.innerHTML=convCache.get(cacheKey);
+    scrollThreadBottom();
+    return;
+  }
   const byParent={};
   for(const m of msgs){const p=m.parent_message_uuid||'root';if(!byParent[p])byParent[p]=[];byParent[p].push(m);}
   const root='00000000-0000-4000-8000-000000000000';
@@ -809,24 +836,60 @@ function renderMessages(msgs){
   }
   let linear=longestFrom(root);
   if(!linear.length)linear=msgs;
-  let h='',lastDate='';
+  // 预生成每条消息 HTML（marked 解析发生在这里，是主要耗时）
+  const parts=[],dividers=[];
+  let lastDate='';
   for(const msg of linear){
     if(!msg||typeof msg!=='object')continue;
     const d=fmtDateOnly(msg.created_at);
-    if(d!==lastDate){h+='<div class="date-divider"><span>'+esc(d)+'</span></div>';lastDate=d;}
-    try{h+=renderMsg(msg);}
-    catch(e){h+='<div style="padding:8px 16px;color:var(--text3);font-size:12px;">⚠️ 此消息渲染出错</div>';console.warn('renderMsg error',e);}
+    dividers.push(d!==lastDate?d:null);
+    if(d!==lastDate)lastDate=d;
+    try{parts.push(renderMsg(msg));}
+    catch(e){parts.push('<div style="padding:8px 16px;color:var(--text3);font-size:12px;">⚠️ 此消息渲染出错</div>');console.warn('renderMsg error',e);}
   }
-  container.innerHTML=h;
-  container.querySelectorAll('pre code').forEach(el=>{try{hljs.highlightElement(el);}catch(e){}});
-  container.querySelectorAll('.collapsible-header').forEach(el=>el.addEventListener('click',function(){
-    const body=this.nextElementSibling;
-    const open=body.style.display!=='none';
-    body.style.display=open?'none':'';
-    this.classList.toggle('open',!open);
-  }));
-  // scroll to bottom
-  setTimeout(()=>container.scrollTop=container.scrollHeight,50);
+  const total=parts.length;
+  let shown=0;
+  function renderChunk(){
+    const end=Math.min(total,shown+CHUNK);
+    let h='';
+    for(let i=shown;i<end;i++){
+      if(dividers[i])h+='<div class="date-divider"><span>'+esc(dividers[i])+'</span></div>';
+      h+=parts[i];
+    }
+    if(shown===0)container.innerHTML=h;
+    else{
+      const prog=container.querySelector('.render-prog');
+      if(prog)prog.remove();
+      container.insertAdjacentHTML('beforeend',h);
+    }
+    shown=end;
+    if(shown<total){
+      container.insertAdjacentHTML('beforeend','<div class="render-prog">⏳ 正在渲染 '+shown+' / '+total+' 条消息…</div>');
+      setTimeout(renderChunk,0); // 让出主线程，保持 UI 响应
+    }else{
+      finishRender(container,cacheKey);
+    }
+  }
+  renderChunk();
+}
+
+function finishRender(container,cacheKey){
+  // 代码高亮（data-hl 标记防重复处理——缓存恢复的 HTML 已带标记，不会二次高亮）
+  container.querySelectorAll('pre code:not([data-hl])').forEach(el=>{
+    try{hljs.highlightElement(el);el.setAttribute('data-hl','1');}catch(e){}
+  });
+  scrollThreadBottom();
+  // 延迟缓存最终 HTML（等高亮完成后存成品）
+  if(cacheKey){
+    setTimeout(()=>{
+      if(convCache.size>=CACHE_MAX)convCache.delete(convCache.keys().next().value);
+      convCache.set(cacheKey,container.innerHTML);
+    },300);
+  }
+}
+function scrollThreadBottom(){
+  const c=document.getElementById('messages');
+  setTimeout(()=>c.scrollTop=c.scrollHeight,50);
 }
 function renderMsg(msg){
   const role=msg.sender||'human';
@@ -1020,6 +1083,17 @@ if(typeof marked!=='undefined'){
   };
   marked.setOptions({renderer});
 }
+
+// ── 折叠块事件委托（渲染多少次都只绑一次；缓存恢复的 DOM 也无需重绑）──
+document.getElementById('messages').addEventListener('click',e=>{
+  const h=e.target.closest('.collapsible-header');
+  if(!h||!document.getElementById('messages').contains(h))return;
+  const body=h.nextElementSibling;
+  if(!body)return;
+  const open=body.style.display!=='none';
+  body.style.display=open?'none':'';
+  h.classList.toggle('open',!open);
+});
 
 function copyCode(btn,id){
   const el=document.getElementById(id);
