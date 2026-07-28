@@ -5,10 +5,10 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Claude Export History Viewer</title>
 <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/highlight.js@11.9.0/lib/highlight.min.js"></script>
+<script src="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.9.0/build/highlight.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js" defer></script>
-<link id="hljs-theme" rel="stylesheet" href="https://cdn.jsdelivr.net/npm/highlight.js@11.9.0/styles/github.min.css">
+<link id="hljs-theme" rel="stylesheet" href="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.9.0/build/styles/github.min.css">
 <style>
 /* ── Light theme (default, Claude-style) ── */
 :root {
@@ -1365,6 +1365,10 @@ function fmtTime(iso){
 if(typeof marked!=='undefined'){
   marked.setOptions({breaks:true,gfm:true});
   const renderer=new marked.Renderer();
+  renderer.html=function(html){
+    const raw=html&&typeof html==='object'?html.text:html;
+    return esc(raw==null?'':raw);
+  };
   renderer.code=function(code,lang){
     // marked v5+ passes a token object {text,lang,escaped}; older versions pass (code,lang) directly
     let rawCode, l;
@@ -1473,7 +1477,7 @@ function applyTheme(theme){
   const dark=theme==='dark';
   document.documentElement.setAttribute('data-theme',dark?'dark':'');
   document.getElementById('theme-btn').textContent=dark?'☀️':'🌙';
-  document.getElementById('hljs-theme').href='https://cdn.jsdelivr.net/npm/highlight.js@11.9.0/styles/'+(dark?'github-dark':'github')+'.min.css';
+  document.getElementById('hljs-theme').href='https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.9.0/build/styles/'+(dark?'github-dark':'github')+'.min.css';
 }
 // Init: load saved preference, default = light
 (function(){
