@@ -442,8 +442,11 @@ async function ingestData(convText,projTexts,memText,btn){
   // yield to browser to render spinner before blocking JSON.parse
   await new Promise(r=>setTimeout(r,30));
   // 错误统一抛给调用方：各入口在自己的 catch 里设置按钮文案，避免双层处理互相覆盖
+  projectMapGeneration++;
   allConvs=JSON.parse(convText);
   if(!Array.isArray(allConvs))throw new Error('conversations.json 格式不正确');
+  allProjects=[];
+  memoryData=null;
   for(const t of projTexts){try{allProjects.push(JSON.parse(t));}catch(e2){console.warn('跳过损坏的项目文件',e2);}}
   if(memText){try{const ms=JSON.parse(memText);memoryData=(Array.isArray(ms)?ms[0]:ms)||null;}catch(e2){console.warn('memories.json 解析失败',e2);}}
   document.getElementById('conv-total').textContent=allConvs.length;
@@ -451,8 +454,9 @@ async function ingestData(convText,projTexts,memText,btn){
   // hide tabs with no data
   document.querySelector('.tab-btn[onclick*="projects"]').style.display=allProjects.length?'':'none';
   document.querySelector('.tab-btn[onclick*="memory"]').style.display=memoryData?'':'none';
-  // build project<->conversation map
-  if(allProjects.length) buildConvProjectMap();
+  convProjectMap={};
+  convProjectMapReady=!allProjects.length;
+  convProjectMapPromise=null;
   btn.textContent='✅ 已加载 '+allConvs.length+' 条对话';
   const totalMsgs=allConvs.reduce((s,c)=>s+(Array.isArray(c.chat_messages)?c.chat_messages.length:0),0);
   const dates=allConvs.map(c=>c.created_at).filter(Boolean).sort();
@@ -468,7 +472,7 @@ function switchTab(tab,btn){
   document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));
   btn.classList.add('active');
   if(tab==='convs')renderConvList(getSortedConvs());
-  else if(tab==='projects')renderProjectList();
+  else if(tab==='projects'){renderProjectList();void ensureConvProjectMap().catch(e=>console.warn('项目关联索引失败',e));}
   else renderMemoryTab();
 }
 function renderConvList(convs){
@@ -706,9 +710,34 @@ function getProjectKeywords(p){
 
 // Build conversation->project map once after data loads
 let convProjectMap = {};  // uuid -> project uuid
+let convProjectMapReady=false;
+let convProjectMapPromise=null;
+let projectMapGeneration=0;
 
-function buildConvProjectMap(){
-  convProjectMap = {};
+const projectIndexTaskQueue=[];
+const projectIndexChannel=new MessageChannel();
+projectIndexChannel.port1.onmessage=()=>{const resolve=projectIndexTaskQueue.shift();if(resolve)resolve();};
+function yieldProjectIndex(){
+  if(globalThis.scheduler&&globalThis.scheduler.yield)return globalThis.scheduler.yield();
+  return new Promise(resolve=>{projectIndexTaskQueue.push(resolve);projectIndexChannel.port2.postMessage(0);});
+}
+const PROJECT_INDEX_BATCH_SIZE=10;
+function ensureConvProjectMap(){
+  if(convProjectMapReady)return Promise.resolve();
+  if(convProjectMapPromise)return convProjectMapPromise;
+  const generation=projectMapGeneration;
+  const buildPromise=buildConvProjectMap(generation).then(map=>{
+    if(generation===projectMapGeneration){convProjectMap=map;convProjectMapReady=true;}
+  });
+  const trackedPromise=buildPromise.finally(()=>{
+    if(convProjectMapPromise===trackedPromise)convProjectMapPromise=null;
+  });
+  convProjectMapPromise=trackedPromise;
+  return convProjectMapPromise;
+}
+
+async function buildConvProjectMap(generation=projectMapGeneration){
+  const map={};
 
   // ── Layer 1: exact match via /mnt/project/<filename> in tool_results ──
   const docToProj = {};
@@ -718,9 +747,12 @@ function buildConvProjectMap(){
     }
   }
 
-  for (const c of allConvs){
-    if(convProjectMap[c.uuid]) continue;
-    for (const m of (c.chat_messages||[])){
+  for (let ci=0;ci<allConvs.length;ci++){
+    const c=allConvs[ci];
+    if(map[c.uuid]) continue;
+    const messages=c.chat_messages||[];
+    for (let mi=0;mi<messages.length;mi++){
+      const m=messages[mi];
       for (const b of (m.content||[])){
         if(!b) continue;
         // tool_result text content
@@ -730,20 +762,22 @@ function buildConvProjectMap(){
             const refs=(bc.text||'').match(/\/mnt\/project\/([^\n\t ]+)/g)||[];
             for(const ref of refs){
               const fname=ref.replace('/mnt/project/','').toLowerCase().replace(/[?#].*/,'');
-              if(docToProj[fname]){convProjectMap[c.uuid]=docToProj[fname];break;}
+              if(docToProj[fname]){map[c.uuid]=docToProj[fname];break;}
             }
-            if(convProjectMap[c.uuid]) break;
+            if(map[c.uuid]) break;
           }
         }
         // local_resource
-        if(!convProjectMap[c.uuid]&&b.type==='local_resource'){
+        if(!map[c.uuid]&&b.type==='local_resource'){
           const fname=(b.file_path||'').replace('/mnt/project/','').toLowerCase();
-          if(docToProj[fname]) convProjectMap[c.uuid]=docToProj[fname];
+          if(docToProj[fname]) map[c.uuid]=docToProj[fname];
         }
-        if(convProjectMap[c.uuid]) break;
+        if(map[c.uuid]) break;
       }
-      if(convProjectMap[c.uuid]) break;
+      if(map[c.uuid]) break;
+      if(mi%50===49){await yieldProjectIndex();if(generation!==projectMapGeneration)return map;}
     }
+    if(ci%PROJECT_INDEX_BATCH_SIZE===PROJECT_INDEX_BATCH_SIZE-1){await yieldProjectIndex();if(generation!==projectMapGeneration)return map;}
   }
 
   // ── Layer 2: project_knowledge_search query matches project doc content ──
@@ -758,16 +792,21 @@ function buildConvProjectMap(){
     projDocText[p.uuid]=parts.join(' ');
   }
 
-  for(const c of allConvs){
-    if(convProjectMap[c.uuid]) continue;
+  for(let ci=0;ci<allConvs.length;ci++){
+    if(ci%PROJECT_INDEX_BATCH_SIZE===PROJECT_INDEX_BATCH_SIZE-1){await yieldProjectIndex();if(generation!==projectMapGeneration)return map;}
+    const c=allConvs[ci];
+    if(map[c.uuid]) continue;
     // collect all PKS queries for this conv
     const queries=[];
-    for(const m of (c.chat_messages||[])){
+    const messages=c.chat_messages||[];
+    for(let mi=0;mi<messages.length;mi++){
+      const m=messages[mi];
       for(const b of (m.content||[])){
         if(b&&b.type==='tool_use'&&b.name==='project_knowledge_search'&&b.input&&b.input.query){
           queries.push(b.input.query.toLowerCase());
         }
       }
+      if(mi%50===49){await yieldProjectIndex();if(generation!==projectMapGeneration)return map;}
     }
     if(!queries.length) continue;
 
@@ -787,36 +826,64 @@ function buildConvProjectMap(){
     }
     if(Object.keys(scores).length){
       const best=Object.entries(scores).sort((a,b)=>b[1]-a[1])[0];
-      if(best[1]>=2) convProjectMap[c.uuid]=best[0];
+      if(best[1]>=2) map[c.uuid]=best[0];
     }
   }
 
   // ── Layer 3: keyword matching (fallback for remaining) ──
-  for(const c of allConvs){
-    if(convProjectMap[c.uuid]) continue;
+  const projectKeywords=new Map();
+  for(let pi=0;pi<allProjects.length;pi++){
+    const p=allProjects[pi];
+    projectKeywords.set(p.uuid,getProjectKeywords(p));
+    await yieldProjectIndex();
+    if(generation!==projectMapGeneration)return map;
+  }
+  for(let ci=0;ci<allConvs.length;ci++){
+    if(ci%PROJECT_INDEX_BATCH_SIZE===PROJECT_INDEX_BATCH_SIZE-1){await yieldProjectIndex();if(generation!==projectMapGeneration)return map;}
+    const c=allConvs[ci];
+    if(map[c.uuid]) continue;
     let bestProj=null, bestScore=0;
     for(const p of allProjects){
-      const kws=getProjectKeywords(p);
+      const kws=projectKeywords.get(p.uuid)||[];
       if(!kws.length) continue;
       const text=((c.name||'')+' '+(c.summary||'')).toLowerCase();
       let hits=0;
       for(const kw of kws){ if(text.includes(kw)) hits++; }
       if(hits>bestScore){bestScore=hits;bestProj=p.uuid;}
     }
-    if(bestScore>=3) convProjectMap[c.uuid]=bestProj;
+    if(bestScore>=3) map[c.uuid]=bestProj;
   }
+  return map;
 }
 
 function findProjectConvs(p){
   return allConvs.filter(c=>convProjectMap[c.uuid]===p.uuid);
 }
 
-function openProject(uuid){
+async function openProject(uuid){
   const p=allProjects.find(x=>x.uuid===uuid);if(!p)return;
   // Highlight active in sidebar
   document.querySelectorAll('.proj-card').forEach(el=>el.classList.toggle('active',el.dataset.projUuid===uuid));
   document.getElementById('chat-title').textContent='📁 '+(p.name||'项目');
   document.getElementById('chat-title').style.color='';
+
+  if(!convProjectMapReady){
+    document.getElementById('chat-header-meta').textContent='正在分析关联对话…';
+    document.getElementById('messages').innerHTML='<div style="display:flex;align-items:center;justify-content:center;height:100%;color:var(--text3)"><span class="spinner"></span>&nbsp; 正在建立项目关联索引…</div>';
+    try{
+      await ensureConvProjectMap();
+    }catch(e){
+      console.error('项目关联索引失败',e);
+      const active=document.querySelector('.proj-card.active');
+      if(active&&active.dataset.projUuid===uuid){
+        document.getElementById('chat-header-meta').textContent='关联索引失败';
+        document.getElementById('messages').innerHTML='<div style="display:flex;align-items:center;justify-content:center;height:100%;color:var(--red)">项目关联索引失败，请重新选择项目重试。</div>';
+      }
+      return;
+    }
+    const active=document.querySelector('.proj-card.active');
+    if(!active||active.dataset.projUuid!==uuid)return;
+  }
 
   const relatedConvs=findProjectConvs(p);
   document.getElementById('chat-header-meta').textContent=(p.docs||[]).length+'个文档 · '+relatedConvs.length+'条关联对话';
