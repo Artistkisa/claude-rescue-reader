@@ -388,8 +388,12 @@ mark.cs.active { background:var(--accent); color:#fff; }
 const ICON='<svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 2l4 4-4 4"/></svg>';
 let allConvs=[],allProjects=[],memoryData=null,currentConv=null,summaryVisible=false;
 const MESSAGE_BATCH_SIZE=100;
+const MESSAGE_BATCH_BUDGET=100;
+const MESSAGE_BATCH_MIN=24;
 let messageRenderState={convUuid:null,linear:[],start:0};
 let highlightObserver=null;
+let visualObserver=null;
+let mermaidInitializedTheme='';
 
 document.getElementById('file-input').addEventListener('change',async e=>{
   const files=[...e.target.files];
@@ -994,6 +998,32 @@ function initLazyHighlight(container){
   blocks.forEach(el=>highlightObserver.observe(el));
 }
 
+function messageRenderWeight(msg){
+  if(!msg||msg._divider)return 0;
+  let weight=1,chars=String(msg.text||'').length,codeFences=0;
+  for(const b of(msg.content||[])){
+    if(!b||typeof b!=='object')continue;
+    const text=String(b.text||b.thinking||'');
+    chars+=text.length;
+    codeFences+=(text.match(/```/g)||[]).length/2;
+    const name=String(b.name||'');
+    if((b.type==='tool_use'||b.type==='server_tool_use')&&/show_widget|visualize|imagine|artifact/i.test(name))weight+=8;
+  }
+  weight+=Math.min(6,Math.floor(chars/2500));
+  weight+=Math.min(9,Math.floor(codeFences)*2);
+  return weight;
+}
+
+function initialMessageStart(linear){
+  let start=linear.length,count=0,budget=0;
+  while(start>0&&count<MESSAGE_BATCH_SIZE){
+    const weight=messageRenderWeight(linear[start-1]);
+    if(count>=MESSAGE_BATCH_MIN&&budget+weight>MESSAGE_BATCH_BUDGET)break;
+    start--;count++;budget+=weight;
+  }
+  return start;
+}
+
 function loadEarlierMessages(){
   if(!currentConv||messageRenderState.start<=0)return;
   const container=document.getElementById('messages');
@@ -1014,7 +1044,7 @@ function renderMessages(msgs,opts){
   const convUuid=currentConv&&currentConv.uuid||'';
   let start;
   if(opts&&Number.isInteger(opts.startIndex))start=Math.max(0,Math.min(opts.startIndex,linear.length));
-  else start=Math.max(0,linear.length-MESSAGE_BATCH_SIZE);
+  else start=initialMessageStart(linear);
   messageRenderState={convUuid,linear,start};
   const scrollPos=(opts&&opts.keepScroll)?container.scrollTop:null;
   let h='',lastDate='';
@@ -1041,7 +1071,7 @@ function renderMessages(msgs,opts){
   else if(scrollPos!=null)container.scrollTop=scrollPos;
   else setTimeout(()=>container.scrollTop=container.scrollHeight,50);
   autosizeIframes(container);
-  initMermaid(container);
+  initLazyVisuals(container);
 }
 // ── Artifact 识别（visualize / imagine / 经典 artifacts 工具）──
 function readArtifact(b){
@@ -1082,7 +1112,7 @@ function renderVisual(v){
     const vbW=vb&&parseFloat(vb[1]),vbH=vb&&parseFloat(vb[2]);
     const ratio=(Number.isFinite(vbW)&&Number.isFinite(vbH)&&vbW>0&&vbH>0)?' style="aspect-ratio:'+vbW+'/'+vbH+';height:auto"':'';
     const sandbox=v.kind==='svg'?' sandbox':' sandbox="allow-scripts"';
-    body='<iframe class="vhtml"'+sandbox+ratio+' srcdoc="'+escAttr(visualDocument(v))+'"></iframe>';
+    body='<iframe class="vhtml"'+sandbox+ratio+' loading="lazy" data-srcdoc="'+escAttr(visualDocument(v))+'"></iframe>';
   }
   return '<div class="visual" id="'+id+'" data-vkind="'+v.kind+'" data-vcode="'+esc(encodeURIComponent(v.code))+'" data-vtitle="'+esc(v.title||v.kind)+'">'+cap+body+src+'</div>';
 }
@@ -1123,22 +1153,44 @@ function downloadVisual(id){
 }
 function autosizeIframes(root){
   root.querySelectorAll('iframe.vhtml').forEach(f=>{
+    if(f.dataset.autosizeReady)return;
+    f.dataset.autosizeReady='1';
     const rs=()=>{try{const d=f.contentDocument,b=d&&d.body,e=d&&d.documentElement;
       if(b)f.style.height=Math.min(800,Math.max(b.scrollHeight,e?e.scrollHeight:0,120)+16)+'px';}catch(e){}};
-    f.addEventListener('load',rs);setTimeout(rs,80);setTimeout(rs,400);
+    f.addEventListener('load',rs);
+    if(!f.dataset.srcdoc){setTimeout(rs,80);setTimeout(rs,400);}
   });
 }
-// mermaid 按需初始化（脚本 defer 加载，这里等它就绪）
-function initMermaid(root,tries){
-  const els=root.querySelectorAll('.mermaid:not([data-processed])');
-  if(!els.length)return;
+function renderMermaidNode(el,tries){
+  if(!el||!el.isConnected||el.dataset.processed)return;
   tries=tries||0;
   if(typeof mermaid==='undefined'){
-    if(tries<10)setTimeout(()=>initMermaid(root,tries+1),300); // CDN 未就绪时有限重试
+    if(tries<10)setTimeout(()=>renderMermaidNode(el,tries+1),300);
     return;
   }
-  try{mermaid.initialize({startOnLoad:false,theme:document.documentElement.getAttribute('data-theme')==='dark'?'dark':'default'});
-    mermaid.run({nodes:els}).catch(e=>console.warn('mermaid',e));}catch(e){console.warn('mermaid',e);}
+  try{const theme=document.documentElement.getAttribute('data-theme')==='dark'?'dark':'default';
+    if(mermaidInitializedTheme!==theme){mermaid.initialize({startOnLoad:false,theme});mermaidInitializedTheme=theme;}
+    mermaid.run({nodes:[el]}).catch(e=>console.warn('mermaid',e));}catch(e){console.warn('mermaid',e);}
+}
+function initLazyVisuals(root){
+  if(visualObserver){visualObserver.disconnect();visualObserver=null;}
+  const els=[...root.querySelectorAll('iframe.vhtml[data-srcdoc],.mermaid:not([data-processed])')];
+  if(!els.length)return;
+  const activate=el=>{
+    if(el.matches('iframe.vhtml[data-srcdoc]')){
+      el.srcdoc=el.dataset.srcdoc;
+      delete el.dataset.srcdoc;
+    }else renderMermaidNode(el);
+  };
+  if(typeof IntersectionObserver==='undefined'){els.forEach(activate);return;}
+  visualObserver=new IntersectionObserver(entries=>{
+    for(const entry of entries){
+      if(!entry.isIntersecting)continue;
+      activate(entry.target);
+      visualObserver.unobserve(entry.target);
+    }
+  },{root,rootMargin:'800px 0px'});
+  els.forEach(el=>visualObserver.observe(el));
 }
 
 // heredoc 写文件提取（bash 工具常见模式）
