@@ -723,11 +723,17 @@ function yieldProjectIndex(){
 }
 const PROJECT_INDEX_BATCH_SIZE=10;
 const PROJECT_QUERY_STOP_WORDS=new Set(['the','and','for','with','from','this','that','project','system','analysis','research','review','story','world','character','characters','setting','design','create','help']);
+const projectKeywordRegexCache=new Map();
 function normalizeProjectFilename(value){return String(value||'').trim().replace(/^\/mnt\/project\//,'').toLowerCase().replace(/[?#].*/,'');}
 function projectKeywordAppears(text,keyword){
   if(/[\u4e00-\u9fff]/.test(keyword))return text.includes(keyword);
-  const escaped=keyword.replace(/[.*+?^${}()|[\]\\]/g,'\\$&');
-  return new RegExp('(^|[^a-z0-9_])'+escaped+'([^a-z0-9_]|$)','i').test(text);
+  let pattern=projectKeywordRegexCache.get(keyword);
+  if(!pattern){
+    const escaped=keyword.replace(/[.*+?^${}()|[\]\\]/g,'\\$&');
+    pattern=new RegExp('(^|[^a-z0-9_])'+escaped+'([^a-z0-9_]|$)','i');
+    projectKeywordRegexCache.set(keyword,pattern);
+  }
+  return pattern.test(text);
 }
 function ensureConvProjectMap(){
   if(convProjectMapReady)return Promise.resolve();
@@ -834,7 +840,7 @@ async function buildConvProjectMap(generation=projectMapGeneration){
       let score=0;
       for(const q of queries){
         // split query into tokens, count how many appear in project docs
-        const tokens=q.split(/\s+/).map(t=>t.replace(/[^\w\u4e00-\u9fff]/g,'')).filter(t=>t.length>=2&&!PROJECT_QUERY_STOP_WORDS.has(t));
+        const tokens=q.split(/\s+/).map(t=>t.toLowerCase().replace(/[^\w\u4e00-\u9fff]/g,'')).filter(t=>t.length>=2&&!PROJECT_QUERY_STOP_WORDS.has(t));
         for(const tok of tokens){
           if(docText.includes(tok)) score++;
         }
@@ -858,7 +864,8 @@ async function buildConvProjectMap(generation=projectMapGeneration){
   }
   const keywordOwners=new Map();
   for(const [projectUuid,keywords] of projectKeywords){
-    for(const keyword of keywords){
+    for(const rawKeyword of keywords){
+      const keyword=rawKeyword.toLowerCase();
       if(PROJECT_QUERY_STOP_WORDS.has(keyword))continue;
       if(!keywordOwners.has(keyword))keywordOwners.set(keyword,new Set());
       keywordOwners.get(keyword).add(projectUuid);
