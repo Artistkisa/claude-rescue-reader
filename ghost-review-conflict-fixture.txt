@@ -1,3 +1,3 @@
 ﻿GHOST conflict fixture
-value: base-original
+value: head-change
 keep: unchanged
