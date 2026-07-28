@@ -393,6 +393,7 @@ const MESSAGE_BATCH_MIN=24;
 let messageRenderState={convUuid:null,linear:[],start:0};
 let highlightObserver=null;
 let visualObserver=null;
+let mermaidInitializedTheme='';
 
 document.getElementById('file-input').addEventListener('change',async e=>{
   const files=[...e.target.files];
@@ -1167,7 +1168,8 @@ function renderMermaidNode(el,tries){
     if(tries<10)setTimeout(()=>renderMermaidNode(el,tries+1),300);
     return;
   }
-  try{mermaid.initialize({startOnLoad:false,theme:document.documentElement.getAttribute('data-theme')==='dark'?'dark':'default'});
+  try{const theme=document.documentElement.getAttribute('data-theme')==='dark'?'dark':'default';
+    if(mermaidInitializedTheme!==theme){mermaid.initialize({startOnLoad:false,theme});mermaidInitializedTheme=theme;}
     mermaid.run({nodes:[el]}).catch(e=>console.warn('mermaid',e));}catch(e){console.warn('mermaid',e);}
 }
 function initLazyVisuals(root){
