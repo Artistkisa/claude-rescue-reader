@@ -985,10 +985,9 @@ function renderMessages(msgs,opts){
     if(msg._divider==='linear'){h+='<div class="date-divider"><span>⚠️ 对话分支结构异常，已按时间顺序展示全部消息</span></div>';lastDate='';continue;}
     if(msg._divider==='orphan'){h+='<div class="date-divider"><span>🧩 以下 '+msg.count+' 条消息无法归入对话分支（可能是已删除分支的残留）</span></div>';lastDate='';continue;}
     const d=fmtDateOnly(msg.created_at);
-    dividers.push(d!==lastDate?d:null);
     if(d!==lastDate)lastDate=d;
-    try{parts.push(renderMsg(msg));}
-    catch(e){parts.push('<div style="padding:8px 16px;color:var(--text3);font-size:12px;">⚠️ 此消息渲染出错</div>');console.warn('renderMsg error',e);}
+    try{h+=renderMsg(msg);}
+    catch(e){h+='<div style="padding:8px 16px;color:var(--text3);font-size:12px;">⚠️ 此消息渲染出错</div>';console.warn('renderMsg error',e);}
   }
   container.innerHTML=h;
   container.querySelectorAll('pre code').forEach(el=>{try{hljs.highlightElement(el);}catch(e){}});
@@ -1003,8 +1002,6 @@ function renderMessages(msgs,opts){
   else setTimeout(()=>container.scrollTop=container.scrollHeight,50);
   autosizeIframes(container);
   initMermaid(container);
-  // scroll to bottom
-  setTimeout(()=>container.scrollTop=container.scrollHeight,50);
 }
 // ── Artifact 识别（visualize / imagine / 经典 artifacts 工具）──
 function readArtifact(b){
@@ -1363,10 +1360,14 @@ if(typeof marked!=='undefined'){
 const MSGTEXT={};let _mid=0;
 function copyMsg(id,btn){
   const t=MSGTEXT[id];if(t==null)return;
-  navigator.clipboard.writeText(t).then(()=>{
-    btn.textContent='✓';setTimeout(()=>btn.textContent='📋',1500);
-  });
+  const done=()=>{btn.textContent='✓';setTimeout(()=>btn.textContent='📋',1500);};
+  const fail=()=>{btn.textContent='⚠️';setTimeout(()=>btn.textContent='📋',1500);};
+  try{
+    if(navigator.clipboard&&typeof navigator.clipboard.writeText==='function') navigator.clipboard.writeText(t).then(done).catch(()=>fallbackCopy(t)?done():fail());
+    else if(!fallbackCopy(t))fail(); else done();
+  }catch(e){if(!fallbackCopy(t))fail();else done();}
 }
+function fallbackCopy(t){try{const ta=document.createElement('textarea');ta.value=t;ta.style.position='fixed';ta.style.opacity='0';document.body.appendChild(ta);ta.focus();ta.select();const ok=document.execCommand('copy');ta.remove();return ok;}catch(e){return false;}}
 
 // ── 对话内搜索（TreeWalker 文本节点高亮 + 匹配导航）──
 let CS={matches:[],idx:-1};
