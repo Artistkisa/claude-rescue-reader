@@ -1041,7 +1041,7 @@ function renderVisual(v){
     const vb=v.kind==='svg'&&v.code.match(/viewBox\s*=\s*["']\s*[-\d.]+\s+[-\d.]+\s+([\d.]+)\s+([\d.]+)\s*["']/i);
     const vbW=vb&&parseFloat(vb[1]),vbH=vb&&parseFloat(vb[2]);
     const ratio=(Number.isFinite(vbW)&&Number.isFinite(vbH)&&vbW>0&&vbH>0)?' style="aspect-ratio:'+vbW+'/'+vbH+';height:auto"':'';
-    const sandbox=v.kind==='svg'?'':' sandbox="allow-scripts"';
+    const sandbox=v.kind==='svg'?' sandbox':' sandbox="allow-scripts"';
     body='<iframe class="vhtml"'+sandbox+ratio+' srcdoc="'+escAttr(visualDocument(v))+'"></iframe>';
   }
   return '<div class="visual" id="'+id+'" data-vkind="'+v.kind+'" data-vcode="'+esc(encodeURIComponent(v.code))+'" data-vtitle="'+esc(v.title||v.kind)+'">'+cap+body+src+'</div>';
@@ -1064,7 +1064,10 @@ function sanitizeSvg(code){
     doc.querySelectorAll('*').forEach(el=>{
       [...el.attributes].forEach(a=>{
         const n=a.name.toLowerCase(),val=a.value.trim();
-        if(n.startsWith('on')||((n==='href'||n==='xlink:href')&&/^\s*(?:javascript:|data:text\/html)/i.test(val)))el.removeAttribute(a.name);
+        if(n.startsWith('on'))el.removeAttribute(a.name);
+        else if(n==='href'||n==='xlink:href'){
+          if(!/^#[A-Za-z_][\w:.-]*$/.test(val))el.removeAttribute(a.name);
+        }else if(/url\(\s*['"]?(?!#)/i.test(val))el.removeAttribute(a.name);
       });
     });
     return new XMLSerializer().serializeToString(doc.documentElement);
