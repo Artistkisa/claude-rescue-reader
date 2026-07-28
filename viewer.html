@@ -601,16 +601,28 @@ function filterConvs(q){
     const f=allConvs.filter(c=>{
       if((c.name||'').toLowerCase().includes(lq))return true;
       if((c.summary||'').toLowerCase().includes(lq))return true;
-      if(fullText){
-        for(const m of(c.chat_messages||[])){
-          if((m.text||'').toLowerCase().includes(lq))return true;
-          for(const b of(m.content||[])){if(b.type==='text'&&(b.text||'').toLowerCase().includes(lq))return true;}
-        }
-      }
+      if(fullText&&searchCorpus(c).includes(lq))return true;
       return false;
     });
     renderConvList(f);
   },200);
+}
+
+// 全文搜索语料缓存（uuid -> 小写拼接文本，懒构建，每条对话只算一次）
+const corpusCache=new Map();
+function searchCorpus(c){
+  if(corpusCache.has(c.uuid))return corpusCache.get(c.uuid);
+  const parts=[];
+  for(const m of(c.chat_messages||[])){
+    if(m.text)parts.push(m.text);
+    for(const b of(m.content||[])){
+      if(b.type==='text'&&b.text)parts.push(b.text);
+      else if(b.type==='thinking'&&b.thinking)parts.push(b.thinking);
+    }
+  }
+  const s=parts.join('\n').toLowerCase();
+  corpusCache.set(c.uuid,s);
+  return s;
 }
 
 let sortMode='updated';
@@ -973,9 +985,10 @@ function renderMessages(msgs,opts){
     if(msg._divider==='linear'){h+='<div class="date-divider"><span>⚠️ 对话分支结构异常，已按时间顺序展示全部消息</span></div>';lastDate='';continue;}
     if(msg._divider==='orphan'){h+='<div class="date-divider"><span>🧩 以下 '+msg.count+' 条消息无法归入对话分支（可能是已删除分支的残留）</span></div>';lastDate='';continue;}
     const d=fmtDateOnly(msg.created_at);
-    if(d!==lastDate){h+='<div class="date-divider"><span>'+esc(d)+'</span></div>';lastDate=d;}
-    try{h+=renderMsg(msg);}
-    catch(e){h+='<div style="padding:8px 16px;color:var(--text3);font-size:12px;">⚠️ 此消息渲染出错</div>';console.warn('renderMsg error',e);}
+    dividers.push(d!==lastDate?d:null);
+    if(d!==lastDate)lastDate=d;
+    try{parts.push(renderMsg(msg));}
+    catch(e){parts.push('<div style="padding:8px 16px;color:var(--text3);font-size:12px;">⚠️ 此消息渲染出错</div>');console.warn('renderMsg error',e);}
   }
   container.innerHTML=h;
   container.querySelectorAll('pre code').forEach(el=>{try{hljs.highlightElement(el);}catch(e){}});
