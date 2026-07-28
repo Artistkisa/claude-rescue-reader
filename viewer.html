@@ -1107,7 +1107,12 @@ function applyTheme(theme){
 })();
 
 // ── 拖拽加载（ZIP 或散落的 JSON 文件）──
-window.addEventListener('dragenter',e=>{e.preventDefault();document.getElementById('dropmask').classList.add('show');});
+window.addEventListener('dragenter',e=>{
+  e.preventDefault();
+  // 只对文件拖拽显示遮罩（拖选中的文本/链接等不触发）
+  if(!e.dataTransfer||![...e.dataTransfer.types].includes('Files'))return;
+  document.getElementById('dropmask').classList.add('show');
+});
 window.addEventListener('dragover',e=>e.preventDefault());
 window.addEventListener('dragleave',e=>{if(!e.relatedTarget)document.getElementById('dropmask').classList.remove('show');});
 window.addEventListener('drop',async e=>{
@@ -1122,8 +1127,18 @@ window.addEventListener('drop',async e=>{
     const btn=document.getElementById('load-btn');
     btn.innerHTML='<span class="spinner"></span> 解析中，请稍候…';
     const mem=files.find(f=>f.name==='memories.json');
-    const pf=files.filter(f=>/\.json$/.test(f.name)&&f!==conv&&f!==mem);
-    await ingestData(await conv.text(),await Promise.all(pf.map(f=>f.text())),mem?await mem.text():null,btn);
+    // 其余 .json 做最小形状校验（对象且含 docs 或 uuid 字段）才按项目文件处理，
+    // 避免用户误拖无关 JSON 时刷无意义的解析警告
+    const projTexts=[];
+    for(const f of files){
+      if(!/\.json$/.test(f.name)||f===conv||f===mem)continue;
+      try{
+        const t=await f.text();
+        const o=JSON.parse(t);
+        if(o&&typeof o==='object'&&!Array.isArray(o)&&('docs' in o||'uuid' in o))projTexts.push(t);
+      }catch(e2){/* 非项目文件，静默跳过 */}
+    }
+    await ingestData(await conv.text(),projTexts,mem?await mem.text():null,btn);
   }
 });
 
