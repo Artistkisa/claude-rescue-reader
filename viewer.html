@@ -722,6 +722,13 @@ function yieldProjectIndex(){
   return new Promise(resolve=>{projectIndexTaskQueue.push(resolve);projectIndexChannel.port2.postMessage(0);});
 }
 const PROJECT_INDEX_BATCH_SIZE=10;
+const PROJECT_QUERY_STOP_WORDS=new Set(['the','and','for','with','from','this','that','project','system','analysis','research','review','story','world','character','characters','setting','design','create','help']);
+function normalizeProjectFilename(value){return String(value||'').trim().replace(/^\/mnt\/project\//,'').toLowerCase().replace(/[?#].*/,'');}
+function projectKeywordAppears(text,keyword){
+  if(/[\u4e00-\u9fff]/.test(keyword))return text.includes(keyword);
+  const escaped=keyword.replace(/[.*+?^${}()|[\]\\]/g,'\\$&');
+  return new RegExp('(^|[^a-z0-9_])'+escaped+'([^a-z0-9_]|$)','i').test(text);
+}
 function ensureConvProjectMap(){
   if(convProjectMapReady)return Promise.resolve();
   if(convProjectMapPromise)return convProjectMapPromise;
@@ -740,16 +747,24 @@ async function buildConvProjectMap(generation=projectMapGeneration){
   const map={};
 
   // ── Layer 1: exact match via /mnt/project/<filename> in tool_results ──
-  const docToProj = {};
+  const docOwners=new Map();
   for (const p of allProjects){
     for (const d of (p.docs||[])){
-      if(d.filename) docToProj[d.filename.toLowerCase()] = p.uuid;
+      if(!d.filename)continue;
+      const filename=normalizeProjectFilename(d.filename);
+      if(!docOwners.has(filename))docOwners.set(filename,new Set());
+      docOwners.get(filename).add(p.uuid);
     }
   }
+  const uniqueDocProject=filename=>{
+    const owners=docOwners.get(normalizeProjectFilename(filename));
+    return owners&&owners.size===1?[...owners][0]:null;
+  };
 
   for (let ci=0;ci<allConvs.length;ci++){
     const c=allConvs[ci];
     if(map[c.uuid]) continue;
+    const exactCandidates=new Set();
     const messages=c.chat_messages||[];
     for (let mi=0;mi<messages.length;mi++){
       const m=messages[mi];
@@ -761,22 +776,24 @@ async function buildConvProjectMap(generation=projectMapGeneration){
             if(!bc||bc.type!=='text') continue;
             const refs=(bc.text||'').match(/\/mnt\/project\/([^\n\t ]+)/g)||[];
             for(const ref of refs){
-              const fname=ref.replace('/mnt/project/','').toLowerCase().replace(/[?#].*/,'');
-              if(docToProj[fname]){map[c.uuid]=docToProj[fname];break;}
+              const projectUuid=uniqueDocProject(ref);
+              if(projectUuid)exactCandidates.add(projectUuid);
             }
-            if(map[c.uuid]) break;
+            if(b.name==='project_knowledge_search'){
+              const projectUuid=uniqueDocProject((bc.text||'').split(/\r?\n/,1)[0]);
+              if(projectUuid)exactCandidates.add(projectUuid);
+            }
           }
         }
         // local_resource
-        if(!map[c.uuid]&&b.type==='local_resource'){
-          const fname=(b.file_path||'').replace('/mnt/project/','').toLowerCase();
-          if(docToProj[fname]) map[c.uuid]=docToProj[fname];
+        if(b.type==='local_resource'){
+          const projectUuid=uniqueDocProject(b.file_path);
+          if(projectUuid)exactCandidates.add(projectUuid);
         }
-        if(map[c.uuid]) break;
       }
-      if(map[c.uuid]) break;
       if(mi%50===49){await yieldProjectIndex();if(generation!==projectMapGeneration)return map;}
     }
+    if(exactCandidates.size===1)map[c.uuid]=[...exactCandidates][0];
     if(ci%PROJECT_INDEX_BATCH_SIZE===PROJECT_INDEX_BATCH_SIZE-1){await yieldProjectIndex();if(generation!==projectMapGeneration)return map;}
   }
 
@@ -817,7 +834,7 @@ async function buildConvProjectMap(generation=projectMapGeneration){
       let score=0;
       for(const q of queries){
         // split query into tokens, count how many appear in project docs
-        const tokens=q.split(/\s+/).filter(t=>t.length>=2);
+        const tokens=q.split(/\s+/).map(t=>t.replace(/[^\w\u4e00-\u9fff]/g,'')).filter(t=>t.length>=2&&!PROJECT_QUERY_STOP_WORDS.has(t));
         for(const tok of tokens){
           if(docText.includes(tok)) score++;
         }
@@ -825,8 +842,9 @@ async function buildConvProjectMap(generation=projectMapGeneration){
       if(score>0) scores[p.uuid]=score;
     }
     if(Object.keys(scores).length){
-      const best=Object.entries(scores).sort((a,b)=>b[1]-a[1])[0];
-      if(best[1]>=2) map[c.uuid]=best[0];
+      const ranked=Object.entries(scores).sort((a,b)=>b[1]-a[1]);
+      const best=ranked[0],runnerScore=ranked[1]?.[1]||0;
+      if(best[1]>=2&&best[1]>runnerScore) map[c.uuid]=best[0];
     }
   }
 
@@ -838,20 +856,36 @@ async function buildConvProjectMap(generation=projectMapGeneration){
     await yieldProjectIndex();
     if(generation!==projectMapGeneration)return map;
   }
+  const keywordOwners=new Map();
+  for(const [projectUuid,keywords] of projectKeywords){
+    for(const keyword of keywords){
+      if(PROJECT_QUERY_STOP_WORDS.has(keyword))continue;
+      if(!keywordOwners.has(keyword))keywordOwners.set(keyword,new Set());
+      keywordOwners.get(keyword).add(projectUuid);
+    }
+  }
   for(let ci=0;ci<allConvs.length;ci++){
     if(ci%PROJECT_INDEX_BATCH_SIZE===PROJECT_INDEX_BATCH_SIZE-1){await yieldProjectIndex();if(generation!==projectMapGeneration)return map;}
     const c=allConvs[ci];
     if(map[c.uuid]) continue;
-    let bestProj=null, bestScore=0;
+    const ranked=[];
     for(const p of allProjects){
       const kws=projectKeywords.get(p.uuid)||[];
       if(!kws.length) continue;
-      const text=((c.name||'')+' '+(c.summary||'')).toLowerCase();
-      let hits=0;
-      for(const kw of kws){ if(text.includes(kw)) hits++; }
-      if(hits>bestScore){bestScore=hits;bestProj=p.uuid;}
+      const title=(c.name||'').toLowerCase(),summary=(c.summary||'').toLowerCase();
+      let score=0;
+      for(const kw of kws){
+        if(keywordOwners.get(kw)?.size!==1)continue;
+        if(projectKeywordAppears(title,kw))score+=3;
+        else if(projectKeywordAppears(summary,kw))score++;
+      }
+      const projectName=(p.name||'').trim().toLowerCase();
+      if(projectName.length>=2&&projectKeywordAppears(title,projectName))score+=8;
+      if(score)ranked.push([p.uuid,score]);
     }
-    if(bestScore>=3) map[c.uuid]=bestProj;
+    ranked.sort((a,b)=>b[1]-a[1]);
+    const best=ranked[0],runnerScore=ranked[1]?.[1]||0;
+    if(best&&best[1]>=4&&best[1]-runnerScore>=2)map[c.uuid]=best[0];
   }
   return map;
 }
