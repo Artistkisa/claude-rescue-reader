@@ -7,6 +7,7 @@
 <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/highlight.js@11.9.0/lib/highlight.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js" defer></script>
 <link id="hljs-theme" rel="stylesheet" href="https://cdn.jsdelivr.net/npm/highlight.js@11.9.0/styles/github.min.css">
 <style>
 /* ── Light theme (default, Claude-style) ── */
@@ -245,6 +246,43 @@ input[type=file] { display: none; }
 .brnav button:hover:not(:disabled) { border-color:var(--accent); color:var(--accent); }
 .brnav button:disabled { opacity:.35; cursor:default; }
 .brcount { font-variant-numeric:tabular-nums; }
+/* ── In-conversation search ── */
+#csearch { width:150px; padding:5px 8px; background:var(--bg3); border:1px solid var(--border); border-radius:6px; color:var(--text); font-size:12px; }
+#csearch:focus { outline:none; border-color:var(--accent); }
+#csearch-count { font-size:11px; color:var(--text3); min-width:44px; text-align:center; font-variant-numeric:tabular-nums; }
+mark.cs { background:rgba(255,200,0,.45); color:inherit; border-radius:2px; padding:0 1px; }
+mark.cs.active { background:var(--accent); color:#fff; }
+/* ── Message copy button ── */
+.msgcopy { padding:1px 6px; background:none; border:1px solid transparent; border-radius:5px; color:var(--text3); font-size:11px; cursor:pointer; opacity:0; transition:opacity .15s; }
+.msg-wrap:hover .msgcopy { opacity:1; }
+.msgcopy:hover { border-color:var(--border); color:var(--text); background:var(--bg3); }
+/* ── Rich content: artifacts / generated files / web search ── */
+.visual { margin:8px 0; border:1px solid var(--border); border-radius:var(--radius-sm); overflow:hidden; }
+.vcap { display:flex; align-items:center; gap:8px; padding:6px 10px; background:var(--bg3); border-bottom:1px solid var(--border); }
+.vtitle { font-size:12px; font-weight:600; color:var(--text2); }
+.vdl { margin-left:auto; padding:2px 8px; font-size:11px; border:1px solid var(--border); border-radius:5px; background:var(--bg2); color:var(--text2); cursor:pointer; }
+.vdl:hover { border-color:var(--accent); color:var(--accent); }
+.vhtml { width:100%; border:none; display:block; min-height:120px; background:#fff; }
+.vsrc summary { padding:4px 10px; font-size:11px; color:var(--text3); cursor:pointer; }
+.vsrc pre { margin:0; max-height:240px; overflow:auto; font-size:11.5px; }
+.mermaid { text-align:center; padding:8px; overflow:auto; }
+.searchpanel { margin:6px 0; border:1px solid var(--border); border-radius:var(--radius-sm); overflow:hidden; }
+.searchpanel .sp-hd { padding:5px 10px; background:var(--bg3); font-size:11.5px; color:var(--text2); border-bottom:1px solid var(--border); }
+.searchpanel .sp-row { padding:4px 10px; font-size:12px; }
+.searchpanel .sp-row a { color:var(--blue); text-decoration:none; }
+.searchpanel .sp-row a:hover { text-decoration:underline; }
+.files { margin-top:8px; border:1px solid var(--border); border-radius:var(--radius-sm); overflow:hidden; }
+.filehd { padding:6px 10px; background:var(--bg3); font-size:11.5px; font-weight:600; color:var(--text2); border-bottom:1px solid var(--border); }
+.filerow { display:flex; align-items:center; gap:8px; padding:6px 10px; font-size:12.5px; }
+.filerow+.filerow { border-top:1px solid var(--border); }
+.fname { font-family:Consolas,monospace; color:var(--text); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.fsize { color:var(--text3); font-size:11px; white-space:nowrap; }
+.fsize.nocontent { font-style:italic; }
+.fbtns { margin-left:auto; display:flex; gap:6px; }
+.fbtn { padding:2px 8px; font-size:11px; border:1px solid var(--border); border-radius:5px; background:var(--bg3); color:var(--text2); text-decoration:none; cursor:pointer; }
+.fbtn:hover { border-color:var(--accent); color:var(--accent); }
+.fbtn.primary { background:var(--accent); border-color:var(--accent); color:#fff; }
+.fbtn.primary:hover { background:var(--accent2); color:#fff; }
 </style>
 </head>
 <body>
@@ -283,6 +321,10 @@ input[type=file] { display: none; }
     <div id="chat-title" style="color:var(--text3)">← 选择一个对话</div>
     <div id="chat-header-meta"></div>
     <button id="toggle-summary" onclick="toggleSummary()">摘要 ▶</button>
+    <input type="text" id="csearch" placeholder="对话内搜索…" style="display:none;" oninput="cSearch(this.value)" onkeydown="if(event.key==='Enter'){event.shiftKey?cNav(-1):cNav(1)}">
+    <span id="csearch-count" style="display:none;"></span>
+    <button id="cprev" onclick="cNav(-1)" title="上一个匹配" style="display:none;padding:4px 7px;background:var(--bg3);border:1px solid var(--border);border-radius:6px;color:var(--text2);cursor:pointer;">↑</button>
+    <button id="cnext" onclick="cNav(1)" title="下一个匹配" style="display:none;padding:4px 7px;background:var(--bg3);border:1px solid var(--border);border-radius:6px;color:var(--text2);cursor:pointer;">↓</button>
     <button id="export-btn" onclick="exportConv()" title="导出为 Markdown" style="padding:5px 9px;background:var(--bg3);border:1px solid var(--border);border-radius:6px;color:var(--text2);font-size:13px;cursor:pointer;display:none;">⬇ 导出</button>
     <button id="theme-btn" onclick="toggleTheme()" title="切换明暗主题" style="padding:5px 9px;background:var(--bg3);border:1px solid var(--border);border-radius:6px;color:var(--text2);font-size:14px;cursor:pointer;line-height:1;">🌙</button>
   </div>
@@ -559,16 +601,28 @@ function filterConvs(q){
     const f=allConvs.filter(c=>{
       if((c.name||'').toLowerCase().includes(lq))return true;
       if((c.summary||'').toLowerCase().includes(lq))return true;
-      if(fullText){
-        for(const m of(c.chat_messages||[])){
-          if((m.text||'').toLowerCase().includes(lq))return true;
-          for(const b of(m.content||[])){if(b.type==='text'&&(b.text||'').toLowerCase().includes(lq))return true;}
-        }
-      }
+      if(fullText&&searchCorpus(c).includes(lq))return true;
       return false;
     });
     renderConvList(f);
   },200);
+}
+
+// 全文搜索语料缓存（uuid -> 小写拼接文本，懒构建，每条对话只算一次）
+const corpusCache=new Map();
+function searchCorpus(c){
+  if(corpusCache.has(c.uuid))return corpusCache.get(c.uuid);
+  const parts=[];
+  for(const m of(c.chat_messages||[])){
+    if(m.text)parts.push(m.text);
+    for(const b of(m.content||[])){
+      if(b.type==='text'&&b.text)parts.push(b.text);
+      else if(b.type==='thinking'&&b.thinking)parts.push(b.thinking);
+    }
+  }
+  const s=parts.join('\n').toLowerCase();
+  corpusCache.set(c.uuid,s);
+  return s;
 }
 
 let sortMode='updated';
@@ -599,8 +653,11 @@ function toggleMemCard(header){
 
 function openConv(uuid){
   if(!currentConv||currentConv.uuid!==uuid)branchChoices={}; // 切换对话时重置分支选择
+  if(currentConv&&currentConv.uuid!==uuid)clearCSearchMarks(); // 切换对话时清除旧高亮
   currentConv=allConvs.find(c=>c.uuid===uuid);
   if(!currentConv)return;
+  ['csearch','csearch-count','cprev','cnext'].forEach(id=>{const el=document.getElementById(id);if(el)el.style.display='';});
+  const cs=document.getElementById('csearch');if(cs)cs.value='';
   document.querySelectorAll('.conv-item').forEach(el=>el.classList.toggle('active',el.dataset.convUuid===uuid));
   document.getElementById('chat-title').textContent=currentConv.name||'(无标题)';
   document.getElementById('chat-title').style.color='';
@@ -917,6 +974,8 @@ function switchBranch(key,idx,ev){
 
 function renderMessages(msgs,opts){
   const container=document.getElementById('messages');
+  // 释放上次渲染为文件卡片创建的 Blob URL，防止长期浏览内存持续上涨
+  for(const k in FILESTORE){try{URL.revokeObjectURL(FILESTORE[k].url);}catch(e){}delete FILESTORE[k];}
   if(!msgs.length){container.innerHTML='<div style="display:flex;align-items:center;justify-content:center;height:100%;color:var(--text3)">此对话无消息</div>';return;}
   const linear=buildPath(msgs);
   const scrollPos=(opts&&opts.keepScroll)?container.scrollTop:null;
@@ -926,7 +985,7 @@ function renderMessages(msgs,opts){
     if(msg._divider==='linear'){h+='<div class="date-divider"><span>⚠️ 对话分支结构异常，已按时间顺序展示全部消息</span></div>';lastDate='';continue;}
     if(msg._divider==='orphan'){h+='<div class="date-divider"><span>🧩 以下 '+msg.count+' 条消息无法归入对话分支（可能是已删除分支的残留）</span></div>';lastDate='';continue;}
     const d=fmtDateOnly(msg.created_at);
-    if(d!==lastDate){h+='<div class="date-divider"><span>'+esc(d)+'</span></div>';lastDate=d;}
+    if(d!==lastDate)lastDate=d;
     try{h+=renderMsg(msg);}
     catch(e){h+='<div style="padding:8px 16px;color:var(--text3);font-size:12px;">⚠️ 此消息渲染出错</div>';console.warn('renderMsg error',e);}
   }
@@ -941,11 +1000,163 @@ function renderMessages(msgs,opts){
   // scroll
   if(scrollPos!=null)container.scrollTop=scrollPos;
   else setTimeout(()=>container.scrollTop=container.scrollHeight,50);
+  autosizeIframes(container);
+  initMermaid(container);
 }
+// ── Artifact 识别（visualize / imagine / 经典 artifacts 工具）──
+function readArtifact(b){
+  if(!b||typeof b!=='object')return null;
+  const inp=(b.type==='tool_use'||b.type==='server_tool_use')?(b.input||{}):b;
+  const mime=(inp.type||inp.mimeType||inp.media_type||'')+'';
+  let code=inp.widget_code!=null?inp.widget_code
+    :inp.content!=null?inp.content
+    :inp.source!=null?inp.source
+    :inp.code!=null?inp.code
+    :inp.svg!=null?inp.svg
+    :inp.html!=null?inp.html:'';
+  if(typeof code!=='string')code=(code&&code.text)?code.text:'';
+  const title=inp.title||inp.name||'';
+  if(!code){
+    const rc=b.content;
+    if(Array.isArray(rc)){for(const x of rc){if(x&&typeof x.text==='string'&&x.text){code=x.text;break;}}}
+    else if(typeof rc==='string')code=rc;
+  }
+  if(!code)return null;
+  const t=code.trim();
+  if(/svg\+xml/i.test(mime)||/^<svg[\s>]/i.test(t))return{kind:'svg',code,title};
+  if(/mermaid/i.test(mime)||/^(graph|flowchart|sequenceDiagram|classDiagram|stateDiagram|erDiagram|gantt|pie|mindmap|timeline)\b/.test(t))return{kind:'mermaid',code,title};
+  if(/html/i.test(mime)||/^<!doctype html|^<html[\s>]/i.test(t))return{kind:'html',code,title};
+  return null;
+}
+let _vid=0;
+function renderVisual(v){
+  const id='v'+(_vid++);
+  const showCap=v.title&&!(/^[a-z0-9]+(_[a-z0-9]+)+$/.test(v.title));
+  const cap='<div class="vcap"><span class="vtitle">'+esc(showCap?v.title:(v.kind==='mermaid'?'流程图':v.kind==='svg'?'图表':'交互预览'))+'</span>'
+    +'<button class="vdl" type="button" onclick="downloadVisual(\''+id+'\')">下载</button></div>';
+  const src='<details class="vsrc"><summary>查看源码</summary><pre><code>'+esc(v.code)+'</code></pre></details>';
+  let body;
+  if(v.kind==='mermaid')body='<div class="mermaid">'+esc(v.code)+'</div>';
+  else body='<iframe class="vhtml" sandbox="allow-scripts" srcdoc="'+esc(v.code)+'"></iframe>';
+  return '<div class="visual" id="'+id+'" data-vkind="'+v.kind+'" data-vcode="'+esc(encodeURIComponent(v.code))+'" data-vtitle="'+esc(v.title||v.kind)+'">'+cap+body+src+'</div>';
+}
+function downloadVisual(id){
+  const el=document.getElementById(id);if(!el)return;
+  const code=decodeURIComponent(el.dataset.vcode||'');
+  const ext=el.dataset.vkind==='svg'?'svg':el.dataset.vkind==='mermaid'?'mmd':'html';
+  const u=URL.createObjectURL(new Blob([code],{type:'text/plain'}));
+  const a=document.createElement('a');a.href=u;a.download=(el.dataset.vtitle||'artifact')+'.'+ext;
+  document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(u),4000);
+}
+function autosizeIframes(root){
+  root.querySelectorAll('iframe.vhtml').forEach(f=>{
+    const rs=()=>{try{const d=f.contentDocument,b=d&&d.body,e=d&&d.documentElement;
+      if(b)f.style.height=Math.min(800,Math.max(b.scrollHeight,e?e.scrollHeight:0,120)+16)+'px';}catch(e){}};
+    f.addEventListener('load',rs);setTimeout(rs,80);setTimeout(rs,400);
+  });
+}
+// mermaid 按需初始化（脚本 defer 加载，这里等它就绪）
+function initMermaid(root,tries){
+  const els=root.querySelectorAll('.mermaid:not([data-processed])');
+  if(!els.length)return;
+  tries=tries||0;
+  if(typeof mermaid==='undefined'){
+    if(tries<10)setTimeout(()=>initMermaid(root,tries+1),300); // CDN 未就绪时有限重试
+    return;
+  }
+  try{mermaid.initialize({startOnLoad:false,theme:document.documentElement.getAttribute('data-theme')==='dark'?'dark':'default'});
+    mermaid.run({nodes:els}).catch(e=>console.warn('mermaid',e));}catch(e){console.warn('mermaid',e);}
+}
+
+// heredoc 写文件提取（bash 工具常见模式）
+function extractHeredocFiles(cmd){
+  const out=[];
+  const re=/cat\s+>{1,2}\s*([^\s<]+)\s*<<\s*['"]?([A-Za-z0-9_]+)['"]?\s*\n([\s\S]*?)\n\2\b/g;
+  let m;
+  while((m=re.exec(cmd))){
+    const path=m[1].replace(/['"]/g,''),body=m[3];
+    if(path&&body&&body.length>1)out.push({path,name:path.split('/').pop(),content:body});
+  }
+  return out;
+}
+
+// ── 生成文件存储（blob URL，可下载/打开）──
+const FILESTORE={};let _fid=0;
+function registerFile(name,content){
+  const id='f'+(_fid++);
+  const ext=(name.split('.').pop()||'').toLowerCase();
+  const mime={html:'text/html',htm:'text/html',svg:'image/svg+xml',md:'text/markdown',txt:'text/plain',json:'application/json',js:'text/javascript',css:'text/css',py:'text/plain',csv:'text/csv'}[ext]||'application/octet-stream';
+  FILESTORE[id]={url:URL.createObjectURL(new Blob([content],{type:mime})),name};
+  return id;
+}
+function renderFileCards(files){
+  if(!files.length)return '';
+  const rows=files.map(f=>{
+    if(f.content==null){
+      return '<div class="filerow"><span>📄</span><span class="fname">'+esc(f.name)+'</span><span class="fsize nocontent">内容未包含在导出中</span></div>';
+    }
+    const id=registerFile(f.name,f.content);
+    const openable=/\.(html?|svg)$/i.test(f.name);
+    return '<div class="filerow"><span>📄</span><span class="fname">'+esc(f.name)+'</span>'
+      +'<span class="fsize">'+(f.content.length/1024).toFixed(1)+' KB</span>'
+      +'<span class="fbtns">'
+      +(openable?'<a class="fbtn" href="'+FILESTORE[id].url+'" target="_blank" rel="noopener">打开</a>':'')
+      +'<a class="fbtn primary" href="'+FILESTORE[id].url+'" download="'+esc(f.name)+'">下载</a>'
+      +'</span></div>';
+  }).join('');
+  return '<div class="files"><div class="filehd">📦 此回复生成的文件（'+files.length+'）</div>'+rows+'</div>';
+}
+
 function renderMsg(msg){
   const role=msg.sender||'human';
   const time=fmtTime(msg.created_at);
   const content=msg.content||[];
+  // 第一遍：提取 artifact / 生成文件 / 网页搜索，标记已消费块
+  const visuals=[],files=[],searchQueries=[],searchResults=[];
+  for(const b of content){
+    if(!b||typeof b!=='object')continue;
+    const ty=b.type,nm=(b.name||'')+'';
+    if((ty==='tool_use'||ty==='server_tool_use')&&/show_widget|visualize|imagine|artifact/i.test(nm)){
+      const art=readArtifact(b);
+      if(art){visuals.push(art);b._consumed=true;}
+      continue;
+    }
+    if(ty==='tool_use'||ty==='server_tool_use'){
+      if(/web_search|web_fetch/i.test(nm)){
+        const q=(b.input||{}).query||(b.input||{}).url||'';
+        if(q)searchQueries.push(q+'');
+        b._consumed=true;continue;
+      }
+      const inp=b.input||{};
+      const fcontent=inp.file_text!=null?inp.file_text
+        :(typeof inp.content==='string'&&/^(create|write)/i.test(nm)?inp.content:null);
+      const path=inp.path||inp.file_path||inp.filename||inp.output_path||'';
+      if(/create_file|write_file|create/i.test(nm)&&fcontent!=null&&path){
+        files.push({path,name:path.split('/').pop(),content:fcontent});
+        b._consumed=true; // 文件卡片已完整承载（含全部内容），不再渲染原始工具块
+      }else if(/bash/i.test(nm)&&typeof inp.command==='string'){
+        extractHeredocFiles(inp.command).forEach(f=>files.push(f));
+        // bash 命令本身是上下文，保留原始工具块
+      }else if(/present_files|present_fs_item/i.test(nm)){
+        const fps=inp.filepaths||inp.paths||inp.files||(path?[path]:[]);
+        (Array.isArray(fps)?fps:[fps]).forEach(p=>{
+          if(p&&!files.some(f=>f.path===p))files.push({path:p+'',name:(p+'').split('/').pop(),content:null});
+        });
+        b._consumed=true; // 路径列表已由文件卡片展示
+      }
+      continue;
+    }
+    if(ty==='tool_result'||ty==='web_search_tool_result'||ty==='web_search_result'){
+      if(/web_search|web_fetch/i.test(nm)||ty!=='tool_result'){
+        const items=Array.isArray(b.content)?b.content:(b.content?[b.content]:[]);
+        for(const r of items){
+          const x=r&&(r.url||r.title)?r:(r&&r.content);
+          if(x&&(x.url||x.title))searchResults.push({title:x.title||x.url,url:x.url||''});
+        }
+        b._consumed=true; // 查询与来源已由搜索面板承载，不再渲染原始工具结果块（避免重复展示）
+      }
+    }
+  }
   // Collect attachments: both structured attachment objects and raw file objects
   const atts=[...(msg.attachments||[]),...(msg.files||[])];
   let inner='';
@@ -955,9 +1166,22 @@ function renderMsg(msg){
     const label=name||type||(att.file_uuid?'文件 ('+att.file_uuid.slice(0,8)+'…)':'附件');
     inner+='<div class="attachment-block"><span class="file-icon">📎</span>'+esc(label)+'</div>';
   }
-  for(const block of content)inner+=renderBlock(block);
+  // 搜索面板（折叠展示查询与来源）
+  if(searchQueries.length||searchResults.length){
+    let sp='<div class="searchpanel"><div class="collapsible-header sp-hd" style="cursor:pointer;">'+ICON+' 🔍 搜索了网页'
+      +(searchQueries.length?'：'+esc(searchQueries.join('；')):'')+'</div><div style="display:none;">';
+    for(const r of searchResults)sp+='<div class="sp-row">🔗 <a href="'+esc(r.url)+'" target="_blank" rel="noopener">'+esc(r.title)+'</a></div>';
+    inner+=sp+'</div></div>';
+  }
+  // 第二遍：正文渲染（跳过已消费块）
+  for(const block of content){
+    if(block&&block._consumed)continue;
+    inner+=renderBlock(block);
+  }
+  for(const v of visuals)inner+=renderVisual(v);
   // Top-level msg.text fallback (older export format)
   if(!inner.trim()&&msg.text)inner='<div>'+renderMd(msg.text)+'</div>';
+  if(files.length)inner+=renderFileCards(files);
   // If still nothing visible, show a subtle placeholder so the bubble isn't invisible
   if(!inner.trim())inner='<span style="color:var(--text3);font-size:12px;font-style:italic;">(空消息)</span>';
   // 分支导航（编辑/重新生成的多个版本）
@@ -970,12 +1194,17 @@ function renderMsg(msg){
       +'<button onclick="switchBranch(\''+esc(br.key)+'\','+(br.index+1)+',event)" '+(br.index>=br.count-1?'disabled':'')+'>›</button>'
       +'</span>';
   }
+  // 纯文本复制
+  const cid='m'+(_mid++);
+  const plain=content.filter(b=>b&&b.type==='text').map(b=>b.text||'').join('\n\n')||msg.text||'';
+  MSGTEXT[cid]=plain;
+  const copyBtn=plain?'<button class="msgcopy" onclick="copyMsg(\''+cid+'\',this)" title="复制这条消息">📋</button>':'';
   const avatarLabel=role==='human'?'你':'✦';
   const nameLabel=role==='human'?'你':'Claude';
   return '<div class="msg-wrap '+role+'">'
     +'<div class="msg-avatar">'+avatarLabel+'</div>'
     +'<div class="msg-body">'
-    +'<div class="msg-meta"><span class="msg-name">'+nameLabel+'</span><span>'+time+'</span>'+brNav+'</div>'
+    +'<div class="msg-meta"><span class="msg-name">'+nameLabel+'</span><span>'+time+'</span>'+brNav+copyBtn+'</div>'
     +'<div class="msg-content">'+inner+'</div>'
     +'</div></div>';
 }
@@ -1111,6 +1340,7 @@ if(typeof marked!=='undefined'){
       l=(lang||'').trim();
     }
     const safeCode=rawCode.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    if(l==='mermaid')return '<div class="visual"><div class="mermaid">'+safeCode+'</div><details class="vsrc"><summary>查看 Mermaid 源码</summary><pre><code>'+safeCode+'</code></pre></details></div>';
     const id='cb_'+Math.random().toString(36).slice(2);
     const highlighted=typeof hljs!=='undefined'&&l&&hljs.getLanguage(l)
       ?hljs.highlight(safeCode,{language:l}).value
@@ -1124,6 +1354,68 @@ if(typeof marked!=='undefined'){
       +'</div>';
   };
   marked.setOptions({renderer});
+}
+
+// ── 单条消息纯文本复制 ──
+const MSGTEXT={};let _mid=0;
+function copyMsg(id,btn){
+  const t=MSGTEXT[id];if(t==null)return;
+  const done=()=>{btn.textContent='✓';setTimeout(()=>btn.textContent='📋',1500);};
+  const fail=()=>{btn.textContent='⚠️';setTimeout(()=>btn.textContent='📋',1500);};
+  try{
+    if(navigator.clipboard&&typeof navigator.clipboard.writeText==='function') navigator.clipboard.writeText(t).then(done).catch(()=>fallbackCopy(t)?done():fail());
+    else if(!fallbackCopy(t))fail(); else done();
+  }catch(e){if(!fallbackCopy(t))fail();else done();}
+}
+function fallbackCopy(t){try{const ta=document.createElement('textarea');ta.value=t;ta.style.position='fixed';ta.style.opacity='0';document.body.appendChild(ta);ta.focus();ta.select();const ok=document.execCommand('copy');ta.remove();return ok;}catch(e){return false;}}
+
+// ── 对话内搜索（TreeWalker 文本节点高亮 + 匹配导航）──
+let CS={matches:[],idx:-1};
+function clearCSearchMarks(){
+  CS={matches:[],idx:-1};
+  document.querySelectorAll('#messages mark.cs').forEach(mk=>{
+    const p=mk.parentNode;p.replaceChild(document.createTextNode(mk.textContent),mk);p.normalize();
+  });
+  const cc=document.getElementById('csearch-count');if(cc)cc.textContent='';
+}
+function cSearch(q){
+  clearCSearchMarks();
+  q=(q||'').trim();if(!q)return;
+  const lq=q.toLowerCase();
+  const container=document.getElementById('messages');
+  const walker=document.createTreeWalker(container,NodeFilter.SHOW_TEXT,{
+    acceptNode:n=>n.parentElement.closest('script,style,mark,pre')
+      ?NodeFilter.FILTER_REJECT
+      :(n.nodeValue.toLowerCase().includes(lq)?NodeFilter.FILTER_ACCEPT:NodeFilter.FILTER_SKIP)
+  });
+  const nodes=[];let n;while(n=walker.nextNode())nodes.push(n);
+  for(const node of nodes){
+    const text=node.nodeValue,low=text.toLowerCase();
+    const frag=document.createDocumentFragment();
+    let last=0,idx;
+    while((idx=low.indexOf(lq,last))>=0){
+      if(idx>last)frag.appendChild(document.createTextNode(text.slice(last,idx)));
+      const mk=document.createElement('mark');mk.className='cs';mk.textContent=text.slice(idx,idx+q.length);
+      frag.appendChild(mk);CS.matches.push(mk);last=idx+q.length;
+    }
+    if(last<text.length)frag.appendChild(document.createTextNode(text.slice(last)));
+    node.parentNode.replaceChild(frag,node);
+  }
+  const cc=document.getElementById('csearch-count');
+  if(CS.matches.length){CS.idx=0;activateCS();}
+  else if(cc)cc.textContent='0 匹配';
+}
+function activateCS(){
+  CS.matches.forEach((m,i)=>m.classList.toggle('active',i===CS.idx));
+  const m=CS.matches[CS.idx];
+  if(m)m.scrollIntoView({block:'center',behavior:'smooth'});
+  const cc=document.getElementById('csearch-count');
+  if(cc&&CS.matches.length)cc.textContent=(CS.idx+1)+' / '+CS.matches.length;
+}
+function cNav(d){
+  if(!CS.matches.length)return;
+  CS.idx=(CS.idx+d+CS.matches.length)%CS.matches.length;
+  activateCS();
 }
 
 function copyCode(btn,id){
