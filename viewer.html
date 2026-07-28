@@ -250,6 +250,9 @@ input[type=file] { display: none; }
 #csearch { width:150px; padding:5px 8px; background:var(--bg3); border:1px solid var(--border); border-radius:6px; color:var(--text); font-size:12px; }
 #csearch:focus { outline:none; border-color:var(--accent); }
 #csearch-count { font-size:11px; color:var(--text3); min-width:44px; text-align:center; font-variant-numeric:tabular-nums; }
+.load-earlier-wrap { display:flex; justify-content:center; padding:12px 16px 4px; }
+.load-earlier-btn { padding:7px 14px; border:1px solid var(--border); border-radius:999px; background:var(--bg2); color:var(--text2); cursor:pointer; font-size:12px; }
+.load-earlier-btn:hover { border-color:var(--accent); color:var(--text); }
 mark.cs { background:rgba(255,200,0,.45); color:inherit; border-radius:2px; padding:0 1px; }
 mark.cs.active { background:var(--accent); color:#fff; }
 /* ── Message copy button ── */
@@ -384,6 +387,9 @@ mark.cs.active { background:var(--accent); color:#fff; }
 <script>
 const ICON='<svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 2l4 4-4 4"/></svg>';
 let allConvs=[],allProjects=[],memoryData=null,currentConv=null,summaryVisible=false;
+const MESSAGE_BATCH_SIZE=100;
+let messageRenderState={convUuid:null,linear:[],start:0};
+let highlightObserver=null;
 
 document.getElementById('file-input').addEventListener('change',async e=>{
   const files=[...e.target.files];
@@ -972,15 +978,48 @@ function switchBranch(key,idx,ev){
   if(currentConv)renderMessages(currentConv.chat_messages||[],{keepScroll:true});
 }
 
+function initLazyHighlight(container){
+  if(highlightObserver){highlightObserver.disconnect();highlightObserver=null;}
+  const blocks=[...container.querySelectorAll('pre code:not(.hljs)')];
+  if(!blocks.length)return;
+  const highlight=el=>{try{if(typeof hljs!=='undefined')hljs.highlightElement(el);}catch(e){console.warn('highlight error',e);}};
+  if(typeof IntersectionObserver==='undefined'){blocks.forEach(highlight);return;}
+  highlightObserver=new IntersectionObserver(entries=>{
+    for(const entry of entries){
+      if(!entry.isIntersecting)continue;
+      highlight(entry.target);
+      highlightObserver.unobserve(entry.target);
+    }
+  },{root:container,rootMargin:'800px 0px'});
+  blocks.forEach(el=>highlightObserver.observe(el));
+}
+
+function loadEarlierMessages(){
+  if(!currentConv||messageRenderState.start<=0)return;
+  const container=document.getElementById('messages');
+  const oldHeight=container.scrollHeight,oldTop=container.scrollTop;
+  renderMessages(currentConv.chat_messages||[],{
+    startIndex:Math.max(0,messageRenderState.start-MESSAGE_BATCH_SIZE),
+    anchor:{height:oldHeight,top:oldTop}
+  });
+}
+
 function renderMessages(msgs,opts){
   const container=document.getElementById('messages');
   // 释放上次渲染为文件卡片创建的 Blob URL，防止长期浏览内存持续上涨
   for(const k in FILESTORE){try{URL.revokeObjectURL(FILESTORE[k].url);}catch(e){}delete FILESTORE[k];}
+  for(const k in MSGTEXT)delete MSGTEXT[k];
   if(!msgs.length){container.innerHTML='<div style="display:flex;align-items:center;justify-content:center;height:100%;color:var(--text3)">此对话无消息</div>';return;}
   const linear=buildPath(msgs);
+  const convUuid=currentConv&&currentConv.uuid||'';
+  let start;
+  if(opts&&Number.isInteger(opts.startIndex))start=Math.max(0,Math.min(opts.startIndex,linear.length));
+  else start=Math.max(0,linear.length-MESSAGE_BATCH_SIZE);
+  messageRenderState={convUuid,linear,start};
   const scrollPos=(opts&&opts.keepScroll)?container.scrollTop:null;
   let h='',lastDate='';
-  for(const msg of linear){
+  if(start>0)h+='<div class="load-earlier-wrap"><button class="load-earlier-btn" type="button" onclick="loadEarlierMessages()">↑ 加载更早消息（剩余 '+start+' 条）</button></div>';
+  for(const msg of linear.slice(start)){
     if(!msg||typeof msg!=='object')continue;
     if(msg._divider==='linear'){h+='<div class="date-divider"><span>⚠️ 对话分支结构异常，已按时间顺序展示全部消息</span></div>';lastDate='';continue;}
     if(msg._divider==='orphan'){h+='<div class="date-divider"><span>🧩 以下 '+msg.count+' 条消息无法归入对话分支（可能是已删除分支的残留）</span></div>';lastDate='';continue;}
@@ -990,7 +1029,7 @@ function renderMessages(msgs,opts){
     catch(e){h+='<div style="padding:8px 16px;color:var(--text3);font-size:12px;">⚠️ 此消息渲染出错</div>';console.warn('renderMsg error',e);}
   }
   container.innerHTML=h;
-  container.querySelectorAll('pre code').forEach(el=>{try{hljs.highlightElement(el);}catch(e){}});
+  initLazyHighlight(container);
   container.querySelectorAll('.collapsible-header').forEach(el=>el.addEventListener('click',function(){
     const body=this.nextElementSibling;
     const open=body.style.display!=='none';
@@ -998,7 +1037,8 @@ function renderMessages(msgs,opts){
     this.classList.toggle('open',!open);
   }));
   // scroll
-  if(scrollPos!=null)container.scrollTop=scrollPos;
+  if(opts&&opts.anchor)container.scrollTop=opts.anchor.top+(container.scrollHeight-opts.anchor.height);
+  else if(scrollPos!=null)container.scrollTop=scrollPos;
   else setTimeout(()=>container.scrollTop=container.scrollHeight,50);
   autosizeIframes(container);
   initMermaid(container);
@@ -1421,6 +1461,10 @@ function clearCSearchMarks(){
 function cSearch(q){
   clearCSearchMarks();
   q=(q||'').trim();if(!q)return;
+  // Conversation search must cover messages that progressive rendering has not mounted yet.
+  if(currentConv&&messageRenderState.start>0){
+    renderMessages(currentConv.chat_messages||[],{startIndex:0,keepScroll:true});
+  }
   const lq=q.toLowerCase();
   const container=document.getElementById('messages');
   const walker=document.createTreeWalker(container,NodeFilter.SHOW_TEXT,{
