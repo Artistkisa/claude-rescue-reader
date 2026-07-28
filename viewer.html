@@ -238,15 +238,9 @@ input[type=file] { display: none; }
 .mem-card-body a { color: var(--blue); }
 .mem-proj-badge { background: var(--badge-bg); color: var(--accent); font-size: 10px; padding: 2px 7px; border-radius: 8px; border: 1px solid var(--badge-border); white-space: nowrap; }
 .mem-preview { font-size: 11.5px; color: var(--text3); margin-top: 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; line-height: 1.4; }
-
-/* ── Drag & drop ── */
-#dropmask { position:fixed; inset:0; z-index:999; display:none; align-items:center; justify-content:center; background:rgba(0,0,0,.35); }
-#dropmask.show { display:flex; }
-#dropmask .dz { padding:28px 48px; background:var(--bg2); border:2px dashed var(--accent); border-radius:16px; font-size:16px; color:var(--text); }
 </style>
 </head>
 <body>
-<div id="dropmask"><div class="dz">📥 松开以加载 ZIP / conversations.json</div></div>
 
 <!-- Sidebar -->
 <div id="sidebar">
@@ -322,7 +316,7 @@ input[type=file] { display: none; }
         <div style="margin-top:12px;padding-top:12px;border-top:1px solid var(--border);font-size:12px;color:var(--text3);line-height:1.7;">
           <b style="color:var(--text2);">如何导出？</b><br>
           claude.ai → Settings → Account → <b style="color:var(--text2);">Export Data</b><br>
-          下载 ZIP 后可直接选择 ZIP 加载（免解压），或解压后选择整个文件夹<br>也可以直接把 ZIP / conversations.json <b style="color:var(--text2);">拖进页面</b>
+          下载 ZIP 后可直接选择 ZIP 加载（免解压），或解压后选择整个文件夹
         </div>
       </div>
     </div>
@@ -344,6 +338,7 @@ let allConvs=[],allProjects=[],memoryData=null,currentConv=null,summaryVisible=f
 
 document.getElementById('file-input').addEventListener('change',async e=>{
   const files=[...e.target.files];
+  e.target.value=''; // 允许重选同一个文件夹（与 ZIP 入口行为一致）
   const btn=document.getElementById('load-btn');
   btn.innerHTML='<span class="spinner"></span> 解析中，请稍候…';
   try{
@@ -359,11 +354,7 @@ document.getElementById('file-input').addEventListener('change',async e=>{
 document.getElementById('zip-input').addEventListener('change',async e=>{
   const file=e.target.files[0];
   e.target.value=''; // allow re-selecting the same file
-  if(file)await loadZipFile(file);
-});
-
-// ZIP 直读（文件选择与拖拽两条入口共用）
-async function loadZipFile(file){
+  if(!file)return;
   const btn=document.getElementById('load-zip-btn');
   if(typeof JSZip==='undefined'){btn.textContent='⚠️ ZIP 解析库未加载，请联网刷新，或手动解压后选文件夹';return;}
   btn.innerHTML='<span class="spinner"></span> 解压中，请稍候…';
@@ -385,34 +376,33 @@ async function loadZipFile(file){
     const projTexts=await Promise.all(projNames.map(n=>zip.files[n].async('text')));
     await ingestData(convText,projTexts,memText,btn);
   }catch(err){btn.textContent='❌ ZIP 加载失败：'+err.message;console.error(err);}
-}
+});
 
 // 共用的解析 + 渲染流程（文件夹与 ZIP 两条入口复用）
 async function ingestData(convText,projTexts,memText,btn){
   // yield to browser to render spinner before blocking JSON.parse
   await new Promise(r=>setTimeout(r,30));
-  try{
-    allConvs=JSON.parse(convText);
-    if(!Array.isArray(allConvs))throw new Error('conversations.json 格式不正确');
-    for(const t of projTexts){try{allProjects.push(JSON.parse(t));}catch(e2){console.warn('跳过损坏的项目文件',e2);}}
-    if(memText){try{const ms=JSON.parse(memText);memoryData=(Array.isArray(ms)?ms[0]:ms)||null;}catch(e2){console.warn('memories.json 解析失败',e2);}}
-    document.getElementById('conv-total').textContent=allConvs.length;
-    renderConvList(getSortedConvs());
-    // hide tabs with no data
-    document.querySelector('.tab-btn[onclick*="projects"]').style.display=allProjects.length?'':'none';
-    document.querySelector('.tab-btn[onclick*="memory"]').style.display=memoryData?'':'none';
-    // build project<->conversation map
-    if(allProjects.length) buildConvProjectMap();
-    btn.textContent='✅ 已加载 '+allConvs.length+' 条对话';
-    const totalMsgs=allConvs.reduce((s,c)=>s+(Array.isArray(c.chat_messages)?c.chat_messages.length:0),0);
-    const dates=allConvs.map(c=>c.created_at).filter(Boolean).sort();
-    const span=dates.length?fmtDateOnly(dates[0])+' — '+fmtDateOnly(dates[dates.length-1]):'';
-    const sb=document.getElementById('stats-bar');
-    sb.style.display='';
-    sb.innerHTML='📊 <b>'+allConvs.length+'</b> 条对话 · <b>'+totalMsgs.toLocaleString()+'</b> 条消息'
-      +(allProjects.length?' · 📁 <b>'+allProjects.length+'</b> 个项目':'')
-      +(span?'<br>📅 '+esc(span):'');
-  }catch(err){btn.textContent='❌ 加载失败：'+err.message;console.error(err);}
+  // 错误统一抛给调用方：各入口在自己的 catch 里设置按钮文案，避免双层处理互相覆盖
+  allConvs=JSON.parse(convText);
+  if(!Array.isArray(allConvs))throw new Error('conversations.json 格式不正确');
+  for(const t of projTexts){try{allProjects.push(JSON.parse(t));}catch(e2){console.warn('跳过损坏的项目文件',e2);}}
+  if(memText){try{const ms=JSON.parse(memText);memoryData=(Array.isArray(ms)?ms[0]:ms)||null;}catch(e2){console.warn('memories.json 解析失败',e2);}}
+  document.getElementById('conv-total').textContent=allConvs.length;
+  renderConvList(getSortedConvs());
+  // hide tabs with no data
+  document.querySelector('.tab-btn[onclick*="projects"]').style.display=allProjects.length?'':'none';
+  document.querySelector('.tab-btn[onclick*="memory"]').style.display=memoryData?'':'none';
+  // build project<->conversation map
+  if(allProjects.length) buildConvProjectMap();
+  btn.textContent='✅ 已加载 '+allConvs.length+' 条对话';
+  const totalMsgs=allConvs.reduce((s,c)=>s+(Array.isArray(c.chat_messages)?c.chat_messages.length:0),0);
+  const dates=allConvs.map(c=>c.created_at).filter(Boolean).sort();
+  const span=dates.length?fmtDateOnly(dates[0])+' — '+fmtDateOnly(dates[dates.length-1]):'';
+  const sb=document.getElementById('stats-bar');
+  sb.style.display='';
+  sb.innerHTML='📊 <b>'+allConvs.length+'</b> 条对话 · <b>'+totalMsgs.toLocaleString()+'</b> 条消息'
+    +(allProjects.length?' · 📁 <b>'+allProjects.length+'</b> 个项目':'')
+    +(span?'<br>📅 '+esc(span):'');
 }
 
 function switchTab(tab,btn){
@@ -1105,27 +1095,6 @@ function applyTheme(theme){
     else if((e.ctrlKey||e.metaKey)&&e.key==='e'){e.preventDefault();exportConv();}
   });
 })();
-
-// ── 拖拽加载（ZIP 或散落的 JSON 文件）──
-window.addEventListener('dragenter',e=>{e.preventDefault();document.getElementById('dropmask').classList.add('show');});
-window.addEventListener('dragover',e=>e.preventDefault());
-window.addEventListener('dragleave',e=>{if(!e.relatedTarget)document.getElementById('dropmask').classList.remove('show');});
-window.addEventListener('drop',async e=>{
-  e.preventDefault();
-  document.getElementById('dropmask').classList.remove('show');
-  const files=[...(e.dataTransfer&&e.dataTransfer.files)||[]];
-  if(!files.length)return;
-  const zip=files.find(f=>/\.zip$/i.test(f.name));
-  if(zip){await loadZipFile(zip);return;} // 复用 #2 的 ZIP 直读
-  const conv=files.find(f=>f.name==='conversations.json');
-  if(conv){
-    const btn=document.getElementById('load-btn');
-    btn.innerHTML='<span class="spinner"></span> 解析中，请稍候…';
-    const mem=files.find(f=>f.name==='memories.json');
-    const pf=files.filter(f=>/\.json$/.test(f.name)&&f!==conv&&f!==mem);
-    await ingestData(await conv.text(),await Promise.all(pf.map(f=>f.text())),mem?await mem.text():null,btn);
-  }
-});
 
 function navigateConv(dir){
   const items=[...document.querySelectorAll('#conv-list [data-conv-uuid]')];
