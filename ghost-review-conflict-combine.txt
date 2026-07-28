@@ -1,3 +1,4 @@
 ﻿GHOST combine fixture
 anchor: shared
+head-option: enabled
 tail: unchanged
