@@ -801,8 +801,11 @@ function toggleSummary(){
 const convCache=new Map();
 const CACHE_MAX=12; // 上限防内存膨胀，超限时淘汰最早条目
 const CHUNK=40; // 首屏消息数，之后每块增量
+// 渲染版本号：快速切换对话时，旧对话的异步渲染（分块追加 / 延迟缓存写入）据此中止
+let renderVer=0;
 
 function renderMessages(msgs){
+  const ver=++renderVer; // 任何新渲染（含缓存命中）都让旧的异步任务失效
   const container=document.getElementById('messages');
   if(!msgs.length){container.innerHTML='<div style="display:flex;align-items:center;justify-content:center;height:100%;color:var(--text3)">此对话无消息</div>';return;}
   const cacheKey=currentConv?currentConv.uuid:'';
@@ -850,6 +853,7 @@ function renderMessages(msgs){
   const total=parts.length;
   let shown=0;
   function renderChunk(){
+    if(ver!==renderVer)return; // 已切换到其他对话，中止旧对话的增量渲染
     const end=Math.min(total,shown+CHUNK);
     let h='';
     for(let i=shown;i<end;i++){
@@ -867,13 +871,14 @@ function renderMessages(msgs){
       container.insertAdjacentHTML('beforeend','<div class="render-prog">⏳ 正在渲染 '+shown+' / '+total+' 条消息…</div>');
       setTimeout(renderChunk,0); // 让出主线程，保持 UI 响应
     }else{
-      finishRender(container,cacheKey);
+      finishRender(container,cacheKey,ver);
     }
   }
   renderChunk();
 }
 
-function finishRender(container,cacheKey){
+function finishRender(container,cacheKey,ver){
+  if(ver!==renderVer)return; // 旧对话的收尾任务直接放弃
   // 代码高亮（data-hl 标记防重复处理——缓存恢复的 HTML 已带标记，不会二次高亮）
   container.querySelectorAll('pre code:not([data-hl])').forEach(el=>{
     try{hljs.highlightElement(el);el.setAttribute('data-hl','1');}catch(e){}
@@ -882,6 +887,7 @@ function finishRender(container,cacheKey){
   // 延迟缓存最终 HTML（等高亮完成后存成品）
   if(cacheKey){
     setTimeout(()=>{
+      if(ver!==renderVer)return; // 写入前再校验，防止旧对话内容错位写入缓存
       if(convCache.size>=CACHE_MAX)convCache.delete(convCache.keys().next().value);
       convCache.set(cacheKey,container.innerHTML);
     },300);
