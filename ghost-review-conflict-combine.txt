@@ -1,0 +1,3 @@
+﻿GHOST combine fixture
+anchor: shared
+tail: unchanged
