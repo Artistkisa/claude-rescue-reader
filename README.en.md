@@ -111,6 +111,7 @@ claude-export/
 ### Conversation List
 - Sort by last updated / created / message count
 - Search by title and summary; enable **Full-text search** to search message content
+- Search within a conversation, highlight matches, and navigate between results
 - ↑ / ↓ or J / K keyboard navigation
 
 ### Message Rendering
@@ -118,12 +119,14 @@ claude-export/
 - Code blocks with language labels + one-click copy button
 - 💭 **Thinking blocks** collapsible
 - ⚙ **Tool calls** and results collapsible
-- Supports attachments, image placeholders, web links, search citations, and more
+- Switch between conversation branches created by edits or regenerated responses
+- Render rich content including artifacts, Mermaid diagrams, generated files, web search panels, attachments, and citations
+- Copy an individual message as plain text
 
 ### Projects
 - View project documents (Markdown rendered, collapsible)
-- Three-layer heuristic to associate conversations: file path match → knowledge search query match → keyword fuzzy match
-- **Note:** Claude's official export does not include project-conversation ownership data; associations are inferred and may have gaps or false positives
+- High-confidence conversation association: unique file evidence → project knowledge search → project-unique keywords
+- **Note:** Claude's official export does not include project-conversation ownership data. Duplicate filenames, ties, and low-confidence results remain unassigned instead of being forced into a project
 
 ### Memories
 - Global memories displayed in 4 sections (work / personal / highlights / history)
@@ -164,8 +167,8 @@ github-dark.min.css    ← https://cdn.jsdelivr.net/npm/highlight.js@11.9.0/styl
 ## Known Limitations
 
 - Export files do not contain image binary data; images are shown as placeholders
-- Branching conversation trees are displayed as the longest path (consistent with claude.ai's behavior)
-- Project-conversation associations are inferred, not official data — expect some gaps and mismatches
+- Conversation trees show the longest path by default; branches created by edits or regeneration can be switched beside the affected message
+- Project-conversation associations are high-confidence inferences, not official data; low-confidence conversations remain unassigned to avoid false matches
 - Very large datasets (tested with: 300+ conversations / 150MB+ / single conversation with 600+ messages) may load slowly on low-memory devices
 - If an account has no projects or no memories, the corresponding tab is hidden automatically — no error is shown
 
@@ -190,10 +193,15 @@ This tool parses the Claude export format (as of 2026):
 
 ## Changelog
 
-**v1.2**
-- New: Load the official ZIP archive directly, no manual unzipping (`conversations.json` / `memories.json` / `projects/*.json` extracted in parallel)
-  - Handles ZIPs with a top-level wrapper folder and macOS `__MACOSX` entries
-  - Clear error with fallback guidance when the JSZip CDN fails to load — no silent failure
+**v1.2** *(2026-07-28)*
+- Added direct ZIP loading and drag-and-drop input, including wrapper folders, loose JSON files, and macOS `__MACOSX` entries
+- Added conversation branch switching, in-conversation search navigation, and plain-text copying for individual messages
+- Added rich rendering for artifacts, Mermaid diagrams, generated-file cards, and web search results
+- Fixed missing orphan messages, artifact theme rendering, SVG external-resource handling, and iframe sandboxing
+- Fixed syntax highlighting under `file://` and made raw Markdown HTML handling safe
+- Added progressive message rendering, deferred rich-content rendering, and page caching to reduce blocking on large histories
+- Moved project relationship indexing to deferred batches with failure recovery and stale-generation protection
+- Made project inference precision-first using unique file evidence, project knowledge, and project-unique keywords while rejecting ties and low-confidence matches
 
 **v1.1** *(2026-07-17)*
 - **Fix: Wrong message count** (e.g. showing 3 messages when there are actually 7)
