@@ -813,6 +813,8 @@ function toggleSummary(){
 
 function renderMessages(msgs){
   const container=document.getElementById('messages');
+  // 释放上次渲染为文件卡片创建的 Blob URL，防止长期浏览内存持续上涨
+  for(const k in FILESTORE){try{URL.revokeObjectURL(FILESTORE[k].url);}catch(e){}delete FILESTORE[k];}
   if(!msgs.length){container.innerHTML='<div style="display:flex;align-items:center;justify-content:center;height:100%;color:var(--text3)">此对话无消息</div>';return;}
   const byParent={};
   for(const m of msgs){const p=m.parent_message_uuid||'root';if(!byParent[p])byParent[p]=[];byParent[p].push(m);}
@@ -1009,7 +1011,7 @@ function renderMsg(msg){
           const x=r&&(r.url||r.title)?r:(r&&r.content);
           if(x&&(x.url||x.title))searchResults.push({title:x.title||x.url,url:x.url||''});
         }
-        if(ty!=='tool_result')b._consumed=true;
+        b._consumed=true; // 查询与来源已由搜索面板承载，不再渲染原始工具结果块（避免重复展示）
       }
     }
   }
