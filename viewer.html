@@ -1067,7 +1067,7 @@ function sanitizeSvg(code){
         if(n.startsWith('on'))el.removeAttribute(a.name);
         else if(n==='href'||n==='xlink:href'){
           if(!/^#[A-Za-z_][\w:.-]*$/.test(val))el.removeAttribute(a.name);
-        }else if(/url\(\s*['"]?(?![\s#])/i.test(val))el.removeAttribute(a.name);
+        }else if(/url\(\s*['"]?\s*(?!#)/i.test(val))el.removeAttribute(a.name);
       });
     });
     return new XMLSerializer().serializeToString(doc.documentElement);
