@@ -345,6 +345,7 @@ let allConvs=[],allProjects=[],memoryData=null,currentConv=null,summaryVisible=f
 
 document.getElementById('file-input').addEventListener('change',async e=>{
   const files=[...e.target.files];
+  e.target.value=''; // 允许重选同一个文件夹（与 ZIP 入口行为一致）
   const btn=document.getElementById('load-btn');
   btn.innerHTML='<span class="spinner"></span> 解析中，请稍候…';
   try{
@@ -388,28 +389,27 @@ document.getElementById('zip-input').addEventListener('change',async e=>{
 async function ingestData(convText,projTexts,memText,btn){
   // yield to browser to render spinner before blocking JSON.parse
   await new Promise(r=>setTimeout(r,30));
-  try{
-    allConvs=JSON.parse(convText);
-    if(!Array.isArray(allConvs))throw new Error('conversations.json 格式不正确');
-    for(const t of projTexts){try{allProjects.push(JSON.parse(t));}catch(e2){console.warn('跳过损坏的项目文件',e2);}}
-    if(memText){try{const ms=JSON.parse(memText);memoryData=(Array.isArray(ms)?ms[0]:ms)||null;}catch(e2){console.warn('memories.json 解析失败',e2);}}
-    document.getElementById('conv-total').textContent=allConvs.length;
-    renderConvList(getSortedConvs());
-    // hide tabs with no data
-    document.querySelector('.tab-btn[onclick*="projects"]').style.display=allProjects.length?'':'none';
-    document.querySelector('.tab-btn[onclick*="memory"]').style.display=memoryData?'':'none';
-    // build project<->conversation map
-    if(allProjects.length) buildConvProjectMap();
-    btn.textContent='✅ 已加载 '+allConvs.length+' 条对话';
-    const totalMsgs=allConvs.reduce((s,c)=>s+(Array.isArray(c.chat_messages)?c.chat_messages.length:0),0);
-    const dates=allConvs.map(c=>c.created_at).filter(Boolean).sort();
-    const span=dates.length?fmtDateOnly(dates[0])+' — '+fmtDateOnly(dates[dates.length-1]):'';
-    const sb=document.getElementById('stats-bar');
-    sb.style.display='';
-    sb.innerHTML='📊 <b>'+allConvs.length+'</b> 条对话 · <b>'+totalMsgs.toLocaleString()+'</b> 条消息'
-      +(allProjects.length?' · 📁 <b>'+allProjects.length+'</b> 个项目':'')
-      +(span?'<br>📅 '+esc(span):'');
-  }catch(err){btn.textContent='❌ 加载失败：'+err.message;console.error(err);}
+  // 错误统一抛给调用方：各入口在自己的 catch 里设置按钮文案，避免双层处理互相覆盖
+  allConvs=JSON.parse(convText);
+  if(!Array.isArray(allConvs))throw new Error('conversations.json 格式不正确');
+  for(const t of projTexts){try{allProjects.push(JSON.parse(t));}catch(e2){console.warn('跳过损坏的项目文件',e2);}}
+  if(memText){try{const ms=JSON.parse(memText);memoryData=(Array.isArray(ms)?ms[0]:ms)||null;}catch(e2){console.warn('memories.json 解析失败',e2);}}
+  document.getElementById('conv-total').textContent=allConvs.length;
+  renderConvList(getSortedConvs());
+  // hide tabs with no data
+  document.querySelector('.tab-btn[onclick*="projects"]').style.display=allProjects.length?'':'none';
+  document.querySelector('.tab-btn[onclick*="memory"]').style.display=memoryData?'':'none';
+  // build project<->conversation map
+  if(allProjects.length) buildConvProjectMap();
+  btn.textContent='✅ 已加载 '+allConvs.length+' 条对话';
+  const totalMsgs=allConvs.reduce((s,c)=>s+(Array.isArray(c.chat_messages)?c.chat_messages.length:0),0);
+  const dates=allConvs.map(c=>c.created_at).filter(Boolean).sort();
+  const span=dates.length?fmtDateOnly(dates[0])+' — '+fmtDateOnly(dates[dates.length-1]):'';
+  const sb=document.getElementById('stats-bar');
+  sb.style.display='';
+  sb.innerHTML='📊 <b>'+allConvs.length+'</b> 条对话 · <b>'+totalMsgs.toLocaleString()+'</b> 条消息'
+    +(allProjects.length?' · 📁 <b>'+allProjects.length+'</b> 个项目':'')
+    +(span?'<br>📅 '+esc(span):'');
 }
 
 function switchTab(tab,btn){
