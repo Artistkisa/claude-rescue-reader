@@ -726,9 +726,13 @@ function ensureConvProjectMap(){
   if(convProjectMapReady)return Promise.resolve();
   if(convProjectMapPromise)return convProjectMapPromise;
   const generation=projectMapGeneration;
-  convProjectMapPromise=buildConvProjectMap(generation).then(map=>{
+  const buildPromise=buildConvProjectMap(generation).then(map=>{
     if(generation===projectMapGeneration){convProjectMap=map;convProjectMapReady=true;}
-  }).catch(e=>{if(generation===projectMapGeneration)convProjectMapPromise=null;throw e;});
+  });
+  const trackedPromise=buildPromise.finally(()=>{
+    if(convProjectMapPromise===trackedPromise)convProjectMapPromise=null;
+  });
+  convProjectMapPromise=trackedPromise;
   return convProjectMapPromise;
 }
 
@@ -866,7 +870,17 @@ async function openProject(uuid){
   if(!convProjectMapReady){
     document.getElementById('chat-header-meta').textContent='正在分析关联对话…';
     document.getElementById('messages').innerHTML='<div style="display:flex;align-items:center;justify-content:center;height:100%;color:var(--text3)"><span class="spinner"></span>&nbsp; 正在建立项目关联索引…</div>';
-    await ensureConvProjectMap();
+    try{
+      await ensureConvProjectMap();
+    }catch(e){
+      console.error('项目关联索引失败',e);
+      const active=document.querySelector('.proj-card.active');
+      if(active&&active.dataset.projUuid===uuid){
+        document.getElementById('chat-header-meta').textContent='关联索引失败';
+        document.getElementById('messages').innerHTML='<div style="display:flex;align-items:center;justify-content:center;height:100%;color:var(--red)">项目关联索引失败，请重新选择项目重试。</div>';
+      }
+      return;
+    }
     const active=document.querySelector('.proj-card.active');
     if(!active||active.dataset.projUuid!==uuid)return;
   }
