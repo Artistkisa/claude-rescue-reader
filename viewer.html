@@ -1037,8 +1037,16 @@ function renderVisual(v){
   const src='<details class="vsrc"><summary>查看源码</summary><pre><code>'+esc(v.code)+'</code></pre></details>';
   let body;
   if(v.kind==='mermaid')body='<div class="mermaid">'+esc(v.code)+'</div>';
-  else body='<iframe class="vhtml" sandbox="allow-scripts" srcdoc="'+esc(v.code)+'"></iframe>';
+  else{
+    const vb=v.kind==='svg'&&v.code.match(/viewBox\s*=\s*["']\s*[-\d.]+\s+[-\d.]+\s+([\d.]+)\s+([\d.]+)\s*["']/i);
+    const ratio=vb?' style="aspect-ratio:'+vb[1]+'/'+vb[2]+';height:auto"':'';
+    body='<iframe class="vhtml" sandbox="allow-scripts"'+ratio+' srcdoc="'+escAttr(visualDocument(v))+'"></iframe>';
+  }
   return '<div class="visual" id="'+id+'" data-vkind="'+v.kind+'" data-vcode="'+esc(encodeURIComponent(v.code))+'" data-vtitle="'+esc(v.title||v.kind)+'">'+cap+body+src+'</div>';
+}
+function visualDocument(v){
+  if(v.kind!=='svg')return v.code;
+  return '<!doctype html><html><head><style>html,body{margin:0;padding:0;background:transparent;color:#2c2c2a}body{--color-text-primary:#2c2c2a;--color-text-secondary:#5f5e5a;--color-background-primary:#fff;--color-background-secondary:#f7f7f5}svg{width:100%;height:auto;display:block}</style></head><body>'+v.code+'</body></html>';
 }
 function downloadVisual(id){
   const el=document.getElementById(id);if(!el)return;
@@ -1310,6 +1318,9 @@ function esc(s){
   const d=document.createElement('div');
   d.appendChild(document.createTextNode(String(s)));
   return d.innerHTML;
+}
+function escAttr(s){
+  return esc(s).replace(/"/g,'&quot;').replace(/'/g,'&#39;');
 }
 function fmtDate(iso){
   if(!iso)return '';
