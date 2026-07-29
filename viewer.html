@@ -631,6 +631,8 @@ document.getElementById('zip-input').addEventListener('change',async e=>{
 const dropOverlay=document.getElementById('drop-overlay');
 let dragDepth=0;
 function setDropActive(active){if(dropOverlay){dropOverlay.classList.toggle('active',active);dropOverlay.setAttribute('aria-hidden',String(!active));}}
+function resetDropState(){dragDepth=0;setDropActive(false);}
+function showDropError(err){const btn=document.getElementById('load-btn');if(btn)btn.textContent='❌ '+t('拖放导入失败')+': '+errorMessage(err);console.error('drop import',err);}
 const DROP_MAX_FILES=10000,DROP_MAX_DEPTH=24;
 async function readDropEntry(entry,depth=0,state={count:0}){
   if(depth>DROP_MAX_DEPTH)throw new Error('Dropped folder is too deeply nested');
@@ -658,7 +660,9 @@ function hasDroppedFiles(e){const types=e.dataTransfer?.types;if(!types)return f
 window.addEventListener('dragenter',e=>{if(hasDroppedFiles(e)){e.preventDefault();dragDepth++;setDropActive(true);}});
 window.addEventListener('dragover',e=>{if(hasDroppedFiles(e))e.preventDefault();});
 window.addEventListener('dragleave',e=>{if(hasDroppedFiles(e)){e.preventDefault();if(--dragDepth<=0){dragDepth=0;setDropActive(false);}}});
-window.addEventListener('drop',async e=>{if(!hasDroppedFiles(e))return;e.preventDefault();dragDepth=0;setDropActive(false);try{const files=await droppedFiles(e.dataTransfer);if(files.length)routeDroppedFiles(files);}catch(err){console.error('drop import',err);}});
+window.addEventListener('drop',async e=>{if(!hasDroppedFiles(e))return;e.preventDefault();resetDropState();try{const files=await droppedFiles(e.dataTransfer);if(files.length)routeDroppedFiles(files);}catch(err){showDropError(err);}});
+window.addEventListener('dragend',resetDropState);
+window.addEventListener('blur',resetDropState);
 
 function parseConversationsJson(text){
   const conversations=JSON.parse(text);
@@ -806,13 +810,20 @@ function switchTab(tab,btn){
 }
 
 // ── On-demand analytics: source is bundled in this single HTML, execution starts only when opened. ──
-let analyticsWorker=null,analyticsWorkerUrl='',analyticsResult=null,analyticsPromise=null,analyticsGeneration=0,analyticsProgress=0;
+let analyticsWorker=null,analyticsWorkerUrl='',analyticsResult=null,analyticsPromise=null,analyticsGeneration=0,analyticsProgress=0,analyticsCustomStopZh=[];
 // BEGIN GENERATED ANALYTICS WORKER — source: src/analytics-worker.js
 function analyticsWorkerMain(){
   const state={conversations:0,messages:0,human:0,assistant:0,humanCharacters:0,assistantCharacters:0,characters:0,thinking:0,tools:0,attachments:0,textBlocks:0,imageBlocks:0,artifacts:0,webSearches:0,emptyMessages:0,branchPoints:0,alternativeMessages:0,branchedConversations:0,conversationDurationMs:0,months:{},activeDates:{},weekdays:Array(7).fill(0),hours:Array(24).fill(0),models:{},depths:{},wordsZh:{},wordsEn:{},responseLatencies:[],longest:[]};
   const add=(obj,key,n=1)=>{obj[key]=(obj[key]||0)+n;};
   const stopEn=new Set('a an and are as at be been but by can could did do does for from had has have he her hers him his how i if in into is it its may me might more most my no not of on or our ours she should so some than that the their theirs them then there these they this those to too us was we were what when where which who why will with would you your yours'.split(' '));
-  const stopZh=new Set('的 了 和 是 在 我 有 就 不 人 都 一 一个 上 也 很 到 说 要 去 你 会 着 没有 看 好 自己 这 那 里 为 以 及 与 或 而 被 把 对 从 等 中 能 可以 进行 使用 需要 如果 这个 这些 我们 你们 他们'.split(' '));
+  const stopZh=new Set(('的 了 和 是 在 我 有 就 不 人 都 一 一个 上 也 很 到 说 要 去 你 会 着 没有 看 好 自己 这 那 里 为 以 及 与 或 而 被 把 对 从 等 中 能 可以 进行 使用 需要 如果 这个 这些 我们 你们 他们 '+
+    '因为 所以 然后 而且 但是 还是 已经 可能 现在 之后 之前 其中 其中的 通过 对于 关于 根据 按照 以及 以及其 以及这 以及那 以及与 '+
+    '什么 怎么 为什么 哪个 哪些 哪里 哪些个 这里 那里 这样 那样 这么 那么 不是 没有 不能 无法 不会 不同 一些 一种 一个 '+
+    '本身 目前 当前 直接 完全 真正 真实 所有 全部 整个 完整 相关 具体 一般 通常 主要 核心 内容 问题 文章 说明 '+
+    '数据 文件 图片 标题 结构 技术 逻辑 工具 系统 服务 设计 代码 网站 产品 项目 章节 分类 部分 方面 东西 事情 '+
+    '你的 我的 他的 她的 它的 我们的 你们的 他们的 各种 某些 任何 其他 还有 以及 其中 因此 例如 '+
+    '吧 呢 啊 哦 嗯 呀 嘿 哈 哈哈 诶 哎 唉 这类 这次 这点 这个问题 这种情况 就是 那个 那些 知道 的是 存在 或者 开始 几个 这种 出来 只是 只是说 还有点 '+
+    '一下 一下子 一直 一定 一样 一起 一共 多个 少数 许多 多少 时候 以后 以前 现在的 之后的 起来 下来 上来 回来 过去').split(/\s+/));
   const zhSegmenter=typeof Intl!=='undefined'&&Intl.Segmenter?new Intl.Segmenter('zh',{granularity:'word'}):null;
   function countWords(text){
     if(!text)return;
@@ -824,6 +835,7 @@ function analyticsWorkerMain(){
   }
   self.onmessage=e=>{
     const msg=e.data||{};
+    if(msg.type==='init'){for(const word of msg.customStopZh||[])if(word)stopZh.add(String(word).toLowerCase());return;}
     if(msg.type==='batch'){
       for(const c of msg.items||[]){
         state.conversations++;
@@ -918,6 +930,7 @@ function startAnalytics(){
       analyticsWorker=new Worker(analyticsWorkerUrl);
     }catch(err){analyticsPromise=null;reject(err);return;}
     const worker=analyticsWorker,workerUrl=analyticsWorkerUrl;
+    worker.postMessage({type:'init',customStopZh:analyticsCustomStopZh});
     let nextBatch=0,batchId=0;
     const sendNext=()=>{
       if(generation!==analyticsGeneration)return;
@@ -946,6 +959,7 @@ function startAnalytics(){
   }).catch(err=>{console.error('analytics',err);if(generation===analyticsGeneration){analyticsPromise=null;if(currentView==='analytics')renderAnalyticsError(err);}return null;});
   return analyticsPromise;
 }
+function loadCustomStopwords(input){const file=input?.files?.[0];if(!file)return;file.text().then(text=>{analyticsCustomStopZh=[...new Set(text.split(/[\s,，、;；|]+/).map(s=>s.trim()).filter(s=>s.length>=2))];const status=document.getElementById('custom-stopwords-status');if(status)status.textContent=t('已加载 {count} 个词',{count:analyticsCustomStopZh.length});resetAnalytics();renderAnalyticsPage();}).catch(err=>console.error('custom stopwords',err));}
 function renderAnalyticsSide(){
   const el=document.getElementById('conv-list');
   el.innerHTML='<div class="analytics-side">📊 <b>'+t('历史统计')+'</b><br>'+t('点击统计标签后才会启动独立 Worker')+'<br><br>🔒 '+t('在本机按需计算，不上传任何对话内容')+'</div>';
@@ -956,6 +970,7 @@ function updateAnalyticsProgress(){
 }
 function renderAnalyticsPage(){
   currentView='analytics';
+  const side=document.getElementById('conv-list');if(side&&!side.querySelector('#custom-stopwords-input'))side.insertAdjacentHTML('afterbegin','<div class="analytics-side"><b>'+t('自定义中文停用词')+'</b><br><span>'+t('加载 TXT 词表，一行一个词，也支持空格或逗号分隔')+'</span><br><button type="button" style="margin-top:7px;padding:6px 9px;border:1px solid var(--border);border-radius:6px;background:var(--bg3);color:var(--text2);cursor:pointer" onclick="document.getElementById(\'custom-stopwords-input\').click()">'+t('导入停用词 TXT')+'</button><input id="custom-stopwords-input" type="file" accept=".txt,text/plain" onchange="loadCustomStopwords(this)"><div id="custom-stopwords-status" style="margin-top:5px;color:var(--text3)">'+(analyticsCustomStopZh.length?t('已加载 {count} 个词',{count:analyticsCustomStopZh.length}):t('尚未加载自定义词表'))+'</div></div>');
   document.getElementById('chat-title').textContent='📊 '+t('历史统计');document.getElementById('chat-title').style.color='';
   document.getElementById('chat-header-meta').textContent=t('在本机按需计算，不上传任何对话内容');
   document.getElementById('chat-header').classList.remove('last-supper');document.getElementById('messages').classList.remove('last-supper-gallery');
