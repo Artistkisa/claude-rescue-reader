@@ -171,7 +171,16 @@ test('drag import and safe exports',async({page})=>{
   const errors=await openViewer(page);
   await page.evaluate(payload=>{const file=new File([payload],'conversations.json',{type:'application/json'});routeDroppedFiles([file]);},JSON.stringify(conversations));
   await page.waitForFunction(()=>allConvs.length===1);await page.locator('.conv-item').first().click();
-  await page.locator('#export-btn').click();page.once('dialog',d=>d.accept());const downloadPromise=page.waitForEvent('download');await page.locator('#export-menu button').nth(1).click();
+  await page.locator('#export-btn').click();await page.locator('#export-menu button').nth(1).click();await expect(page.locator('#redaction-modal [role="dialog"]')).toBeVisible();const downloadPromise=page.waitForEvent('download');await page.locator('#redaction-modal [data-action="export"]').click();
   const download=await downloadPromise;expect(await download.suggestedFilename()).toMatch(/\.md$/);
   expect(errors).toEqual([]);
+});
+
+test('safe export explains contextual identifiers and supports SCP redaction',async({page})=>{
+  const errors=await openViewer(page);
+  const sample={...conversations[0],name:'Synthetic privacy case',chat_messages:[{uuid:'11111111-1111-4111-8111-111111111111',sender:'human',created_at:'2026-01-01T00:00:00Z',content:[{type:'text',text:'deviceId = "aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee"\ntoken: 0123456789abcdef0123456789abcdef\nhttps://example.invalid/cb?t=ABC12345'}]}]};
+  await page.evaluate(payload=>routeDroppedFiles([new File([JSON.stringify([payload])],'conversations.json',{type:'application/json'})]),sample);
+  await page.waitForFunction(()=>allConvs.length===1);await page.locator('.conv-item').first().click();await page.locator('#export-btn').click();await page.locator('#export-menu button').nth(1).click();
+  const modal=page.locator('#redaction-modal');await expect(modal).toContainText(/设备标识|Device identifier/);await expect(modal).toContainText(/凭据或令牌|Credential or token/);await expect(modal).toContainText(/URL 查询令牌|URL query token/);await expect(modal).not.toContainText('0123456789abcdef0123456789abcdef');
+  await modal.locator('[data-style="scp"]').click();const downloadPromise=page.waitForEvent('download');await modal.locator('[data-action="export"]').click();const download=await downloadPromise;const body=await fs.readFile(await download.path(),'utf8');expect(body).toContain('████');expect(body).not.toContain('0123456789abcdef0123456789abcdef');expect(errors).toEqual([]);
 });

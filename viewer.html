@@ -352,6 +352,24 @@ mark.cs.active { background:var(--accent); color:#fff; }
 .export-menu { position:absolute; right:0; top:calc(100% + 6px); z-index:30; min-width:150px; padding:5px; border:1px solid var(--border); border-radius:9px; background:var(--bg2); box-shadow:0 8px 28px var(--shadow); }
 .export-menu button { display:block; width:100%; padding:7px 9px; border:0; border-radius:6px; background:transparent; color:var(--text2); text-align:left; cursor:pointer; }
 .export-menu button:hover { background:var(--bg3); color:var(--text); }
+.redaction-backdrop { position:fixed; inset:0; z-index:120; display:flex; align-items:center; justify-content:center; padding:18px; background:rgba(8,10,16,.72); backdrop-filter:blur(4px); }
+.redaction-dialog { width:min(760px,96vw); max-height:88vh; overflow:auto; padding:20px; border:1px solid var(--border); border-radius:14px; background:var(--bg2); box-shadow:0 18px 60px rgba(0,0,0,.38); }
+.redaction-dialog h2 { margin:0 0 6px; font-size:18px; }
+.redaction-dialog p { margin:0 0 14px; color:var(--text3); font-size:12px; line-height:1.6; }
+.redaction-styles { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:9px; margin:12px 0; }
+.redaction-style { padding:11px; border:1px solid var(--border); border-radius:9px; background:var(--bg3); color:var(--text2); cursor:pointer; text-align:left; }
+.redaction-style.active { border-color:var(--accent); box-shadow:0 0 0 1px var(--accent); }
+.redaction-style b { display:block; color:var(--text); margin-bottom:4px; }
+.redaction-summary { display:flex; flex-wrap:wrap; gap:6px; margin:10px 0; }
+.redaction-chip { padding:4px 7px; border-radius:999px; background:var(--bg3); color:var(--text2); font-size:11px; }
+.redaction-findings { display:grid; gap:7px; max-height:310px; overflow:auto; margin:12px 0; }
+.redaction-finding { padding:9px 10px; border:1px solid var(--border); border-radius:8px; background:var(--bg); font-size:11.5px; }
+.redaction-finding-head { display:flex; justify-content:space-between; gap:10px; color:var(--text3); }
+.redaction-preview { margin-top:5px; color:var(--text2); font-family:ui-monospace,SFMono-Regular,Consolas,monospace; word-break:break-all; }
+.redaction-reason { margin-top:4px; color:var(--text3); }
+.redaction-actions { display:flex; justify-content:flex-end; gap:8px; margin-top:14px; }
+.redaction-actions button { padding:8px 13px; border:1px solid var(--border); border-radius:8px; background:var(--bg3); color:var(--text); cursor:pointer; }
+.redaction-actions .primary { border-color:var(--accent); background:var(--accent); color:white; }
 .quick-nav { position:fixed; right:18px; bottom:18px; z-index:20; display:none; flex-direction:column; gap:7px; }
 .quick-nav button { width:36px; height:36px; border:1px solid var(--border); border-radius:50%; background:var(--bg2); color:var(--text2); box-shadow:0 3px 14px var(--shadow); cursor:pointer; font-size:16px; }
 .quick-nav button:hover { border-color:var(--accent); color:var(--accent); }
@@ -484,6 +502,7 @@ mark.cs.active { background:var(--accent); color:#fff; }
   </div>
 </div>
 <div id="quality-panel" class="quality-panel" style="display:none"></div>
+<div id="redaction-modal" style="display:none"></div>
 <div class="quick-nav" id="quick-nav"><button onclick="jumpMessages('top')" data-i18n-title="跳到顶部" title="跳到顶部">↑</button><button onclick="jumpMessages('bottom')" data-i18n-title="跳到底部" title="跳到底部">↓</button></div>
 
 <!-- Summary Panel -->
@@ -571,7 +590,7 @@ const EN={
   '搜索、文件与生成内容':'Search, files & generated content','中文高频词':'Chinese frequent words','英文高频词':'English frequent words','暂无词频数据':'No word-frequency data',
   '活跃天数':'Active days','最长连续活跃':'Longest streak','中位回复延迟':'Median response time','平均对话跨度':'Avg. conversation span','含分支对话':'Branched conversations','分支点':'Branch points','重新生成/替代消息':'Regenerated / alternative messages','空消息':'Empty messages','天':' days',
   '你的 Claude 使用画像':'Your Claude usage profile','深夜消息':'Late-night messages','最活跃时段':'Peak activity hour','最依赖的工具':'Most-used tool','Thinking 最长回答':'Longest Thinking response','工具失败最多的对话':'Conversation with most tool failures','连续活跃区间':'Longest active streak','暂无可用记录':'No matching record','夜间探索型':'Night explorer','日间专注型':'Daytime focus','工具驱动型':'Tool-driven','深度对话型':'Deep-conversation user','均衡使用型':'Balanced user',
-  '对话质量分析':'Conversation quality','质量':'Quality','最长路径':'Longest path','完整树':'Full tree','扫描中…':'Scanning…','健康报告':'Health report','敏感信息':'Sensitive data','未发现异常':'No anomalies found','异常消息':'anomalous messages','重复回答':'Repeated answers','疑似拒答':'Possible refusal','拒答并给出替代方案':'Refusal with safe alternative','疑似降级回答':'Possible fallback answer','被截断回答':'Possibly truncated','仅工具无正文':'Tool-only response','时间倒序':'Reverse timestamps','孤立消息':'Orphan messages','不完整附件':'Incomplete attachments','不可解析内容块':'Unparseable blocks','回复延迟异常':'Abnormal reply latency','内部元数据':'Internal metadata','API 密钥':'API keys','Bearer 令牌':'Bearer tokens','私钥':'Private keys','邮箱':'Emails','手机号':'Phone numbers','本地路径':'Local paths','导出前脱敏':'Redact before export','安全导出':'Safe export','安全导出 PDF':'Safe PDF','脱敏预览':'Redaction preview','替换':'replacements','检测到':'detected',
+  '对话质量分析':'Conversation quality','质量':'Quality','最长路径':'Longest path','完整树':'Full tree','扫描中…':'Scanning…','健康报告':'Health report','敏感信息':'Sensitive data','未发现异常':'No anomalies found','异常消息':'anomalous messages','重复回答':'Repeated answers','疑似拒答':'Possible refusal','拒答并给出替代方案':'Refusal with safe alternative','疑似降级回答':'Possible fallback answer','被截断回答':'Possibly truncated','仅工具无正文':'Tool-only response','时间倒序':'Reverse timestamps','孤立消息':'Orphan messages','不完整附件':'Incomplete attachments','不可解析内容块':'Unparseable blocks','回复延迟异常':'Abnormal reply latency','内部元数据':'Internal metadata','API 密钥':'API keys','Bearer 令牌':'Bearer tokens','私钥':'Private keys','邮箱':'Emails','手机号':'Phone numbers','本地路径':'Local paths','设备标识':'Device identifier','用户标识':'User identifier','会话标识':'Session identifier','凭据或令牌':'Credential or token','URL 查询令牌':'URL query token','导出前脱敏':'Redact before export','安全导出':'Safe export','安全导出 PDF':'Safe PDF','脱敏预览':'Redaction preview','标准脱敏':'Standard redaction','SCP 档案模式':'SCP dossier mode','数据删除':'DATA EXPUNGED','仅展示遮罩后的片段；原始敏感值不会出现在预览中。':'Only masked fragments are shown; original sensitive values never appear in the preview.','共检测到':'Detected','项；导出时将全部替换。':'items; all will be replaced during export.','确认安全导出':'Export safely','敏感字段名与高熵标识值同时出现':'A sensitive field name and high-entropy identifier occur together.','敏感查询参数':'Sensitive URL query parameter','安全导出会移除工具参数、路径或系统元数据':'Safe export removes tool arguments, paths, and system metadata.','替换':'replacements','检测到':'detected',
   '暂无 Design 对话':'No Design conversations','条 Design 对话':' Design conversations','跳到顶部':'Jump to top','跳到底部':'Jump to bottom','正在准备 PDF…':'Preparing PDF…','打印 / 另存为 PDF':'Print / Save as PDF','弹窗被浏览器拦截，请允许弹窗后重试':'The popup was blocked. Allow popups and try again.','下载 PNG':'Download PNG','PNG 导出失败，已改为下载源码':'PNG export failed; source downloaded instead'
 };
 const ZH={'项目（单数）':'项目'};
@@ -2682,12 +2701,17 @@ const SENSITIVE_PATTERNS=[
   ['手机号',/(?<!\d)(?:\+?86[- ]?)?1[3-9]\d{9}(?!\d)/g],
   ['本地路径',/(?:[A-Z]:\\|file:\/\/|\/Users\/|\/home\/|\/mnt\/)[^\s"'<>]+/gi]
 ];
-function redactText(text,stats){let out=String(text||'');for(const [label,re] of SENSITIVE_PATTERNS){out=out.replace(re,()=>{stats[label]=(stats[label]||0)+1;return '[REDACTED:'+label+']';});}return out;}
-function redactConversation(conv){const clone=structuredClone?structuredClone(conv):JSON.parse(JSON.stringify(conv));const stats={};const walk=v=>{if(typeof v==='string')return redactText(v,stats);if(Array.isArray(v))return v.map(walk);if(v&&typeof v==='object'){for(const k of Object.keys(v)){if(k==='tool_input'||k==='input'||k==='metadata'||k==='file_path'||k==='path')v[k]='[REDACTED:metadata]';else v[k]=walk(v[k]);}}return v;};walk(clone);return{conv:clone,stats};}
-function confirmRedaction(conv){const scan=redactConversation(conv),total=Object.values(scan.stats).reduce((a,b)=>a+b,0);if(!total)return scan;if(!confirm(t('检测到')+' '+total+' '+t('敏感信息')+'。'+t('导出前脱敏')+'？'))return null;return scan;}
-function exportConv(mode){
+const CONTEXT_SECRET_RE=/((?:device[_ -]?id|user[_ -]?id|visitor[_ -]?id|fingerprint|session[_ -]?id|storage[_ -]?key|access[_ -]?token|refresh[_ -]?token|auth[_ -]?token|token|secret|api[_ -]?key|did)\s*["']?\s*[:=]\s*["']?)([A-Za-z0-9_%+\/=.-]{6,})/gi;
+const QUERY_SECRET_RE=/([?&](?:token|access_token|auth|key|sid|session|device_id|did|t)=)([A-Za-z0-9_%+\/=.-]{6,})/gi;
+function redactionToken(label,value,style){if(style==='scp')return /^metadata$/i.test(label)?(currentLang==='en'?'[DATA EXPUNGED]':'[数据删除]'):'█'.repeat(Math.max(6,Math.min(24,String(value||'').length)));return '[REDACTED:'+label+']';}
+function maskedSecret(value){const s=String(value||'');if(s.length<=6)return '█'.repeat(s.length||4);return s.slice(0,2)+'…'+s.slice(-2)+' ('+s.length+')';}
+function addRedactionFinding(state,label,value,path,reason){state.stats[label]=(state.stats[label]||0)+1;state.matches.push({label,path:path||'conversation',preview:maskedSecret(value),reason});}
+function redactText(text,state,path,style){let out=String(text||'');out=out.replace(CONTEXT_SECRET_RE,(whole,prefix,value)=>{let label=/device|fingerprint|did/i.test(prefix)?'设备标识':/user/i.test(prefix)?'用户标识':/session|storage/i.test(prefix)?'会话标识':'凭据或令牌';addRedactionFinding(state,label,value,path,'敏感字段名与高熵标识值同时出现');return prefix+redactionToken(label,value,style);});out=out.replace(QUERY_SECRET_RE,(whole,prefix,value)=>{addRedactionFinding(state,'URL 查询令牌',value,path,'敏感查询参数');return prefix+redactionToken('URL 查询令牌',value,style);});for(const [label,re] of SENSITIVE_PATTERNS){re.lastIndex=0;out=out.replace(re,value=>{addRedactionFinding(state,label,value,path,'匹配 '+label+' 格式');return redactionToken(label,value,style);});}return out;}
+function redactConversation(conv,style='standard'){const clone=typeof structuredClone==='function'?structuredClone(conv):JSON.parse(JSON.stringify(conv));const state={stats:{},matches:[]};const metadataKeys=new Set(['tool_input','input','metadata','file_path','path']);const walk=(v,path)=>{if(typeof v==='string')return redactText(v,state,path,style);if(Array.isArray(v))return v.map((item,i)=>walk(item,path+'['+i+']'));if(v&&typeof v==='object'){for(const k of Object.keys(v)){const next=path?path+'.'+k:k;if(metadataKeys.has(k)){const raw=typeof v[k]==='string'?v[k]:JSON.stringify(v[k]??'');redactText(raw,state,next,style);addRedactionFinding(state,'metadata',raw,next,'安全导出会移除工具参数、路径或系统元数据');v[k]=redactionToken('metadata',raw,style);}else v[k]=walk(v[k],next);}}return v;};walk(clone,'conversation');return{conv:clone,stats:state.stats,matches:state.matches,total:state.matches.length,style};}
+function redactionDialog(conv){const initial=redactConversation(conv,'standard');if(!initial.total)return Promise.resolve(initial);const host=document.getElementById('redaction-modal');let style='standard';const render=()=>{const scan=redactConversation(conv,style);host.style.display='';host.innerHTML='<div class="redaction-backdrop"><section class="redaction-dialog" role="dialog" aria-modal="true" aria-labelledby="redaction-title"><h2 id="redaction-title">🔐 '+t('脱敏预览')+'</h2><p>'+t('仅展示遮罩后的片段；原始敏感值不会出现在预览中。')+'</p><div class="redaction-styles"><button class="redaction-style '+(style==='standard'?'active':'')+'" data-style="standard"><b>'+t('标准脱敏')+'</b><span>[REDACTED:类型]</span></button><button class="redaction-style '+(style==='scp'?'active':'')+'" data-style="scp"><b>'+t('SCP 档案模式')+'</b><span>████ / '+t('数据删除')+'</span></button></div><div class="redaction-summary">'+Object.entries(scan.stats).map(([k,v])=>'<span class="redaction-chip">'+esc(t(k))+': '+v+'</span>').join('')+'</div><div class="redaction-findings">'+scan.matches.slice(0,100).map(m=>'<div class="redaction-finding"><div class="redaction-finding-head"><b>'+esc(t(m.label))+'</b><span>'+esc(m.path)+'</span></div><div class="redaction-preview">'+esc(m.preview)+'</div><div class="redaction-reason">'+esc(t(m.reason))+'</div></div>').join('')+'</div><p>'+t('共检测到')+' '+scan.total+' '+t('项；导出时将全部替换。')+'</p><div class="redaction-actions"><button data-action="cancel">'+t('取消')+'</button><button class="primary" data-action="export">'+t('确认安全导出')+'</button></div></section></div>';host.querySelectorAll('[data-style]').forEach(btn=>btn.onclick=()=>{style=btn.dataset.style;render();});return scan;};render();return new Promise(resolve=>{const click=e=>{const action=e.target.closest('[data-action]')?.dataset.action;if(!action)return;if(action==='cancel'){host.style.display='none';host.innerHTML='';host.removeEventListener('click',click);resolve(null);}else{const result=redactConversation(conv,style);host.style.display='none';host.innerHTML='';host.removeEventListener('click',click);resolve(result);}};host.addEventListener('click',click);});}
+async function exportConv(mode){
   if(!currentConv)return;
-  let conv=currentConv;if(mode==='safe'){const result=confirmRedaction(currentConv);if(!result)return;conv=result.conv;}
+  let conv=currentConv;if(mode==='safe'){const result=await redactionDialog(currentConv);if(!result)return;conv=result.conv;}
   // Build linear thread (same logic as renderMessages)
   const msgs=conv.chat_messages||[];
   const linear=conversationTreeMode==='full'?buildFullTree(msgs):buildPath(msgs); // 与当前浏览模式保持一致
@@ -2771,7 +2795,7 @@ async function preparePdfConversation(conv){
 async function exportPDF(mode){
   let conv=currentConv;
   if(!conv)return;
-  if(mode==='safe'){const result=confirmRedaction(conv);if(!result)return;conv=result.conv;}
+  if(mode==='safe'){const result=await redactionDialog(conv);if(!result)return;conv=result.conv;}
   const popup=window.open('','_blank');
   if(!popup){alert(t('弹窗被浏览器拦截，请允许弹窗后重试'));return;}
   popup.document.write('<!doctype html><meta charset="utf-8"><title>'+esc(conv.name||t('对话'))+'</title><body style="font-family:system-ui;padding:24px">'+t('正在准备 PDF…')+'</body>');popup.document.close();
