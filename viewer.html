@@ -631,6 +631,8 @@ document.getElementById('zip-input').addEventListener('change',async e=>{
 const dropOverlay=document.getElementById('drop-overlay');
 let dragDepth=0;
 function setDropActive(active){if(dropOverlay){dropOverlay.classList.toggle('active',active);dropOverlay.setAttribute('aria-hidden',String(!active));}}
+function resetDropState(){dragDepth=0;setDropActive(false);}
+function showDropError(err){const btn=document.getElementById('load-btn');if(btn)btn.textContent='❌ '+t('拖放导入失败')+': '+errorMessage(err);console.error('drop import',err);}
 const DROP_MAX_FILES=10000,DROP_MAX_DEPTH=24;
 async function readDropEntry(entry,depth=0,state={count:0}){
   if(depth>DROP_MAX_DEPTH)throw new Error('Dropped folder is too deeply nested');
@@ -658,7 +660,9 @@ function hasDroppedFiles(e){const types=e.dataTransfer?.types;if(!types)return f
 window.addEventListener('dragenter',e=>{if(hasDroppedFiles(e)){e.preventDefault();dragDepth++;setDropActive(true);}});
 window.addEventListener('dragover',e=>{if(hasDroppedFiles(e))e.preventDefault();});
 window.addEventListener('dragleave',e=>{if(hasDroppedFiles(e)){e.preventDefault();if(--dragDepth<=0){dragDepth=0;setDropActive(false);}}});
-window.addEventListener('drop',async e=>{if(!hasDroppedFiles(e))return;e.preventDefault();dragDepth=0;setDropActive(false);try{const files=await droppedFiles(e.dataTransfer);if(files.length)routeDroppedFiles(files);}catch(err){console.error('drop import',err);}});
+window.addEventListener('drop',async e=>{if(!hasDroppedFiles(e))return;e.preventDefault();resetDropState();try{const files=await droppedFiles(e.dataTransfer);if(files.length)routeDroppedFiles(files);}catch(err){showDropError(err);}});
+window.addEventListener('dragend',resetDropState);
+window.addEventListener('blur',resetDropState);
 
 function parseConversationsJson(text){
   const conversations=JSON.parse(text);
@@ -955,7 +959,7 @@ function startAnalytics(){
   }).catch(err=>{console.error('analytics',err);if(generation===analyticsGeneration){analyticsPromise=null;if(currentView==='analytics')renderAnalyticsError(err);}return null;});
   return analyticsPromise;
 }
-function loadCustomStopwords(input){const file=input?.files?.[0];if(!file)return;file.text().then(text=>{analyticsCustomStopZh=[...new Set(text.split(/[\\s,，、;；|]+/).map(s=>s.trim()).filter(s=>s.length>=2))];const status=document.getElementById('custom-stopwords-status');if(status)status.textContent=t('已加载 {count} 个词',{count:analyticsCustomStopZh.length});resetAnalytics();renderAnalyticsPage();}).catch(err=>console.error('custom stopwords',err));}
+function loadCustomStopwords(input){const file=input?.files?.[0];if(!file)return;file.text().then(text=>{analyticsCustomStopZh=[...new Set(text.split(/[\s,，、;；|]+/).map(s=>s.trim()).filter(s=>s.length>=2))];const status=document.getElementById('custom-stopwords-status');if(status)status.textContent=t('已加载 {count} 个词',{count:analyticsCustomStopZh.length});resetAnalytics();renderAnalyticsPage();}).catch(err=>console.error('custom stopwords',err));}
 function renderAnalyticsSide(){
   const el=document.getElementById('conv-list');
   el.innerHTML='<div class="analytics-side">📊 <b>'+t('历史统计')+'</b><br>'+t('点击统计标签后才会启动独立 Worker')+'<br><br>🔒 '+t('在本机按需计算，不上传任何对话内容')+'</div>';
