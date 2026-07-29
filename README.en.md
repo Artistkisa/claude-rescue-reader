@@ -132,6 +132,14 @@ claude-export/
 - Global memories displayed in 4 sections (work / personal / highlights / history)
 - Per-project memories displayed in 6 standard sections, collapsible
 
+### Analytics
+- A dedicated Web Worker starts only after opening the **Analytics** tab; normal reading performs no analytics scan
+- Summarizes conversations, messages, roles, characters, thinking blocks, tool calls, attachments, and web searches
+- Shows monthly/weekday/hourly activity, conversation depth, message and character distribution by role, content-block composition, model information (when present in the export), and longest conversations
+- Builds Chinese/English frequent-word clouds inside the Worker and summarizes searches, files, artifacts, and thinking blocks
+- Adds history-health metrics for active-day streaks, response latency, conversation span, branches/alternatives, and empty messages
+- The main thread sends compact batches to the Worker; results remain only in the current page and no content is uploaded
+
 ### Other
 - 🌙 / ☀️ Light/dark theme toggle, preference saved automatically
 - ⬇ **Export:** Export current conversation as a Markdown file (Ctrl/Cmd+E)
@@ -159,9 +167,9 @@ github-dark.min.css    ← https://cdn.jsdelivr.net/npm/highlight.js@11.9.0/styl
 
 ## Privacy
 
-- ✅ Runs entirely locally — no backend, no analytics, no network requests (CDN excepted)
+- ✅ Runs entirely locally — no backend, no telemetry, no network requests (CDN excepted)
 - ✅ Your data is never uploaded or shared
-- ✅ Nothing persists after closing the browser, except theme preference (`localStorage` only stores `cv-theme`)
+- ✅ Nothing persists after closing the browser except theme and UI-language preferences (`localStorage` stores only `cv-theme` / `cv-lang`)
 - ⚠️ The exported JSON files contain your complete conversation history — store them carefully
 
 ## Known Limitations
@@ -186,10 +194,12 @@ This tool parses the Claude export format (as of 2026):
 
 ## Tech Stack
 
-- Pure vanilla HTML + CSS + JavaScript — no build step, no framework dependencies
+- Pure vanilla HTML + CSS + JavaScript; the release remains a directly openable single file with no framework dependencies
 - [marked.js](https://marked.js.org/) — Markdown rendering
 - [highlight.js](https://highlightjs.org/) — Code syntax highlighting
 - [JSZip](https://stuk.github.io/jszip/) — Direct ZIP archive loading (no unzipping)
+
+The maintainable Analytics Worker source lives in `src/analytics-worker.js`. After editing it, run `scripts/build-single-file.ps1` to embed it back into `viewer.html`; regular users do not need the build script.
 
 ## Changelog
 
