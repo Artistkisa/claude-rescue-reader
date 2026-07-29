@@ -513,6 +513,9 @@ function parseConversations(source){
 // 共用的解析 + 渲染流程（文件夹与 ZIP 两条入口复用）
 async function ingestData(convSource,projTexts,memText,btn){
   const loadGeneration=++dataLoadGeneration;
+  lastConversationUuid='';
+  document.getElementById('chat-header').classList.remove('last-supper');
+  document.getElementById('messages').classList.remove('last-supper-gallery');
   // yield to browser to render spinner before starting parsing
   await new Promise(r=>setTimeout(r,30));
   // 错误统一抛给调用方：各入口在自己的 catch 里设置按钮文案，避免双层处理互相覆盖
@@ -568,12 +571,19 @@ function renderConvList(convs){
 function findLastConversationUuid(convs){
   let latestUuid='',latestTime=-Infinity;
   for(const c of convs){
-    let time=Date.parse(c.updated_at||c.created_at||'')||0;
+    const conversationTime=Date.parse(c.updated_at||c.created_at||'');
+    let time=Number.isFinite(conversationTime)?conversationTime:-Infinity;
     for(const m of(c.chat_messages||[])){
-      const messageTime=Date.parse(m.updated_at||m.created_at||'')||0;
-      if(messageTime>time)time=messageTime;
+      const messageTime=Date.parse(m.updated_at||m.created_at||'');
+      if(Number.isFinite(messageTime)&&messageTime>time)time=messageTime;
     }
-    if(time>latestTime){latestTime=time;latestUuid=c.uuid||'';}
+    if(!Number.isFinite(time))continue;
+    const uuid=c.uuid||'';
+    // UUID tie-break keeps the result stable when exports share an identical final timestamp.
+    if(time>latestTime||(time===latestTime&&uuid.localeCompare(latestUuid)>0)){
+      latestTime=time;
+      latestUuid=uuid;
+    }
   }
   return latestUuid;
 }
