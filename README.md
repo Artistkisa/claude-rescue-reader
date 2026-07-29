@@ -132,6 +132,14 @@ claude-export/
 - 全局对话记忆按 4 个分区（工作/个人/重点/历史）展示
 - 各项目记忆按 6 个标准分区展示，可折叠
 
+### 统计
+- 打开「统计」Tab 后才启动独立 Web Worker，普通阅读不会预先扫描统计数据
+- 展示对话、消息、角色、字符、Thinking、工具、附件与网页搜索总量
+- 展示月度/星期/小时活跃度、对话深度、角色消息与字符分布、内容块构成、模型信息（导出包含时）与最长对话
+- 在 Worker 内生成中英文高频词云，并汇总搜索、文件、Artifact 与 Thinking 数量
+- 额外分析活跃天数/连续活跃、回复延迟、对话跨度、分支与替代消息、空消息等历史健康指标
+- 主线程将精简后的数据分批发送给 Worker，统计结果仅保存在当前页面，不上传任何内容
+
 ### 其他
 - 🌙 / ☀️ 明暗主题切换，偏好自动保存
 - ⬇ **导出**：将当前对话导出为 Markdown 文件（Ctrl/Cmd+E）
@@ -161,7 +169,7 @@ github-dark.min.css    ← https://cdn.jsdelivr.net/npm/highlight.js@11.9.0/styl
 
 - ✅ 纯本地运行，无后端，无埋点，无任何网络请求（CDN 除外）
 - ✅ 数据不会被上传或分享
-- ✅ 浏览器关闭后，除主题偏好外不保留任何数据（`localStorage` 仅存 `cv-theme`）
+- ✅ 浏览器关闭后，除主题和界面语言偏好外不保留任何数据（`localStorage` 仅存 `cv-theme` / `cv-lang`）
 - ⚠️ 导出的 JSON 文件包含您的完整对话历史，请妥善保管
 
 ## 已知限制
@@ -186,10 +194,12 @@ github-dark.min.css    ← https://cdn.jsdelivr.net/npm/highlight.js@11.9.0/styl
 
 ## 技术栈
 
-- 纯原生 HTML + CSS + JavaScript，无构建步骤，无框架依赖
+- 纯原生 HTML + CSS + JavaScript，发布产物仍是可直接打开的单文件，无框架依赖
 - [marked.js](https://marked.js.org/) — Markdown 渲染
 - [highlight.js](https://highlightjs.org/) — 代码语法高亮
 - [JSZip](https://stuk.github.io/jszip/) — ZIP 压缩包直读（免解压）
+
+统计 Worker 的可维护源码位于 `src/analytics-worker.js`。修改后运行 `scripts/build-single-file.ps1`，即可重新内联到 `viewer.html`；普通用户不需要运行构建脚本。
 
 ## Changelog
 

@@ -294,6 +294,40 @@ mark.cs.active { background:var(--accent); color:#fff; }
 .fbtn:hover { border-color:var(--accent); color:var(--accent); }
 .fbtn.primary { background:var(--accent); border-color:var(--accent); color:#fff; }
 .fbtn.primary:hover { background:var(--accent2); color:#fff; }
+/* ── On-demand analytics dashboard ── */
+.analytics-page { max-width:1120px; margin:0 auto; padding:24px 28px 44px; }
+.analytics-hero { display:flex; align-items:flex-end; justify-content:space-between; gap:16px; margin-bottom:18px; }
+.analytics-kicker { color:var(--accent); font-size:11px; font-weight:750; letter-spacing:.09em; text-transform:uppercase; }
+.analytics-heading { margin:4px 0 3px; font-size:24px; color:var(--text); }
+.analytics-sub { color:var(--text3); font-size:12px; }
+.analytics-grid { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:10px; margin-bottom:14px; }
+.metric-card,.chart-card { background:var(--bg2); border:1px solid var(--border); border-radius:12px; box-shadow:0 1px 2px var(--shadow); }
+.metric-card { padding:14px 15px; min-width:0; }
+.metric-icon { font-size:17px; }
+.metric-value { margin-top:8px; color:var(--text); font-size:23px; font-weight:750; line-height:1; }
+.metric-label { margin-top:6px; color:var(--text3); font-size:11px; }
+.chart-layout { display:grid; grid-template-columns:1.25fr 1fr; gap:12px; margin-bottom:12px; }
+.chart-card { padding:15px 16px; overflow:hidden; }
+.chart-title { margin-bottom:12px; color:var(--text2); font-size:12px; font-weight:700; }
+.bar-row { display:grid; grid-template-columns:80px minmax(30px,1fr) 46px; align-items:center; gap:8px; min-height:24px; font-size:11px; }
+.bar-label { color:var(--text3); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.bar-track { height:7px; overflow:hidden; border-radius:99px; background:var(--bg3); }
+.bar-fill { height:100%; min-width:2px; border-radius:99px; background:linear-gradient(90deg,var(--accent),var(--blue)); }
+.bar-value { color:var(--text3); text-align:right; font-variant-numeric:tabular-nums; }
+.analytics-table { width:100%; border-collapse:collapse; font-size:11.5px; }
+.analytics-table th { padding:7px 8px; border-bottom:1px solid var(--border); color:var(--text3); text-align:left; font-weight:650; }
+.analytics-table td { padding:8px; border-bottom:1px solid var(--border); color:var(--text2); }
+.analytics-table tr:last-child td { border-bottom:0; }
+.analytics-table .num { text-align:right; font-variant-numeric:tabular-nums; white-space:nowrap; }
+.analytics-progress { max-width:520px; margin:18vh auto 0; padding:22px; border:1px solid var(--border); border-radius:14px; background:var(--bg2); text-align:center; }
+.analytics-progress-track { height:8px; margin:14px 0 8px; overflow:hidden; border-radius:99px; background:var(--bg3); }
+.analytics-progress-fill { height:100%; width:0; border-radius:99px; background:linear-gradient(90deg,var(--accent),var(--blue)); transition:width .18s ease; }
+.analytics-note { margin-top:12px; color:var(--text3); font-size:11px; line-height:1.5; }
+.analytics-side { padding:14px 12px; color:var(--text3); font-size:11.5px; line-height:1.7; }
+.analytics-side b { color:var(--text2); }
+.word-cloud { display:flex; flex-wrap:wrap; align-items:center; justify-content:center; gap:7px 11px; min-height:150px; padding:8px; }
+.word-cloud span { color:var(--accent); line-height:1; font-weight:650; }
+@media(max-width:900px){.analytics-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.chart-layout{grid-template-columns:1fr}.analytics-page{padding:18px 14px 36px}}
 </style>
 </head>
 <body>
@@ -322,6 +356,7 @@ mark.cs.active { background:var(--accent); color:#fff; }
     <button class="tab-btn active" data-i18n="对话" onclick="switchTab('convs',this)">对话</button>
     <button class="tab-btn" data-i18n="项目" onclick="switchTab('projects',this)">项目</button>
     <button class="tab-btn" data-i18n="记忆" onclick="switchTab('memory',this)">记忆</button>
+    <button class="tab-btn" data-i18n="统计" onclick="switchTab('analytics',this)">统计</button>
   </div>
   <div id="conv-list"></div>
 </div>
@@ -398,13 +433,14 @@ mark.cs.active { background:var(--accent); color:#fff; }
 const ICON='<svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 2l4 4-4 4"/></svg>';
 let allConvs=[],allProjects=[],memoryData=null,currentConv=null,summaryVisible=false,lastConversationUuid='';
 let dataLoadGeneration=0;
+let loadedSummary=null;
 let currentLang=localStorage.getItem('cv-lang')==='en'?'en':'zh';
 let currentView='convs',currentProjectUuid='';
 const EN={
   '📂 选择导出文件夹':'📂 Select Export Folder','🗜️ 直接选择 ZIP 压缩包（免解压）':'🗜️ Select ZIP Archive (no extraction)',
   '搜索对话…':'Search conversations…','全文搜索':'Full-text search','最新':'Newest','最早':'Oldest','最多':'Most',
   '按最近更新时间排序':'Sort by most recently updated','按最早创建时间排序':'Sort by earliest created','按消息数量排序':'Sort by message count',
-  '对话':'Conversations','项目':'Projects','记忆':'Memories','← 选择一个对话':'← Select a conversation',
+  '对话':'Conversations','项目':'Projects','记忆':'Memories','统计':'Analytics','← 选择一个对话':'← Select a conversation',
   '最后的晚餐':'The Last Supper','这份导出中，时间上最后结束的对话':'The chronologically final conversation in this export',
   '摘要':'Summary','对话内搜索…':'Search in conversation…','上一个匹配':'Previous match','下一个匹配':'Next match',
   '导出为 Markdown':'Export as Markdown','切换明暗主题':'Toggle light/dark theme','导出':'Export',
@@ -438,7 +474,21 @@ const EN={
   'Claude 官方导出文件中不包含对话与项目的归属关系。':'Claude exports do not include conversation-to-project relationships.',
   '本查看器通过以下三种方式推断：① 工具调用中的项目文件路径（精确）；② 知识搜索查询词与项目文档的匹配（较准确）；③ 项目记忆关键词匹配（模糊）。':'This viewer infers them using: ① project file paths in tool calls (exact); ② knowledge-search terms matched against project documents (fairly accurate); ③ project-memory keyword matching (fuzzy).',
   '结果仅供参考':'Results are estimates','可能存在遗漏或误判。':'Some conversations may be missing or incorrectly assigned.',
-  '共':'Total','以下按时间顺序展示全部消息':'all messages below are shown chronologically'
+  '共':'Total','以下按时间顺序展示全部消息':'all messages below are shown chronologically',
+  '历史统计':'History analytics','在本机按需计算，不上传任何对话内容':'Computed on demand in your browser. No conversation content is uploaded.',
+  '正在准备统计数据…':'Preparing analytics…','正在分析第 {done} / {total} 个对话':'Analyzing conversation {done} of {total}',
+  '统计计算失败':'Analytics failed','重新计算':'Recalculate','统计尚未生成':'Analytics have not been generated yet.',
+  '点击统计标签后才会启动独立 Worker':'The dedicated Worker starts only after you open Analytics.',
+  '对话总数':'Conversations','消息总数':'Messages','你的消息':'Your messages','Claude 消息':'Claude messages',
+  '总字符数':'Characters','思考块':'Thinking blocks','工具调用':'Tool calls','附件':'Attachments',
+  '每月活跃度':'Monthly activity','一天中的活跃时间':'Activity by hour','模型使用':'Model usage','内容块构成':'Content blocks',
+  '最长对话':'Longest conversations','对话标题':'Conversation','消息':'Messages','字符':'Characters','最近更新':'Last updated',
+  '对话平均消息数':'Avg. messages / conversation','最活跃月份':'Most active month','最常用模型':'Most-used model',
+  '统计仅保存在当前页面内；重新加载数据后会自动清空。':'Analytics remain only in this page and reset when another export is loaded.',
+  '未知模型':'Unknown model','导出未提供':'Not included','角色消息分布':'Messages by role','文本块':'Text blocks','图片块':'Image blocks','Artifact':'Artifacts','网页搜索':'Web searches',
+  '星期活跃度':'Activity by weekday','对话深度分布':'Conversation depth','角色字符分布':'Characters by role','你的字符':'Your characters','Claude 字符':'Claude characters',
+  '搜索、文件与生成内容':'Search, files & generated content','中文高频词':'Chinese frequent words','英文高频词':'English frequent words','暂无词频数据':'No word-frequency data',
+  '活跃天数':'Active days','最长连续活跃':'Longest streak','中位回复延迟':'Median response time','平均对话跨度':'Avg. conversation span','含分支对话':'Branched conversations','分支点':'Branch points','重新生成/替代消息':'Regenerated / alternative messages','空消息':'Empty messages','天':' days'
 };
 const ZH={'项目（单数）':'项目'};
 function t(key,vars){
@@ -464,8 +514,10 @@ function applyLanguage(lang){
 function toggleLanguage(){
   applyLanguage(currentLang==='zh'?'en':'zh');
   localStorage.setItem('cv-lang',currentLang);
+  renderLoadedSummary();
   if(currentView==='projects'){renderProjectList();if(currentProjectUuid)void openProject(currentProjectUuid);}
   else if(currentView==='memory')renderMemoryTab();
+  else if(currentView==='analytics'){renderAnalyticsSide();renderAnalyticsPage();}
   else {renderConvList(getSortedConvs());if(currentConv)openConv(currentConv.uuid);}
 }
 const MESSAGE_BATCH_SIZE=100;
@@ -608,13 +660,19 @@ async function ingestData(convSource,projTexts,memText,btn){
   convProjectMap={};
   convProjectMapReady=!allProjects.length;
   convProjectMapPromise=null;
+  resetAnalytics();
   btn.textContent='✅ '+(currentLang==='en'?'Loaded '+allConvs.length+' conversations':'已加载 '+allConvs.length+' 条对话');
   const totalMsgs=Number.isFinite(parsed.totalMsgs)?parsed.totalMsgs:allConvs.reduce((s,c)=>s+(Array.isArray(c.chat_messages)?c.chat_messages.length:0),0);
   const dates=parsed.minDate&&parsed.maxDate?[parsed.minDate,parsed.maxDate]:allConvs.map(c=>c.created_at).filter(Boolean).sort();
-  const span=dates.length?fmtDateOnly(dates[0])+' — '+fmtDateOnly(dates[dates.length-1]):'';
+  loadedSummary={totalMsgs,minDate:dates[0]||'',maxDate:dates[dates.length-1]||''};
+  renderLoadedSummary();
+}
+function renderLoadedSummary(){
+  if(!loadedSummary)return;
+  const span=loadedSummary.minDate&&loadedSummary.maxDate?fmtDateOnly(loadedSummary.minDate)+' — '+fmtDateOnly(loadedSummary.maxDate):'';
   const sb=document.getElementById('stats-bar');
   sb.style.display='';
-  sb.innerHTML='📊 <b>'+allConvs.length+'</b>'+t('条对话')+' · <b>'+totalMsgs.toLocaleString(currentLang==='en'?'en-US':'zh-CN')+'</b>'+t('条消息')
+  sb.innerHTML='📊 <b>'+allConvs.length+'</b>'+t('条对话')+' · <b>'+loadedSummary.totalMsgs.toLocaleString(currentLang==='en'?'en-US':'zh-CN')+'</b>'+t('条消息')
     +(allProjects.length?' · 📁 <b>'+allProjects.length+'</b>'+t('个项目'):'')
     +(span?'<br>📅 '+esc(span):'');
 }
@@ -625,7 +683,211 @@ function switchTab(tab,btn){
   btn.classList.add('active');
   if(tab==='convs')renderConvList(getSortedConvs());
   else if(tab==='projects'){renderProjectList();void ensureConvProjectMap().catch(e=>console.warn('项目关联索引失败',e));}
-  else renderMemoryTab();
+  else if(tab==='memory')renderMemoryTab();
+  else {renderAnalyticsSide();renderAnalyticsPage();}
+}
+
+// ── On-demand analytics: source is bundled in this single HTML, execution starts only when opened. ──
+let analyticsWorker=null,analyticsWorkerUrl='',analyticsResult=null,analyticsPromise=null,analyticsGeneration=0,analyticsProgress=0;
+// BEGIN GENERATED ANALYTICS WORKER — source: src/analytics-worker.js
+function analyticsWorkerMain(){
+  const state={conversations:0,messages:0,human:0,assistant:0,humanCharacters:0,assistantCharacters:0,characters:0,thinking:0,tools:0,attachments:0,textBlocks:0,imageBlocks:0,artifacts:0,webSearches:0,emptyMessages:0,branchPoints:0,alternativeMessages:0,branchedConversations:0,conversationDurationMs:0,months:{},activeDates:{},weekdays:Array(7).fill(0),hours:Array(24).fill(0),models:{},depths:{},wordsZh:{},wordsEn:{},responseLatencies:[],longest:[]};
+  const add=(obj,key,n=1)=>{obj[key]=(obj[key]||0)+n;};
+  const stopEn=new Set('a an and are as at be been but by can could did do does for from had has have he her hers him his how i if in into is it its may me might more most my no not of on or our ours she should so some than that the their theirs them then there these they this those to too us was we were what when where which who why will with would you your yours'.split(' '));
+  const stopZh=new Set('的 了 和 是 在 我 有 就 不 人 都 一 一个 上 也 很 到 说 要 去 你 会 着 没有 看 好 自己 这 那 里 为 以 及 与 或 而 被 把 对 从 等 中 能 可以 进行 使用 需要 如果 这个 这些 我们 你们 他们'.split(' '));
+  const zhSegmenter=typeof Intl!=='undefined'&&Intl.Segmenter?new Intl.Segmenter('zh',{granularity:'word'}):null;
+  function countWords(text){
+    if(!text)return;
+    for(const word of text.toLowerCase().match(/[a-z][a-z0-9'-]{2,}/g)||[])if(!stopEn.has(word))add(state.wordsEn,word);
+    const chinese=(text.match(/[\u3400-\u9fff]+/g)||[]).join(' ');
+    if(!chinese)return;
+    if(zhSegmenter){for(const part of zhSegmenter.segment(chinese)){const word=part.segment.trim();if(part.isWordLike&&word.length>=2&&!stopZh.has(word))add(state.wordsZh,word);}}
+    else for(const word of chinese.match(/[\u3400-\u9fff]{2,4}/g)||[])if(!stopZh.has(word))add(state.wordsZh,word);
+  }
+  self.onmessage=e=>{
+    const msg=e.data||{};
+    if(msg.type==='batch'){
+      for(const c of msg.items||[]){
+        state.conversations++;
+        let convChars=0,convBranched=false;
+        const childCounts={},timed=[];
+        for(const m of c.messages||[]){
+          state.messages++;
+          if(m.sender==='human'){state.human++;state.humanCharacters+=m.characters||0;}
+          else if(m.sender==='assistant'){state.assistant++;state.assistantCharacters+=m.characters||0;}
+          state.characters+=m.characters||0;convChars+=m.characters||0;
+          state.thinking+=m.thinking||0;state.tools+=m.tools||0;state.attachments+=m.attachments||0;
+          state.textBlocks+=m.textBlocks||0;state.imageBlocks+=m.imageBlocks||0;state.artifacts+=m.artifacts||0;state.webSearches+=m.webSearches||0;
+          if(m.empty)state.emptyMessages++;
+          if(m.month)add(state.months,m.month);
+          if(m.date)add(state.activeDates,m.date);
+          if(Number.isInteger(m.weekday)&&m.weekday>=0&&m.weekday<7)state.weekdays[m.weekday]++;
+          if(Number.isInteger(m.hour)&&m.hour>=0&&m.hour<24)state.hours[m.hour]++;
+          if(m.model)add(state.models,m.model);
+          countWords(m.wordText);
+          if(m.parentUuid)add(childCounts,m.parentUuid);
+          if(Number.isFinite(m.timestamp))timed.push(m);
+        }
+        for(const count of Object.values(childCounts))if(count>1){state.branchPoints++;state.alternativeMessages+=count-1;convBranched=true;}
+        if(convBranched)state.branchedConversations++;
+        timed.sort((a,b)=>a.timestamp-b.timestamp);
+        if(timed.length>1)state.conversationDurationMs+=timed[timed.length-1].timestamp-timed[0].timestamp;
+        const byUuid=Object.fromEntries(timed.filter(m=>m.uuid).map(m=>[m.uuid,m]));
+        for(const m of timed){const parent=byUuid[m.parentUuid];if(m.sender==='assistant'&&parent?.sender==='human'){
+          const latency=m.timestamp-parent.timestamp;if(latency>=0&&latency<=86400000)state.responseLatencies.push(latency);
+        }}
+        const depth=(c.messages||[]).length,depthKey=depth<=5?'1–5':depth<=10?'6–10':depth<=25?'11–25':depth<=50?'26–50':depth<=100?'51–100':'101+';
+        add(state.depths,depthKey);
+        state.longest.push({uuid:c.uuid,title:c.title,messages:(c.messages||[]).length,characters:convChars,updatedAt:c.updatedAt});
+      }
+      self.postMessage({type:'batchDone',id:msg.id});
+    }else if(msg.type==='finish'){
+      state.longest.sort((a,b)=>b.messages-a.messages||b.characters-a.characters);state.longest=state.longest.slice(0,10);
+      state.wordsZh=Object.entries(state.wordsZh).sort((a,b)=>b[1]-a[1]).slice(0,40);
+      state.wordsEn=Object.entries(state.wordsEn).sort((a,b)=>b[1]-a[1]).slice(0,40);
+      state.responseLatencies.sort((a,b)=>a-b);state.medianResponseMs=state.responseLatencies.length?state.responseLatencies[Math.floor(state.responseLatencies.length/2)]:0;delete state.responseLatencies;
+      const dates=Object.keys(state.activeDates).sort();let streak=0,longestStreak=0,previous=NaN;
+      for(const date of dates){const day=Date.parse(date+'T00:00:00Z')/86400000;streak=day===previous+1?streak+1:1;longestStreak=Math.max(longestStreak,streak);previous=day;}
+      state.activeDays=dates.length;state.longestStreak=longestStreak;delete state.activeDates;
+      self.postMessage({type:'result',result:state});
+    }
+  };
+}
+// END GENERATED ANALYTICS WORKER
+function resetAnalytics(){
+  analyticsGeneration++;analyticsResult=null;analyticsPromise=null;analyticsProgress=0;
+  cleanupAnalyticsWorker();
+}
+function cleanupAnalyticsWorker(){
+  if(analyticsWorker){analyticsWorker.terminate();analyticsWorker=null;}
+  if(analyticsWorkerUrl){URL.revokeObjectURL(analyticsWorkerUrl);analyticsWorkerUrl='';}
+}
+function analyticsMessageRecord(m){
+  let characters=0,thinking=0,tools=0,textBlocks=0,imageBlocks=0,artifacts=0,webSearches=0,wordText='';
+  for(const b of(m.content||[])){
+    if(!b||typeof b!=='object')continue;
+    const type=b.type||'',name=(b.name||'')+'';
+    if(type==='text'){const text=String(b.text||'');textBlocks++;characters+=text.length;wordText+=' '+text;}
+    else if(type==='thinking'){const text=String(b.thinking||'');thinking++;characters+=text.length;wordText+=' '+text;}
+    else if(type==='image')imageBlocks++;
+    if(type==='tool_use'||type==='server_tool_use'){
+      tools++;
+      if(/show_widget|visualize|imagine|artifact/i.test(name))artifacts++;
+      if(/web_search|web_fetch/i.test(name))webSearches++;
+    }
+  }
+  if(!characters&&m.text){wordText=String(m.text);characters=wordText.length;}
+  const date=new Date(m.created_at||m.updated_at||''),timestamp=date.getTime();
+  const dateKey=Number.isNaN(timestamp)?'':date.getFullYear()+'-'+String(date.getMonth()+1).padStart(2,'0')+'-'+String(date.getDate()).padStart(2,'0');
+  return{sender:m.sender||'assistant',characters,thinking,tools,textBlocks,imageBlocks,artifacts,webSearches,wordText,
+    uuid:m.uuid||'',parentUuid:m.parent_message_uuid||'',timestamp:Number.isNaN(timestamp)?null:timestamp,date:dateKey,empty:!(m.content||[]).length&&!m.text&&!(m.attachments||[]).length&&!(m.files||[]).length,
+    attachments:(m.attachments||[]).length+(m.files||[]).length,
+    month:Number.isNaN(date.getTime())?'':date.getFullYear()+'-'+String(date.getMonth()+1).padStart(2,'0'),
+    weekday:Number.isNaN(date.getTime())?-1:date.getDay(),hour:Number.isNaN(date.getTime())?-1:date.getHours(),model:m.model||m.model_slug||(m.message&&m.message.model)||''};
+}
+function compactConversationForAnalytics(c){
+  return{uuid:c.uuid||'',title:c.name||'',updatedAt:c.updated_at||c.created_at||'',messages:(c.chat_messages||[]).map(analyticsMessageRecord)};
+}
+function startAnalytics(){
+  if(analyticsResult)return Promise.resolve(analyticsResult);
+  if(analyticsPromise)return analyticsPromise;
+  const generation=analyticsGeneration;
+  analyticsPromise=new Promise((resolve,reject)=>{
+    try{
+      analyticsWorkerUrl=URL.createObjectURL(new Blob(['('+analyticsWorkerMain.toString()+')()'],{type:'text/javascript'}));
+      analyticsWorker=new Worker(analyticsWorkerUrl);
+    }catch(err){analyticsPromise=null;reject(err);return;}
+    let nextBatch=0,batchId=0;
+    const sendNext=()=>{
+      if(generation!==analyticsGeneration)return;
+      if(nextBatch>=allConvs.length){analyticsWorker.postMessage({type:'finish'});return;}
+      const end=Math.min(allConvs.length,nextBatch+4),items=[];
+      for(;nextBatch<end;nextBatch++)items.push(compactConversationForAnalytics(allConvs[nextBatch]));
+      analyticsProgress=allConvs.length?nextBatch/allConvs.length:1;updateAnalyticsProgress();
+      analyticsWorker.postMessage({type:'batch',id:++batchId,items});
+    };
+    analyticsWorker.onmessage=e=>{
+      if(generation!==analyticsGeneration)return;
+      if(e.data.type==='batchDone')sendNext();
+      else if(e.data.type==='result'){
+        analyticsResult=e.data.result;analyticsProgress=1;analyticsPromise=null;
+        cleanupAnalyticsWorker();
+        if(currentView==='analytics'){renderAnalyticsSide();renderAnalyticsPage();}
+        resolve(analyticsResult);
+      }
+    };
+    analyticsWorker.onerror=e=>{cleanupAnalyticsWorker();analyticsPromise=null;reject(e.error||new Error(e.message||'Analytics Worker error'));};
+    sendNext();
+  }).catch(err=>{console.error('analytics',err);analyticsPromise=null;if(currentView==='analytics')renderAnalyticsError(err);return null;});
+  return analyticsPromise;
+}
+function renderAnalyticsSide(){
+  const el=document.getElementById('conv-list');
+  el.innerHTML='<div class="analytics-side">📊 <b>'+t('历史统计')+'</b><br>'+t('点击统计标签后才会启动独立 Worker')+'<br><br>🔒 '+t('在本机按需计算，不上传任何对话内容')+'</div>';
+}
+function updateAnalyticsProgress(){
+  const fill=document.querySelector('.analytics-progress-fill');if(fill)fill.style.width=Math.round(analyticsProgress*100)+'%';
+  const label=document.getElementById('analytics-progress-label');if(label)label.textContent=t('正在分析第 {done} / {total} 个对话',{done:Math.round(analyticsProgress*allConvs.length),total:allConvs.length});
+}
+function renderAnalyticsPage(){
+  currentView='analytics';
+  document.getElementById('chat-title').textContent='📊 '+t('历史统计');document.getElementById('chat-title').style.color='';
+  document.getElementById('chat-header-meta').textContent=t('在本机按需计算，不上传任何对话内容');
+  document.getElementById('chat-header').classList.remove('last-supper');document.getElementById('messages').classList.remove('last-supper-gallery');
+  ['csearch','csearch-count','cprev','cnext','export-btn'].forEach(id=>{const el=document.getElementById(id);if(el)el.style.display='none';});
+  document.getElementById('toggle-summary').style.display='none';
+  if(!allConvs.length){document.getElementById('messages').innerHTML='<div class="analytics-progress">'+t('统计尚未生成')+'</div>';return;}
+  if(!analyticsResult){
+    document.getElementById('messages').innerHTML='<div class="analytics-progress"><div style="font-size:20px">📊</div><div style="margin-top:8px;font-weight:700">'+t('正在准备统计数据…')+'</div><div class="analytics-progress-track"><div class="analytics-progress-fill" style="width:'+Math.round(analyticsProgress*100)+'%"></div></div><div id="analytics-progress-label" style="color:var(--text3);font-size:11px"></div><div class="analytics-note">🔒 '+t('在本机按需计算，不上传任何对话内容')+'</div></div>';
+    updateAnalyticsProgress();void startAnalytics();return;
+  }
+  renderAnalyticsDashboard(analyticsResult);
+}
+function analyticsMetric(icon,value,label){return '<div class="metric-card"><div class="metric-icon">'+icon+'</div><div class="metric-value">'+esc(value)+'</div><div class="metric-label">'+t(label)+'</div></div>';}
+function analyticsBars(data,labeler,maxRows=12){
+  const rows=data.slice(0,maxRows),max=Math.max(1,...rows.map(x=>x[1]));
+  return rows.map(([key,value])=>'<div class="bar-row"><div class="bar-label" title="'+esc(key)+'">'+esc(labeler?labeler(key):key)+'</div><div class="bar-track"><div class="bar-fill" style="width:'+Math.max(1,value/max*100).toFixed(1)+'%"></div></div><div class="bar-value">'+value.toLocaleString(currentLang==='en'?'en-US':'zh-CN')+'</div></div>').join('');
+}
+function analyticsWordCloud(words){
+  if(!words||!words.length)return '<div class="analytics-note">'+t('暂无词频数据')+'</div>';
+  const max=words[0][1]||1,min=words[words.length-1][1]||0;
+  return '<div class="word-cloud">'+words.map(([word,count])=>'<span title="'+esc(word+': '+count)+'" style="font-size:'+(12+20*(count-min)/Math.max(1,max-min)).toFixed(1)+'px;opacity:'+(0.62+0.38*count/max).toFixed(2)+'">'+esc(word)+'</span>').join('')+'</div>';
+}
+function analyticsDuration(ms){
+  if(!ms)return '—';
+  if(ms<60000)return Math.round(ms/1000)+'s';
+  if(ms<3600000)return Math.round(ms/60000)+'m';
+  if(ms<86400000)return (ms/3600000).toFixed(1)+'h';
+  return (ms/86400000).toFixed(1)+'d';
+}
+function renderAnalyticsDashboard(s){
+  const nf=n=>Number(n||0).toLocaleString(currentLang==='en'?'en-US':'zh-CN');
+  const months=Object.entries(s.months).sort((a,b)=>a[0].localeCompare(b[0])).slice(-12);
+  const hours=s.hours.map((v,i)=>[String(i).padStart(2,'0')+':00',v]);
+  const weekdayNames=currentLang==='en'?['Sun','Mon','Tue','Wed','Thu','Fri','Sat']:['周日','周一','周二','周三','周四','周五','周六'];
+  const weekdays=(s.weekdays||[]).map((v,i)=>[weekdayNames[i],v]);
+  const depths=['1–5','6–10','11–25','26–50','51–100','101+'].map(k=>[k,(s.depths||{})[k]||0]);
+  const models=Object.entries(s.models).sort((a,b)=>b[1]-a[1]);
+  const roles=[[t('你的消息'),s.human],[t('Claude 消息'),s.assistant]];
+  const blocks=[[t('文本块'),s.textBlocks],[t('思考块'),s.thinking],[t('工具调用'),s.tools],[t('图片块'),s.imageBlocks],[t('Artifact'),s.artifacts],[t('网页搜索'),s.webSearches]].sort((a,b)=>b[1]-a[1]);
+  const avg=s.conversations?(s.messages/s.conversations).toFixed(1):'0';
+  const topMonth=Object.entries(s.months).sort((a,b)=>b[1]-a[1])[0]?.[0]||'—',topModel=models[0]?.[0]||t('导出未提供');
+  let h='<div class="analytics-page"><div class="analytics-hero"><div><div class="analytics-kicker">Claude Rescue Reader</div><h2 class="analytics-heading">'+t('历史统计')+'</h2><div class="analytics-sub">'+t('在本机按需计算，不上传任何对话内容')+'</div></div></div>';
+  h+='<div class="analytics-grid">'+analyticsMetric('💬',nf(s.conversations),'对话总数')+analyticsMetric('✦',nf(s.messages),'消息总数')+analyticsMetric('🧑',nf(s.human),'你的消息')+analyticsMetric('🤖',nf(s.assistant),'Claude 消息')+analyticsMetric('✍️',nf(s.characters),'总字符数')+analyticsMetric('💭',nf(s.thinking),'思考块')+analyticsMetric('⚙️',nf(s.tools),'工具调用')+analyticsMetric('📎',nf(s.attachments),'附件')+'</div>';
+  h+='<div class="analytics-grid">'+analyticsMetric('∅',avg,'对话平均消息数')+analyticsMetric('📅',topMonth,'最活跃月份')+analyticsMetric('🧠',topModel,'最常用模型')+analyticsMetric('🔍',nf(s.webSearches),'网页搜索')+'</div>';
+  h+='<div class="analytics-grid">'+analyticsMetric('🗓️',nf(s.activeDays),'活跃天数')+analyticsMetric('🔥',nf(s.longestStreak)+t('天'),'最长连续活跃')+analyticsMetric('⏱️',analyticsDuration(s.medianResponseMs),'中位回复延迟')+analyticsMetric('↔️',analyticsDuration(s.conversations?s.conversationDurationMs/s.conversations:0),'平均对话跨度')+analyticsMetric('🌿',nf(s.branchedConversations),'含分支对话')+analyticsMetric('⑂',nf(s.branchPoints),'分支点')+analyticsMetric('🔀',nf(s.alternativeMessages),'重新生成/替代消息')+analyticsMetric('∅',nf(s.emptyMessages),'空消息')+'</div>';
+  h+='<div class="chart-layout"><div class="chart-card"><div class="chart-title">📅 '+t('每月活跃度')+'</div>'+analyticsBars(months,k=>k)+'</div><div class="chart-card"><div class="chart-title">🕐 '+t('一天中的活跃时间')+'</div>'+analyticsBars(hours,k=>k,24)+'</div></div>';
+  h+='<div class="chart-layout"><div class="chart-card"><div class="chart-title">🗓️ '+t('星期活跃度')+'</div>'+analyticsBars(weekdays,k=>k,7)+'</div><div class="chart-card"><div class="chart-title">🌊 '+t('对话深度分布')+'</div>'+analyticsBars(depths,k=>k,6)+'</div></div>';
+  h+='<div class="chart-layout"><div class="chart-card"><div class="chart-title">'+(models.length?'🧠 '+t('模型使用'):'👥 '+t('角色消息分布'))+'</div>'+analyticsBars(models.length?models:roles,k=>k,10)+'</div><div class="chart-card"><div class="chart-title">🧱 '+t('内容块构成')+'</div>'+analyticsBars(blocks,k=>k,10)+'</div></div>';
+  h+='<div class="chart-layout"><div class="chart-card"><div class="chart-title">🧑‍💻 '+t('角色字符分布')+'</div>'+analyticsBars([[t('你的字符'),s.humanCharacters||0],[t('Claude 字符'),s.assistantCharacters||0]],k=>k,2)+'</div><div class="chart-card"><div class="chart-title">📦 '+t('搜索、文件与生成内容')+'</div>'+analyticsBars([[t('网页搜索'),s.webSearches],[t('附件'),s.attachments],[t('Artifact'),s.artifacts],[t('思考块'),s.thinking]],k=>k,4)+'</div></div>';
+  h+='<div class="chart-layout"><div class="chart-card"><div class="chart-title">☁️ '+t('中文高频词')+'</div>'+analyticsWordCloud(s.wordsZh)+'</div><div class="chart-card"><div class="chart-title">☁️ '+t('英文高频词')+'</div>'+analyticsWordCloud(s.wordsEn)+'</div></div>';
+  h+='<div class="chart-card"><div class="chart-title">🏆 '+t('最长对话')+'</div><table class="analytics-table"><thead><tr><th>'+t('对话标题')+'</th><th class="num">'+t('消息')+'</th><th class="num">'+t('字符')+'</th><th class="num">'+t('最近更新')+'</th></tr></thead><tbody>';
+  for(const c of s.longest)h+='<tr><td>'+esc(c.title||t('无标题'))+'</td><td class="num">'+nf(c.messages)+'</td><td class="num">'+nf(c.characters)+'</td><td class="num">'+esc(fmtDateOnly(c.updatedAt))+'</td></tr>';
+  h+='</tbody></table><div class="analytics-note">'+t('统计仅保存在当前页面内；重新加载数据后会自动清空。')+'</div></div></div>';
+  document.getElementById('messages').innerHTML=h;
+}
+function renderAnalyticsError(err){
+  document.getElementById('messages').innerHTML='<div class="analytics-progress">❌ '+t('统计计算失败')+'<div class="analytics-note">'+esc(errorMessage(err))+'</div><button style="margin-top:12px" onclick="resetAnalytics();renderAnalyticsPage()">'+t('重新计算')+'</button></div>';
 }
 function renderConvList(convs){
   const el=document.getElementById('conv-list');
@@ -845,6 +1107,7 @@ function openConv(uuid){
   currentConv=allConvs.find(c=>c.uuid===uuid);
   if(!currentConv)return;
   ['csearch','csearch-count','cprev','cnext'].forEach(id=>{const el=document.getElementById(id);if(el)el.style.display='';});
+  document.getElementById('toggle-summary').style.display='';
   const cs=document.getElementById('csearch');if(cs)cs.value='';
   document.querySelectorAll('.conv-item').forEach(el=>el.classList.toggle('active',el.dataset.convUuid===uuid));
   document.getElementById('chat-title').textContent=currentConv.name||'('+t('无标题')+')';
