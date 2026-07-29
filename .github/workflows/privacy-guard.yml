@@ -10,7 +10,7 @@ concurrency:
   cancel-in-progress: true
 jobs:
   scan:
-    name: scan
+    name: Privacy Guard / scan
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:

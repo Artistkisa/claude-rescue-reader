@@ -10,7 +10,7 @@ concurrency:
   cancel-in-progress: true
 jobs:
   test:
-    name: test
+    name: Browser Smoke / test
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:

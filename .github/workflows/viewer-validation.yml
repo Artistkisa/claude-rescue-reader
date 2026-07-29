@@ -33,7 +33,7 @@ jobs:
         shell: bash
         run: git diff --exit-code -- viewer.html
   validate:
-    name: validate
+    name: Viewer Validation / validate
     if: always()
     needs: build
     runs-on: ubuntu-latest
