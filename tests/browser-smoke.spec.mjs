@@ -46,7 +46,7 @@ test('ZIP import',async({page})=>{const errors=await openViewer(page);await page
 
 test('Claude behavior lab audits tools, hidden results and thinking integrity',async({page})=>{
   const errors=await openViewer(page);await page.setInputFiles('#file-input',fixtureDir);await waitLoaded(page);
-  await page.locator('.tab-btn[onclick*="behavior"]').click();await page.waitForFunction(()=>behaviorResult!==null);
+  await page.locator('.tab-btn[onclick*="behavior"]').click();await page.waitForFunction(()=>behaviorResult!==null,{timeout:15_000});
   await expect(page.locator('#messages')).toContainText('工具调用时间线');
   await expect(page.locator('#messages')).toContainText('隐藏结果探针');
   await expect(page.locator('#messages')).toContainText('Thinking 完整性');
