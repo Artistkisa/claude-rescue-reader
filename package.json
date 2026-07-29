@@ -5,13 +5,19 @@
   "type": "module",
   "scripts": {
     "validate": "node scripts/validate-viewer.mjs",
+    "build:offline": "node scripts/build-offline-bundle.mjs",
     "privacy": "node scripts/privacy-guard.mjs",
     "policy": "node scripts/pr-policy.mjs",
     "docs": "node scripts/check-docs.mjs",
-    "test:smoke": "playwright test"
+    "test:smoke": "playwright test tests/browser-smoke.spec.mjs tests/worker-performance.spec.mjs",
+    "test:offline": "playwright test tests/offline-release.spec.mjs"
   },
   "devDependencies": {
+    "@highlightjs/cdn-assets": "^11.11.1",
     "@playwright/test": "1.62.0",
-    "jszip": "3.10.1"
+    "highlight.js": "^11.11.1",
+    "jszip": "3.10.1",
+    "marked": "^15.0.12",
+    "mermaid": "^11.16.0"
   }
 }
