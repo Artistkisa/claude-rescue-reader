@@ -440,8 +440,9 @@ const EN={
   '结果仅供参考':'Results are estimates','可能存在遗漏或误判。':'Some conversations may be missing or incorrectly assigned.',
   '共':'Total','以下按时间顺序展示全部消息':'all messages below are shown chronologically'
 };
+const ZH={'项目（单数）':'项目'};
 function t(key,vars){
-  let value=currentLang==='en'?(EN[key]||key):key;
+  let value=currentLang==='en'?(EN[key]||key):(ZH[key]||key);
   if(vars)for(const[k,v]of Object.entries(vars))value=value.replaceAll('{'+k+'}',v);
   return value;
 }
