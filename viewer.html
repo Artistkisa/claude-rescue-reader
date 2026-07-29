@@ -387,6 +387,7 @@ mark.cs.active { background:var(--accent); color:#fff; }
 <script>
 const ICON='<svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 2l4 4-4 4"/></svg>';
 let allConvs=[],allProjects=[],memoryData=null,currentConv=null,summaryVisible=false;
+let dataLoadGeneration=0;
 const MESSAGE_BATCH_SIZE=100;
 const MESSAGE_BATCH_BUDGET=100;
 const MESSAGE_BATCH_MIN=24;
@@ -405,7 +406,7 @@ document.getElementById('file-input').addEventListener('change',async e=>{
     const pf=files.filter(f=>f.webkitRelativePath.includes('/projects/')&&f.name.endsWith('.json'));
     const mf=files.find(f=>f.name==='memories.json');
     if(!cf){btn.textContent='⚠️ 未找到 conversations.json';return;}
-    await ingestData(await cf.text(),await Promise.all(pf.map(p=>p.text())),mf?await mf.text():null,btn);
+    await ingestData(await cf.arrayBuffer(),await Promise.all(pf.map(p=>p.text())),mf?await mf.text():null,btn);
   }catch(err){btn.textContent='❌ 加载失败：'+err.message;console.error(err);}
 });
 
@@ -428,23 +429,89 @@ document.getElementById('zip-input').addEventListener('change',async e=>{
     const memName=entries.find(n=>/(^|\/)memories\.json$/i.test(n));
     if(!convName){btn.textContent='⚠️ ZIP 中未找到 conversations.json';return;}
     // 并行解压，避免大文件串行等待
-    const [convText,memText]=await Promise.all([
-      zip.files[convName].async('text'),
+    const [convBytes,memText]=await Promise.all([
+      zip.files[convName].async('uint8array'),
       memName?zip.files[memName].async('text'):Promise.resolve(null)
     ]);
     const projTexts=await Promise.all(projNames.map(n=>zip.files[n].async('text')));
-    await ingestData(convText,projTexts,memText,btn);
+    const convBuffer=convBytes.byteOffset===0&&convBytes.byteLength===convBytes.buffer.byteLength
+      ?convBytes.buffer:convBytes.buffer.slice(convBytes.byteOffset,convBytes.byteOffset+convBytes.byteLength);
+    await ingestData(convBuffer,projTexts,memText,btn);
   }catch(err){btn.textContent='❌ ZIP 加载失败：'+err.message;console.error(err);}
 });
 
+function parseConversationsJson(text){
+  const conversations=JSON.parse(text);
+  if(!Array.isArray(conversations))throw new Error('conversations.json 格式不正确');
+  return conversations;
+}
+
+function conversationParserWorkerMain(){
+  self.onmessage=e=>{
+    try{
+      const source=e.data;
+      const text=typeof source==='string'?source:new TextDecoder().decode(source);
+      const conversations=parseConversationsJson(text);
+      let totalMsgs=0,minDate='',maxDate='';
+      for(const c of conversations){
+        totalMsgs+=Array.isArray(c.chat_messages)?c.chat_messages.length:0;
+        const date=c.created_at||'';
+        if(date&&(!minDate||date<minDate))minDate=date;
+        if(date&&(!maxDate||date>maxDate))maxDate=date;
+      }
+      self.postMessage({conversations,totalMsgs,minDate,maxDate});
+    }catch(err){self.postMessage({error:err&&err.message?err.message:String(err)});}
+  };
+}
+
+function parseConversations(source){
+  if(typeof Worker==='undefined'||typeof Blob==='undefined'||typeof URL==='undefined'){
+    const text=typeof source==='string'?source:new TextDecoder().decode(source);
+    return Promise.resolve({conversations:parseConversationsJson(text)});
+  }
+  return new Promise((resolve,reject)=>{
+    let worker,url;
+    try{
+      const workerSource=parseConversationsJson.toString()+'\n('+conversationParserWorkerMain.toString()+')()';
+      url=URL.createObjectURL(new Blob([workerSource],{type:'text/javascript'}));
+      worker=new Worker(url);
+      URL.revokeObjectURL(url);
+    }catch(err){
+      if(url)URL.revokeObjectURL(url);
+      try{
+        const text=typeof source==='string'?source:new TextDecoder().decode(source);
+        resolve({conversations:parseConversationsJson(text)});
+      }catch(parseErr){reject(parseErr);}
+      return;
+    }
+    const finish=()=>worker.terminate();
+    worker.onmessage=e=>{
+      finish();
+      if(e.data&&e.data.error)reject(new Error(e.data.error));
+      else resolve(e.data);
+    };
+    worker.onerror=e=>{
+      const message=e&&e.error&&e.error.message||e&&e.message||'Web Worker 解析失败';
+      console.error('conversation parser worker error',e&&e.error||e);
+      finish();
+      reject(new Error(message));
+    };
+    if(source instanceof ArrayBuffer)worker.postMessage(source,[source]);
+    else worker.postMessage(source);
+  });
+}
+
 // 共用的解析 + 渲染流程（文件夹与 ZIP 两条入口复用）
-async function ingestData(convText,projTexts,memText,btn){
-  // yield to browser to render spinner before blocking JSON.parse
+async function ingestData(convSource,projTexts,memText,btn){
+  const loadGeneration=++dataLoadGeneration;
+  // yield to browser to render spinner before starting parsing
   await new Promise(r=>setTimeout(r,30));
   // 错误统一抛给调用方：各入口在自己的 catch 里设置按钮文案，避免双层处理互相覆盖
+  const parsed=await parseConversations(convSource);
+  if(loadGeneration!==dataLoadGeneration){btn.textContent='已取消：已选择更新的数据';return;}
   projectMapGeneration++;
-  allConvs=JSON.parse(convText);
-  if(!Array.isArray(allConvs))throw new Error('conversations.json 格式不正确');
+  allConvs=parsed.conversations;
+  corpusCache.clear();
   allProjects=[];
   memoryData=null;
   for(const t of projTexts){try{allProjects.push(JSON.parse(t));}catch(e2){console.warn('跳过损坏的项目文件',e2);}}
@@ -458,8 +525,8 @@ async function ingestData(convText,projTexts,memText,btn){
   convProjectMapReady=!allProjects.length;
   convProjectMapPromise=null;
   btn.textContent='✅ 已加载 '+allConvs.length+' 条对话';
-  const totalMsgs=allConvs.reduce((s,c)=>s+(Array.isArray(c.chat_messages)?c.chat_messages.length:0),0);
-  const dates=allConvs.map(c=>c.created_at).filter(Boolean).sort();
+  const totalMsgs=Number.isFinite(parsed.totalMsgs)?parsed.totalMsgs:allConvs.reduce((s,c)=>s+(Array.isArray(c.chat_messages)?c.chat_messages.length:0),0);
+  const dates=parsed.minDate&&parsed.maxDate?[parsed.minDate,parsed.maxDate]:allConvs.map(c=>c.created_at).filter(Boolean).sort();
   const span=dates.length?fmtDateOnly(dates[0])+' — '+fmtDateOnly(dates[dates.length-1]):'';
   const sb=document.getElementById('stats-bar');
   sb.style.display='';
