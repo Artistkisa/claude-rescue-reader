@@ -341,6 +341,13 @@ mark.cs.active { background:var(--accent); color:#fff; }
 .quality-list { margin-top:10px; display:grid; gap:5px; font-size:12px; color:var(--text2); }
 .quality-list .warn { color:var(--orange); }
 .quality-list .bad { color:var(--red); }
+.welcome-actions { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:8px; width:520px; max-width:90vw; margin-top:16px; }
+.welcome-action { padding:12px 14px; border:1px solid var(--border); border-radius:10px; background:var(--bg2); text-align:left; }
+.welcome-action b { display:block; color:var(--text); font-size:13px; margin-bottom:4px; }
+.welcome-action span { color:var(--text3); font-size:11.5px; line-height:1.5; }
+.welcome-note { width:520px; max-width:90vw; margin-top:10px; padding:10px 12px; border:1px solid color-mix(in srgb,var(--accent) 35%,var(--border)); border-radius:8px; color:var(--text2); font-size:12px; line-height:1.6; text-align:left; }
+.welcome-features { display:flex; flex-wrap:wrap; justify-content:center; gap:6px; width:560px; max-width:90vw; margin-top:12px; }
+.welcome-feature { padding:5px 8px; border-radius:999px; background:var(--bg3); color:var(--text3); font-size:11px; }
 .tree-mode { padding:4px 8px; border:1px solid var(--border); border-radius:6px; background:var(--bg3); color:var(--text2); cursor:pointer; font-size:11px; }
 .tree-node { border-left:2px solid var(--accent); margin-left:calc(var(--tree-depth,0) * 18px); padding-left:4px; }
 @media(max-width:700px){.quality-grid{grid-template-columns:repeat(2,minmax(0,1fr));}}
@@ -401,6 +408,12 @@ mark.cs.active { background:var(--accent); color:#fff; }
       <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>
       <p data-i18n="Claude 历史记录查看器" style="font-size:17px;font-weight:600;color:var(--text2);margin-bottom:4px;">Claude 历史记录查看器</p>
       <p data-i18n="点击左侧按钮，选择 Claude 导出的文件夹" style="font-size:13px;color:var(--text3);">点击左侧按钮，选择 Claude 导出的文件夹</p>
+      <div class="welcome-actions">
+        <div class="welcome-action"><b data-i18n="🗜️ 直接打开 ZIP">🗜️ 直接打开 ZIP</b><span data-i18n="适合刚从 Claude 下载的原始导出包，无需解压">适合刚从 Claude 下载的原始导出包，无需解压</span></div>
+        <div class="welcome-action"><b data-i18n="📂 打开解压目录">📂 打开解压目录</b><span data-i18n="适合已经解压或从备份目录恢复的历史文件">适合已经解压或从备份目录恢复的历史文件</span></div>
+      </div>
+      <div class="welcome-note"><b data-i18n="账号无法访问？历史仍可恢复">账号无法访问？历史仍可恢复</b><br><span data-i18n="只要你已有 Claude 导出的 ZIP 或目录，就能在本地查看、搜索和导出。工具不会绕过平台限制，也不会上传对话内容。">只要你已有 Claude 导出的 ZIP 或目录，就能在本地查看、搜索和导出。工具不会绕过平台限制，也不会上传对话内容。</span></div>
+      <div class="welcome-features"><span class="welcome-feature" data-i18n="🖼️ 图片与附件">🖼️ 图片与附件</span><span class="welcome-feature" data-i18n="🌿 分支时间线">🌿 分支时间线</span><span class="welcome-feature" data-i18n="🔎 全文搜索">🔎 全文搜索</span><span class="welcome-feature" data-i18n="📊 统计分析">📊 统计分析</span><span class="welcome-feature" data-i18n="🩺 对话健康检查">🩺 对话健康检查</span><span class="welcome-feature" data-i18n="🔐 隐私安全导出">🔐 隐私安全导出</span></div>
 
       <div style="margin-top:8px;background:var(--bg3);border:1px solid var(--border);border-radius:10px;padding:16px 20px;text-align:left;width:380px;max-width:90vw;">
         <div data-i18n="📦 导出文件夹结构" style="font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.08em;margin-bottom:10px;">📦 导出文件夹结构</div>
@@ -460,6 +473,10 @@ let loadedSummary=null;
 let currentLang=localStorage.getItem('cv-lang')==='en'?'en':'zh';
 let currentView='convs',currentProjectUuid='';
 const EN={
+  '🗜️ 直接打开 ZIP':'🗜️ Open ZIP directly','适合刚从 Claude 下载的原始导出包，无需解压':'Best for the original Claude export; no extraction needed',
+  '📂 打开解压目录':'📂 Open extracted folder','适合已经解压或从备份目录恢复的历史文件':'Best for an extracted export or a restored backup folder',
+  '账号无法访问？历史仍可恢复':'Can’t access your account? Your history may still be recoverable','只要你已有 Claude 导出的 ZIP 或目录，就能在本地查看、搜索和导出。工具不会绕过平台限制，也不会上传对话内容。':'If you have a Claude export ZIP or folder, you can view, search, and export it locally. This tool does not bypass platform restrictions or upload conversations.',
+  '🖼️ 图片与附件':'🖼️ Images & attachments','🌿 分支时间线':'🌿 Branch timeline','🔎 全文搜索':'🔎 Full-text search','📊 统计分析':'📊 Analytics','🩺 对话健康检查':'🩺 Conversation health','🔐 隐私安全导出':'🔐 Private, safe export',
   '📂 选择导出文件夹':'📂 Select Export Folder','🗜️ 直接选择 ZIP 压缩包（免解压）':'🗜️ Select ZIP Archive (no extraction)',
   '搜索对话…':'Search conversations…','全文搜索':'Full-text search','最新':'Newest','最早':'Oldest','最多':'Most',
   '按最近更新时间排序':'Sort by most recently updated','按最早创建时间排序':'Sort by earliest created','按消息数量排序':'Sort by message count',
