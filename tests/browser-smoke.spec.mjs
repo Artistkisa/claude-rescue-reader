@@ -60,6 +60,18 @@ test('project association explanations, local corrections, search, stats and exp
   expect(errors).toEqual([]);
 });
 
+test('keyword-only project inference keeps evidence generation in scope',async({page})=>{
+  const errors=await openViewer(page);await page.setInputFiles('#file-input',fixtureDir);await waitLoaded(page);
+  const result=await page.evaluate(async()=>{
+    const original=allConvs;
+    allConvs=[{uuid:'00000000-0000-4000-8000-000000000199',name:'Synthetic Project SyntheticNebula',summary:'SyntheticNebula memory match',chat_messages:[]}];
+    try{return await buildConvProjectMap(projectMapGeneration);}finally{allConvs=original;}
+  });
+  expect(result.map['00000000-0000-4000-8000-000000000199']).toBe('00000000-0000-4000-8000-000000000301');
+  expect(result.evidence['00000000-0000-4000-8000-000000000199'].method).toBe('keyword');
+  expect(errors).toEqual([]);
+});
+
 test('drag import and safe exports',async({page})=>{
   const errors=await openViewer(page);
   await page.evaluate(payload=>{const file=new File([payload],'conversations.json',{type:'application/json'});routeDroppedFiles([file]);},JSON.stringify(conversations));
