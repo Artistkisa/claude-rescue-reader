@@ -30,7 +30,10 @@ jobs:
           New-Item -ItemType Directory -Force dist | Out-Null
           Copy-Item viewer.html dist/viewer.html
           Compress-Archive -Path dist/viewer.html -DestinationPath dist/claude-rescue-reader.zip
-          Compress-Archive -Path dist/offline/* -DestinationPath dist/claude-rescue-reader-offline.zip
+          if (!(Test-Path dist/offline/viewer.html) -or !(Test-Path dist/offline/vendor)) { throw 'Offline bundle is incomplete' }
+          $vendorFiles = @(Get-ChildItem dist/offline/vendor -File)
+          if (!$vendorFiles.Count) { throw 'Offline vendor directory is empty' }
+          Compress-Archive -Path dist/offline/viewer.html,dist/offline/README.txt,dist/offline/THIRD_PARTY_NOTICES.txt,(Get-Item dist/offline/vendor) -DestinationPath dist/claude-rescue-reader-offline.zip
           @('viewer.html','claude-rescue-reader.zip','claude-rescue-reader-offline.zip') | ForEach-Object {
             (Get-FileHash (Join-Path dist $_) -Algorithm SHA256).Hash.ToLower() + '  ' + $_
           } | Set-Content dist/SHA256SUMS.txt
