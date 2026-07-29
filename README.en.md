@@ -136,12 +136,19 @@ claude-export/
 - Per-project memories displayed in 6 standard sections, collapsible
 
 ### Analytics
-- A dedicated Web Worker starts only after opening the **Analytics** tab; normal reading performs no analytics scan
+- Analytics starts in the persistent Data Worker only after opening the **Analytics** tab; normal reading performs no analytics scan
 - Summarizes conversations, messages, roles, characters, thinking blocks, tool calls, attachments, and web searches
 - Shows monthly/weekday/hourly activity, conversation depth, message and character distribution by role, content-block composition, model information (when present in the export), and longest conversations
 - Builds Chinese/English frequent-word clouds inside the Worker and summarizes searches, files, artifacts, and thinking blocks
 - Adds history-health metrics for active-day streaks, response latency, conversation span, branches/alternatives, and empty messages
-- The main thread sends compact batches to the Worker; results remain only in the current page and no content is uploaded
+- Analytics, word frequency, full-text indexing, and project matching reuse the raw records already owned by the Worker; the main thread no longer reserializes every message, and no content is uploaded
+
+### Large-export performance
+- `conversations.json` is read in 4 MiB chunks and transferred to a persistent Data Worker with Transferable `ArrayBuffer`s
+- Initial import scans only the top-level array and returns titles, timestamps, summaries, and message counts; full messages are parsed only when a conversation is opened
+- Parsed records are cached locally in IndexedDB behind a source-size, modification-time, and edge-content fingerprint; changed sources cannot reuse stale cache entries
+- The cache never leaves the current browser and can be removed at any time with **Clear local parse cache** in the sidebar
+- Syntax highlighting, Mermaid, Artifact iframes, and ZIP parsing load only when their feature or viewport requires them, keeping the initial conversation list responsive
 
 ### Other
 - 🌙 / ☀️ Light/dark theme toggle, preference saved automatically
@@ -206,7 +213,7 @@ This tool parses the Claude export format (as of 2026):
 - [highlight.js](https://highlightjs.org/) — Code syntax highlighting
 - [JSZip](https://stuk.github.io/jszip/) — Direct ZIP archive loading (no unzipping)
 
-The maintainable Analytics Worker source lives in `src/analytics-worker.js`. After editing it, run `scripts/build-single-file.ps1` to embed it back into `viewer.html`; regular users do not need the build script.
+The maintainable persistent data pipeline and compatibility analytics Worker sources live in `src/data-worker.js` and `src/analytics-worker.js`. After editing either file, run `scripts/build-single-file.ps1` to embed it back into `viewer.html`; regular users do not need the build script.
 
 ## Changelog
 
