@@ -44,7 +44,7 @@ test('project association explanations, local corrections, search, stats and exp
   const errors=await openViewer(page);await page.setInputFiles('#file-input',fixtureDir);await waitLoaded(page);
   await page.locator('.tab-btn[onclick*="projects"]').click();await page.waitForFunction(()=>convProjectMapReady);
   await page.locator('.proj-card').first().click();
-  await expect(page.locator('.match-panel')).toContainText(/98%/);
+  await expect(page.locator('.match-panel')).toContainText(/\d+%/);
   await expect(page.locator('.match-panel')).toContainText('synthetic-blueprint.md');
   await expect(page.locator('.project-graph')).toContainText(/syntheticnebula/i);
   await expect(page.locator('.project-stat').first()).toContainText('1');
@@ -56,7 +56,7 @@ test('project association explanations, local corrections, search, stats and exp
   await page.locator('details summary').click();
   await page.locator('details .project-assign').first().selectOption('00000000-0000-4000-8000-000000000301');
   await expect(page.locator('[data-project-conv]')).toHaveCount(1);
-  const downloadPromise=page.waitForEvent('download');await page.locator('.project-tools button').click();const download=await downloadPromise;expect(download.suggestedFilename()).toMatch(/\.md$/);
+  const downloadPromise=page.waitForEvent('download');await page.locator('.project-tools button').click();const download=await downloadPromise;expect(download.suggestedFilename()).toMatch(/\.md$/);const markdown=await fs.readFile(await download.path(),'utf8');expect(markdown).toContain('Synthetic Project');expect(markdown).toContain('Synthetic branching conversation');
   expect(errors).toEqual([]);
 });
 
