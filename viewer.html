@@ -1619,12 +1619,12 @@ function renderMsg(msg){
 
 function renderBlock(block){
   if(!block||typeof block!=='object')return '';
-  const t=block.type||'unknown';
-  if(t==='text')return '<div>'+renderMd(block.text||'')+'</div>';
-  if(t==='thinking'){
+  const blockType=block.type||'unknown';
+  if(blockType==='text')return '<div>'+renderMd(block.text||'')+'</div>';
+  if(blockType==='thinking'){
     return '<div class="think-block"><div class="collapsible-header think-header">'+ICON+' <span>💭 '+t('思考过程')+'</span></div><div class="think-body" style="display:none">'+esc(block.thinking||'')+'</div></div>';
   }
-  if(t==='tool_use'){
+  if(blockType==='tool_use'){
     const nm=block.name||t('工具');
     const intg=block.integration_name||'';
     const msg=block.message||'';
@@ -1634,7 +1634,7 @@ function renderBlock(block){
       +'<span class="tool-msg">'+esc(msg)+'</span></div>'
       +'<div class="tool-body" style="display:none"><pre><code class="language-json">'+esc(inp)+'</code></pre></div></div>';
   }
-  if(t==='tool_result'){
+  if(blockType==='tool_result'){
     const nm=block.name||t('结果');
     const isErr=block.is_error;
     const content=block.content||[];
@@ -1651,18 +1651,18 @@ function renderBlock(block){
     return '<div class="tool-result-block"><div class="collapsible-header tool-result-header">'+ICON+'<span class="tool-result-label">'+label+'</span></div>'
       +'<div class="tool-result-body" style="display:none">'+(body||'<span style="color:var(--text3)">'+t('无内容')+'</span>')+'</div></div>';
   }
-  if(t==='image'){
+  if(blockType==='image'){
     return '<div class="img-placeholder">🖼 '+t('图片')+' ('+esc(block.file_uuid||'')+')</div>';
   }
-  if(t==='rich_content'||t==='rich_link'||t==='webpage_metadata'){
+  if(blockType==='rich_content'||blockType==='rich_link'||blockType==='webpage_metadata'){
     const url=block.url||(block.metadata&&block.metadata.url)||'';
-    const title=block.title||(block.metadata&&block.metadata.title)||t;
+    const title=block.title||(block.metadata&&block.metadata.title)||blockType;
     return '<div class="attachment-block">🔗 <a href="'+esc(url)+'" target="_blank" style="color:var(--blue);text-decoration:none;">'+esc(title)+'</a></div>';
   }
-  if(t==='web_search_citation')return '<div class="attachment-block" style="font-size:11px;color:var(--text3)">🔍 '+esc(block.title||block.url||t('搜索引用'))+'</div>';
-  if(t==='knowledge')return '<div class="attachment-block">📚 <a href="'+esc(block.url||'')+'" target="_blank" style="color:var(--blue);text-decoration:none;">'+esc(block.title||t('知识引用'))+'</a></div>';
-  if(t==='local_resource')return '<div class="attachment-block"><span class="file-icon">📄</span>'+esc(block.name||block.file_path||t('文件'))+'</div>';
-  return '<div style="font-size:11px;color:var(--text3);padding:4px 0">['+esc(t)+']</div>';
+  if(blockType==='web_search_citation')return '<div class="attachment-block" style="font-size:11px;color:var(--text3)">🔍 '+esc(block.title||block.url||t('搜索引用'))+'</div>';
+  if(blockType==='knowledge')return '<div class="attachment-block">📚 <a href="'+esc(block.url||'')+'" target="_blank" style="color:var(--blue);text-decoration:none;">'+esc(block.title||t('知识引用'))+'</a></div>';
+  if(blockType==='local_resource')return '<div class="attachment-block"><span class="file-icon">📄</span>'+esc(block.name||block.file_path||t('文件'))+'</div>';
+  return '<div style="font-size:11px;color:var(--text3);padding:4px 0">['+esc(blockType)+']</div>';
 }
 
 function exportConv(){
