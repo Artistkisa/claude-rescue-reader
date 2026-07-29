@@ -795,6 +795,7 @@ async function ingestData(convSource,projTexts,memText,designTexts,btn){
   if(!allConvs.length&&allDesigns.length){const designTab=document.querySelector('.tab-btn[onclick*="design"]');switchTab('design',designTab);}
   convProjectMap={};
   convProjectEvidence={};
+  projectOverrides=loadProjectOverrides();
   projectConvSearchCache.clear();
   convProjectMapReady=!allProjects.length;
   convProjectMapPromise=null;
@@ -1380,10 +1381,11 @@ const PROJECT_QUERY_STOP_WORDS=new Set(['the','and','for','with','from','this','
 const projectKeywordRegexCache=new Map();
 const PROJECT_OVERRIDE_KEY='claude-rescue-reader-project-overrides-v1';
 function loadProjectOverrides(){try{return JSON.parse(localStorage.getItem(PROJECT_OVERRIDE_KEY)||'{}')||{};}catch{return{};}}
-function saveProjectOverrides(value){try{localStorage.setItem(PROJECT_OVERRIDE_KEY,JSON.stringify(value));}catch(e){console.warn('project overrides',e);}}
-function effectiveProjectUuid(convUuid){const overrides=loadProjectOverrides();if(Object.prototype.hasOwnProperty.call(overrides,convUuid)){const value=overrides[convUuid];if(value===null||allProjects.some(p=>p.uuid===value))return value;}return convProjectMap[convUuid];}
-function setProjectOverride(convUuid,projectUuid){const overrides=loadProjectOverrides();if(projectUuid==='__auto__')delete overrides[convUuid];else overrides[convUuid]=projectUuid||null;saveProjectOverrides(overrides);if(currentProjectUuid)void openProject(currentProjectUuid);}
-function projectAssignmentOptions(convUuid){const current=effectiveProjectUuid(convUuid),hasOverride=Object.prototype.hasOwnProperty.call(loadProjectOverrides(),convUuid);return '<select class="project-assign" aria-label="'+esc(t('手动修正项目归属'))+'" onchange="setProjectOverride(\''+convUuid+'\',this.value)"><option value="__auto__"'+(!hasOverride?' selected':'')+'>'+esc(t('使用自动推断'))+'</option><option value=""'+(hasOverride&&!current?' selected':'')+'>'+esc(t('保持未归属'))+'</option>'+allProjects.map(p=>'<option value="'+p.uuid+'"'+(hasOverride&&current===p.uuid?' selected':'')+'>'+esc(p.name||t('无名称'))+'</option>').join('')+'</select>';}
+let projectOverrides=loadProjectOverrides();
+function saveProjectOverrides(){try{localStorage.setItem(PROJECT_OVERRIDE_KEY,JSON.stringify(projectOverrides));}catch(e){console.warn('project overrides',e);}}
+function effectiveProjectUuid(convUuid){if(Object.prototype.hasOwnProperty.call(projectOverrides,convUuid)){const value=projectOverrides[convUuid];if(value===null||allProjects.some(p=>p.uuid===value))return value;}return convProjectMap[convUuid];}
+function setProjectOverride(convUuid,projectUuid){if(projectUuid==='__auto__')delete projectOverrides[convUuid];else projectOverrides[convUuid]=projectUuid||null;saveProjectOverrides();if(currentProjectUuid)void openProject(currentProjectUuid);}
+function projectAssignmentOptions(convUuid){const current=effectiveProjectUuid(convUuid),hasOverride=Object.prototype.hasOwnProperty.call(projectOverrides,convUuid);return '<select class="project-assign" aria-label="'+esc(t('手动修正项目归属'))+'" onchange="setProjectOverride(\''+convUuid+'\',this.value)"><option value="__auto__"'+(!hasOverride?' selected':'')+'>'+esc(t('使用自动推断'))+'</option><option value=""'+(hasOverride&&!current?' selected':'')+'>'+esc(t('保持未归属'))+'</option>'+allProjects.map(p=>'<option value="'+p.uuid+'"'+(hasOverride&&current===p.uuid?' selected':'')+'>'+esc(p.name||t('无名称'))+'</option>').join('')+'</select>';}
 function normalizeProjectFilename(value){return String(value||'').trim().replace(/^\/mnt\/project\//,'').toLowerCase().replace(/[?#].*/,'');}
 function projectKeywordAppears(text,keyword){
   if(/[\u4e00-\u9fff]/.test(keyword))return text.includes(keyword);
@@ -1566,7 +1568,7 @@ function findProjectConvs(p){
 function projectConvText(c){if(!c?.uuid)return'';if(projectConvSearchCache.has(c.uuid))return projectConvSearchCache.get(c.uuid);const text=[c.name||'',c.summary||'',...(c.chat_messages||[]).flatMap(m=>(m.content||[]).flatMap(b=>[b?.text||'',b?.thinking||'',b?.name||'',b?.file_path||'',b?.input?.query||'']))].join(' ').toLowerCase();projectConvSearchCache.set(c.uuid,text);return text;}
 function filterProjectConversations(projectUuid,value){const q=String(value||'').trim().toLowerCase();const byUuid=new Map(allConvs.map(c=>[c.uuid,c]));document.querySelectorAll('[data-project-conv]').forEach(el=>{if(el.dataset.projectUuid!==projectUuid)return;el.style.display=!q||projectConvText(byUuid.get(el.dataset.projectConv)).includes(q)?'':'none';});}
 function projectMatchExplanation(c){
-  const overrides=loadProjectOverrides(),manual=Object.prototype.hasOwnProperty.call(overrides,c.uuid),e=convProjectEvidence[c.uuid]||{};
+  const manual=Object.prototype.hasOwnProperty.call(projectOverrides,c.uuid),e=convProjectEvidence[c.uuid]||{};
   const method=manual?t('用户手动确认'):e.method==='file'?t('唯一项目文件'):e.method==='knowledge'?t('项目知识搜索'):e.method==='keyword'?t('项目记忆关键词'):t('无自动证据');
   const confidence=manual?1:Number(e.confidence||0);
   const row=(label,items)=>items&&items.length?'<div><b>'+t(label)+'</b>：'+items.map(x=>'<code>'+esc(String(x))+'</code>').join('、')+'</div>':'';
@@ -1589,7 +1591,7 @@ function renderProjectGraph(p,convs){
   const memory=memoryData?.project_memories?.[p.uuid]||'';
   const memoryNodes=getProjectKeywords(p).slice(0,8);
   const docs=(p.docs||[]).slice(0,12);
-  return '<div class="project-graph"><div class="graph-column"><b>🧠 '+t('项目记忆')+'</b>'+(memoryNodes.length?memoryNodes.map(x=>'<div class="graph-node">'+esc(x)+'</div>').join(''):'<div class="graph-node">'+esc(memory?t('项目记忆'):t('无内容'))+'</div>')+'</div><div class="graph-arrow">→</div><div class="graph-column"><b>📄 '+t('项目文档')+'</b>'+docs.map(d=>'<div class="graph-node">'+esc(d.filename||t('未命名'))+'</div>').join('')+'</div><div class="graph-arrow">→</div><div class="graph-column"><b>💬 '+t('关联对话')+'</b>'+convs.slice(0,20).map(c=>{const e=convProjectEvidence[c.uuid]||{},manual=Object.prototype.hasOwnProperty.call(loadProjectOverrides(),c.uuid),label=manual?t('用户手动确认'):e.method==='file'?t('唯一项目文件'):e.method==='knowledge'?t('项目知识搜索'):e.method==='keyword'?t('项目记忆关键词'):t('无自动证据');return '<div class="graph-node">'+esc(c.name||t('无标题'))+'<br><small>'+label+'</small></div>';}).join('')+'</div></div>';
+  return '<div class="project-graph"><div class="graph-column"><b>🧠 '+t('项目记忆')+'</b>'+(memoryNodes.length?memoryNodes.map(x=>'<div class="graph-node">'+esc(x)+'</div>').join(''):'<div class="graph-node">'+esc(memory?t('项目记忆'):t('无内容'))+'</div>')+'</div><div class="graph-arrow">→</div><div class="graph-column"><b>📄 '+t('项目文档')+'</b>'+docs.map(d=>'<div class="graph-node">'+esc(d.filename||t('未命名'))+'</div>').join('')+'</div><div class="graph-arrow">→</div><div class="graph-column"><b>💬 '+t('关联对话')+'</b>'+convs.slice(0,20).map(c=>{const e=convProjectEvidence[c.uuid]||{},manual=Object.prototype.hasOwnProperty.call(projectOverrides,c.uuid),label=manual?t('用户手动确认'):e.method==='file'?t('唯一项目文件'):e.method==='knowledge'?t('项目知识搜索'):e.method==='keyword'?t('项目记忆关键词'):t('无自动证据');return '<div class="graph-node">'+esc(c.name||t('无标题'))+'<br><small>'+label+'</small></div>';}).join('')+'</div></div>';
 }
 
 async function openProject(uuid){
