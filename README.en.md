@@ -126,6 +126,9 @@ claude-export/
 ### Projects
 - View project documents (Markdown rendered, collapsible)
 - High-confidence conversation association: unique file evidence → project knowledge search → project-unique keywords
+- Project-match explanations show matched memories, files, keywords, and confidence
+- Manually correct project assignments; confirmations stay only in local browser storage and never modify the source export
+- Project-level search, statistics, Markdown export, and a project memory → document → conversation reference graph
 - **Note:** Claude's official export does not include project-conversation ownership data. Duplicate filenames, ties, and low-confidence results remain unassigned instead of being forced into a project
 
 ### Memories

@@ -197,6 +197,21 @@ body { background: var(--bg); color: var(--text); font-family: -apple-system,Bli
 .proj-card.active { border-color: var(--accent); background: var(--bg4); }
 .proj-card-name { font-size: 13px; font-weight: 600; }
 .proj-card-desc { font-size: 11px; color: var(--text3); margin-top: 3px; }
+.project-tools { display:flex; flex-wrap:wrap; gap:8px; margin:0 0 16px; }
+.project-tools input { flex:1; min-width:180px; padding:7px 10px; border:1px solid var(--border); border-radius:7px; background:var(--bg2); color:var(--text); }
+.project-tools button,.project-assign { padding:6px 10px; border:1px solid var(--border); border-radius:7px; background:var(--bg3); color:var(--text2); cursor:pointer; }
+.project-tools button:hover,.project-assign:hover { border-color:var(--accent); color:var(--text); }
+.project-stat-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(120px,1fr)); gap:8px; margin-bottom:18px; }
+.project-stat { padding:10px 12px; border:1px solid var(--border); border-radius:9px; background:var(--bg3); font-size:11px; color:var(--text3); }
+.project-stat b { display:block; color:var(--text); font-size:17px; margin-bottom:2px; }
+.match-panel { margin:6px 0 10px; padding:10px 12px; border:1px solid var(--border); border-radius:8px; background:var(--bg2); font-size:12px; color:var(--text2); line-height:1.6; }
+.match-confidence { display:inline-block; padding:1px 7px; border-radius:999px; background:var(--bg4); color:var(--accent2); font-weight:700; }
+.project-graph { display:flex; align-items:stretch; gap:10px; overflow-x:auto; padding:12px; border:1px solid var(--border); border-radius:10px; background:var(--bg2); margin-bottom:18px; }
+.graph-column { min-width:180px; flex:1; }
+.graph-node { padding:7px 9px; margin:5px 0; border-left:3px solid var(--accent); border-radius:5px; background:var(--bg3); font-size:11px; color:var(--text2); }
+.graph-arrow { display:flex; align-items:center; color:var(--text3); font-size:20px; }
+.assignment-list { max-height:360px; overflow:auto; margin-top:8px; }
+.assignment-row { display:grid; grid-template-columns:minmax(160px,1fr) minmax(150px,220px); gap:8px; align-items:center; padding:7px 0; border-bottom:1px solid var(--border); font-size:12px; }
 .proj-doc { padding: 6px 10px; margin: 4px 0; background: var(--bg3); border-radius: 6px; font-size: 12px; color: var(--text2); cursor: pointer; }
 .proj-doc:hover { color: var(--accent2); }
 .sort-btn { padding: 2px 7px; background: none; border: 1px solid var(--border); border-radius: 5px; color: var(--text3); font-size: 11px; cursor: pointer; transition: all .15s; }
@@ -504,6 +519,10 @@ const EN={
   '正在分析关联对话…':'Analyzing related conversations…','正在建立项目关联索引…':'Building project relationship index…',
   '关联索引失败':'Relationship index failed','项目关联索引失败，请重新选择项目重试。':'Project relationship indexing failed. Select the project again to retry.',
   '项目文档':'Project documents','未命名':'Untitled','无内容':'No content','关联对话':'Related conversations',
+  '搜索当前项目对话':'Search this project','导出项目':'Export project','项目统计':'Project statistics','时间范围':'Date range','项目记忆与对话引用关系图':'Memory-to-conversation reference graph',
+  '手动修正项目归属':'Correct project assignment','使用自动推断':'Use automatic inference','保持未归属':'Keep unassigned','人工确认结果只保存在当前浏览器本地':'Confirmed assignments are stored only in this browser.',
+  '匹配方式':'Match method','用户手动确认':'User confirmed','唯一项目文件':'Unique project file','项目知识搜索':'Project knowledge search','项目记忆关键词':'Project-memory keywords','无自动证据':'No automatic evidence',
+  '命中的记忆':'Matched memories','命中的文件':'Matched files','命中的关键词':'Matched keywords','打开对话':'Open conversation','项目记忆':'Project memory',
   '未能从对话名称/摘要中自动识别关联对话':'No related conversations could be identified automatically from titles or summaries.',
   '此对话无消息':'This conversation has no messages','加载更早消息':'Load earlier messages','剩余':'remaining',
   '对话分支结构异常，已按时间顺序展示全部消息':'Conversation branch structure is invalid; all messages are shown chronologically.',
@@ -775,6 +794,7 @@ async function ingestData(convSource,projTexts,memText,designTexts,btn){
   document.querySelector('.tab-btn[onclick*="design"]').style.display=allDesigns.length?'':'none';
   if(!allConvs.length&&allDesigns.length){const designTab=document.querySelector('.tab-btn[onclick*="design"]');switchTab('design',designTab);}
   convProjectMap={};
+  convProjectEvidence={};
   convProjectMapReady=!allProjects.length;
   convProjectMapPromise=null;
   resetAnalytics();
@@ -1341,6 +1361,7 @@ function getProjectKeywords(p){
 
 // Build conversation->project map once after data loads
 let convProjectMap = {};  // uuid -> project uuid
+let convProjectEvidence = {}; // uuid -> explanation for the inferred assignment
 let convProjectMapReady=false;
 let convProjectMapPromise=null;
 let projectMapGeneration=0;
@@ -1355,6 +1376,12 @@ function yieldProjectIndex(){
 const PROJECT_INDEX_BATCH_SIZE=10;
 const PROJECT_QUERY_STOP_WORDS=new Set(['the','and','for','with','from','this','that','project','system','analysis','research','review','story','world','character','characters','setting','design','create','help']);
 const projectKeywordRegexCache=new Map();
+const PROJECT_OVERRIDE_KEY='claude-rescue-reader-project-overrides-v1';
+function loadProjectOverrides(){try{return JSON.parse(localStorage.getItem(PROJECT_OVERRIDE_KEY)||'{}')||{};}catch{return{};}}
+function saveProjectOverrides(value){try{localStorage.setItem(PROJECT_OVERRIDE_KEY,JSON.stringify(value));}catch(e){console.warn('project overrides',e);}}
+function effectiveProjectUuid(convUuid){const overrides=loadProjectOverrides();if(Object.prototype.hasOwnProperty.call(overrides,convUuid)){const value=overrides[convUuid];if(value===null||allProjects.some(p=>p.uuid===value))return value;}return convProjectMap[convUuid];}
+function setProjectOverride(convUuid,projectUuid){const overrides=loadProjectOverrides();if(projectUuid==='__auto__')delete overrides[convUuid];else overrides[convUuid]=projectUuid||null;saveProjectOverrides(overrides);if(currentProjectUuid)void openProject(currentProjectUuid);}
+function projectAssignmentOptions(convUuid){const current=effectiveProjectUuid(convUuid),hasOverride=Object.prototype.hasOwnProperty.call(loadProjectOverrides(),convUuid);return '<select class="project-assign" aria-label="'+esc(t('手动修正项目归属'))+'" onchange="setProjectOverride(\''+convUuid+'\',this.value)"><option value="__auto__"'+(!hasOverride?' selected':'')+'>'+esc(t('使用自动推断'))+'</option><option value=""'+(hasOverride&&!current?' selected':'')+'>'+esc(t('保持未归属'))+'</option>'+allProjects.map(p=>'<option value="'+p.uuid+'"'+(hasOverride&&current===p.uuid?' selected':'')+'>'+esc(p.name||t('无名称'))+'</option>').join('')+'</select>';}
 function normalizeProjectFilename(value){return String(value||'').trim().replace(/^\/mnt\/project\//,'').toLowerCase().replace(/[?#].*/,'');}
 function projectKeywordAppears(text,keyword){
   if(/[\u4e00-\u9fff]/.test(keyword))return text.includes(keyword);
@@ -1370,8 +1397,8 @@ function ensureConvProjectMap(){
   if(convProjectMapReady)return Promise.resolve();
   if(convProjectMapPromise)return convProjectMapPromise;
   const generation=projectMapGeneration;
-  const buildPromise=buildConvProjectMap(generation).then(map=>{
-    if(generation===projectMapGeneration){convProjectMap=map;convProjectMapReady=true;}
+  const buildPromise=buildConvProjectMap(generation).then(result=>{
+    if(generation===projectMapGeneration){convProjectMap=result.map;convProjectEvidence=result.evidence;convProjectMapReady=true;}
   });
   const trackedPromise=buildPromise.finally(()=>{
     if(convProjectMapPromise===trackedPromise)convProjectMapPromise=null;
@@ -1382,6 +1409,7 @@ function ensureConvProjectMap(){
 
 async function buildConvProjectMap(generation=projectMapGeneration){
   const map={};
+  const evidence={};
 
   // ── Layer 1: exact match via /mnt/project/<filename> in tool_results ──
   const docOwners=new Map();
@@ -1402,6 +1430,7 @@ async function buildConvProjectMap(generation=projectMapGeneration){
     const c=allConvs[ci];
     if(map[c.uuid]) continue;
     const exactCandidates=new Set();
+    const exactFiles=new Set();
     const messages=c.chat_messages||[];
     for (let mi=0;mi<messages.length;mi++){
       const m=messages[mi];
@@ -1414,24 +1443,24 @@ async function buildConvProjectMap(generation=projectMapGeneration){
             const refs=(bc.text||'').match(/\/mnt\/project\/([^\n\t ]+)/g)||[];
             for(const ref of refs){
               const projectUuid=uniqueDocProject(ref);
-              if(projectUuid)exactCandidates.add(projectUuid);
+              if(projectUuid){exactCandidates.add(projectUuid);exactFiles.add(normalizeProjectFilename(ref));}
             }
             if(b.name==='project_knowledge_search'){
               const projectUuid=uniqueDocProject((bc.text||'').split(/\r?\n/,1)[0]);
-              if(projectUuid)exactCandidates.add(projectUuid);
+              if(projectUuid){exactCandidates.add(projectUuid);exactFiles.add(normalizeProjectFilename((bc.text||'').split(/\r?\n/,1)[0]));}
             }
           }
         }
         // local_resource
         if(b.type==='local_resource'){
           const projectUuid=uniqueDocProject(b.file_path);
-          if(projectUuid)exactCandidates.add(projectUuid);
+          if(projectUuid){exactCandidates.add(projectUuid);exactFiles.add(normalizeProjectFilename(b.file_path));}
         }
       }
-      if(mi%50===49){await yieldProjectIndex();if(generation!==projectMapGeneration)return map;}
+      if(mi%50===49){await yieldProjectIndex();if(generation!==projectMapGeneration)return{map,evidence};}
     }
-    if(exactCandidates.size===1)map[c.uuid]=[...exactCandidates][0];
-    if(ci%PROJECT_INDEX_BATCH_SIZE===PROJECT_INDEX_BATCH_SIZE-1){await yieldProjectIndex();if(generation!==projectMapGeneration)return map;}
+    if(exactCandidates.size===1){map[c.uuid]=[...exactCandidates][0];evidence[c.uuid]={method:'file',confidence:.98,files:[...exactFiles],queries:[],keywords:[]};}
+    if(ci%PROJECT_INDEX_BATCH_SIZE===PROJECT_INDEX_BATCH_SIZE-1){await yieldProjectIndex();if(generation!==projectMapGeneration)return{map,evidence};}
   }
 
   // ── Layer 2: project_knowledge_search query matches project doc content ──
@@ -1447,7 +1476,7 @@ async function buildConvProjectMap(generation=projectMapGeneration){
   }
 
   for(let ci=0;ci<allConvs.length;ci++){
-    if(ci%PROJECT_INDEX_BATCH_SIZE===PROJECT_INDEX_BATCH_SIZE-1){await yieldProjectIndex();if(generation!==projectMapGeneration)return map;}
+    if(ci%PROJECT_INDEX_BATCH_SIZE===PROJECT_INDEX_BATCH_SIZE-1){await yieldProjectIndex();if(generation!==projectMapGeneration)return{map,evidence};}
     const c=allConvs[ci];
     if(map[c.uuid]) continue;
     // collect all PKS queries for this conv
@@ -1460,7 +1489,7 @@ async function buildConvProjectMap(generation=projectMapGeneration){
           queries.push(b.input.query.toLowerCase());
         }
       }
-      if(mi%50===49){await yieldProjectIndex();if(generation!==projectMapGeneration)return map;}
+      if(mi%50===49){await yieldProjectIndex();if(generation!==projectMapGeneration)return{map,evidence};}
     }
     if(!queries.length) continue;
 
@@ -1481,7 +1510,7 @@ async function buildConvProjectMap(generation=projectMapGeneration){
     if(Object.keys(scores).length){
       const ranked=Object.entries(scores).sort((a,b)=>b[1]-a[1]);
       const best=ranked[0],runnerScore=ranked[1]?.[1]||0;
-      if(best[1]>=2&&best[1]>runnerScore) map[c.uuid]=best[0];
+      if(best[1]>=2&&best[1]>runnerScore){map[c.uuid]=best[0];evidence[c.uuid]={method:'knowledge',confidence:Math.min(.94,.68+best[1]*.05+(best[1]-runnerScore)*.04),files:[],queries:[...new Set(queries)],keywords:[]};}
     }
   }
 
@@ -1491,7 +1520,7 @@ async function buildConvProjectMap(generation=projectMapGeneration){
     const p=allProjects[pi];
     projectKeywords.set(p.uuid,getProjectKeywords(p));
     await yieldProjectIndex();
-    if(generation!==projectMapGeneration)return map;
+    if(generation!==projectMapGeneration)return{map,evidence};
   }
   const keywordOwners=new Map();
   for(const [projectUuid,keywords] of projectKeywords){
@@ -1503,7 +1532,7 @@ async function buildConvProjectMap(generation=projectMapGeneration){
     }
   }
   for(let ci=0;ci<allConvs.length;ci++){
-    if(ci%PROJECT_INDEX_BATCH_SIZE===PROJECT_INDEX_BATCH_SIZE-1){await yieldProjectIndex();if(generation!==projectMapGeneration)return map;}
+    if(ci%PROJECT_INDEX_BATCH_SIZE===PROJECT_INDEX_BATCH_SIZE-1){await yieldProjectIndex();if(generation!==projectMapGeneration)return{map,evidence};}
     const c=allConvs[ci];
     if(map[c.uuid]) continue;
     const ranked=[];
@@ -1523,13 +1552,42 @@ async function buildConvProjectMap(generation=projectMapGeneration){
     }
     ranked.sort((a,b)=>b[1]-a[1]);
     const best=ranked[0],runnerScore=ranked[1]?.[1]||0;
-    if(best&&best[1]>=4&&best[1]-runnerScore>=2)map[c.uuid]=best[0];
+    if(best&&best[1]>=4&&best[1]-runnerScore>=2){map[c.uuid]=best[0];const matched=(projectKeywords.get(best[0])||[]).filter(kw=>projectKeywordAppears(title,kw)||projectKeywordAppears(summary,kw));evidence[c.uuid]={method:'keyword',confidence:Math.min(.88,.52+best[1]*.035+(best[1]-runnerScore)*.025),files:[],queries:[],keywords:matched.slice(0,12)};}
   }
-  return map;
+  return{map,evidence};
 }
 
 function findProjectConvs(p){
-  return allConvs.filter(c=>convProjectMap[c.uuid]===p.uuid);
+  return allConvs.filter(c=>effectiveProjectUuid(c.uuid)===p.uuid);
+}
+
+function projectConvText(c){return[(c.name||''),(c.summary||''),...(c.chat_messages||[]).map(m=>JSON.stringify(m.content||''))].join(' ').toLowerCase();}
+function filterProjectConversations(projectUuid,value){const q=String(value||'').trim().toLowerCase();document.querySelectorAll('[data-project-conv]').forEach(el=>{if(el.dataset.projectUuid!==projectUuid)return;el.style.display=!q||projectConvText(allConvs.find(c=>c.uuid===el.dataset.projectConv)||{}).includes(q)?'':'none';});}
+function projectMatchExplanation(c){
+  const overrides=loadProjectOverrides(),manual=Object.prototype.hasOwnProperty.call(overrides,c.uuid),e=convProjectEvidence[c.uuid]||{};
+  const method=manual?t('用户手动确认'):e.method==='file'?t('唯一项目文件'):e.method==='knowledge'?t('项目知识搜索'):e.method==='keyword'?t('项目记忆关键词'):t('无自动证据');
+  const confidence=manual?1:Number(e.confidence||0);
+  const row=(label,items)=>items&&items.length?'<div><b>'+t(label)+'</b>：'+items.map(x=>'<code>'+esc(String(x))+'</code>').join('、')+'</div>':'';
+  return '<div class="match-panel"><div><b>'+t('匹配方式')+'</b>：'+method+'　<span class="match-confidence">'+Math.round(confidence*100)+'%</span></div>'
+    +row('命中的记忆',e.keywords)+row('命中的文件',e.files)+row('命中的关键词',e.queries)+'<div style="margin-top:7px">'+projectAssignmentOptions(c.uuid)+'</div></div>';
+}
+function projectStats(convs){
+  let messages=0,chars=0,min=Infinity,max=-Infinity;
+  for(const c of convs){for(const m of(c.chat_messages||[])){messages++;chars+=JSON.stringify(m.content||'').length;const time=Date.parse(m.created_at||'');if(Number.isFinite(time)){min=Math.min(min,time);max=Math.max(max,time);}}}
+  return{conversations:convs.length,messages,chars,range:Number.isFinite(min)?fmtDateOnly(new Date(min).toISOString())+' — '+fmtDateOnly(new Date(max).toISOString()):'—'};
+}
+function exportProject(projectUuid){
+  const p=allProjects.find(x=>x.uuid===projectUuid);if(!p)return;const convs=findProjectConvs(p),stats=projectStats(convs);
+  let md='# '+(p.name||t('项目（单数）'))+'\n\n'+(p.description||'')+'\n\n## '+t('项目统计')+'\n\n- '+t('关联对话')+': '+stats.conversations+'\n- '+t('条消息')+': '+stats.messages+'\n- '+t('字')+': '+stats.chars+'\n- '+t('时间范围')+': '+stats.range+'\n\n## '+t('项目文档')+'\n\n';
+  for(const d of(p.docs||[]))md+='### '+(d.filename||t('未命名'))+'\n\n'+(d.content||'')+'\n\n';
+  md+='## '+t('关联对话')+'\n\n';for(const c of convs){md+='### '+(c.name||t('无标题'))+'\n\n> UUID: '+(c.uuid||'')+'\n\n';for(const m of buildPath(c.chat_messages||[])){if(!m||m._divider)continue;md+='**'+(m.sender==='human'?t('你'):'Claude')+'** · '+fmtTime(m.created_at)+'\n\n';for(const b of(m.content||[])){if(b?.type==='text')md+=(b.text||'')+'\n\n';else if(b?.type==='thinking')md+='<details><summary>'+t('思考过程')+'</summary>\n\n'+(b.thinking||'')+'\n\n</details>\n\n';else if(b?.type==='tool_use')md+='> '+t('工具调用')+': `'+(b.name||'')+'`\n\n';}md+='---\n\n';}}
+  downloadBlob(new Blob([md],{type:'text/markdown;charset=utf-8'}),(p.name||'project').replace(/[\\/:*?"<>|]/g,'_').slice(0,80)+'.md');
+}
+function renderProjectGraph(p,convs){
+  const memory=memoryData?.project_memories?.[p.uuid]||'';
+  const memoryNodes=getProjectKeywords(p).slice(0,8);
+  const docs=(p.docs||[]).slice(0,12);
+  return '<div class="project-graph"><div class="graph-column"><b>🧠 '+t('项目记忆')+'</b>'+(memoryNodes.length?memoryNodes.map(x=>'<div class="graph-node">'+esc(x)+'</div>').join(''):'<div class="graph-node">'+esc(memory?t('项目记忆'):t('无内容'))+'</div>')+'</div><div class="graph-arrow">→</div><div class="graph-column"><b>📄 '+t('项目文档')+'</b>'+docs.map(d=>'<div class="graph-node">'+esc(d.filename||t('未命名'))+'</div>').join('')+'</div><div class="graph-arrow">→</div><div class="graph-column"><b>💬 '+t('关联对话')+'</b>'+convs.slice(0,20).map(c=>{const e=convProjectEvidence[c.uuid]||{},label=e.method==='file'?t('唯一项目文件'):e.method==='knowledge'?t('项目知识搜索'):e.method==='keyword'?t('项目记忆关键词'):t('用户手动确认');return '<div class="graph-node">'+esc(c.name||t('无标题'))+'<br><small>'+label+'</small></div>';}).join('')+'</div></div>';
 }
 
 async function openProject(uuid){
@@ -1561,10 +1619,15 @@ async function openProject(uuid){
   }
 
   const relatedConvs=findProjectConvs(p);
+  const stats=projectStats(relatedConvs);
   document.getElementById('chat-header-meta').textContent=(p.docs||[]).length+t('个文档')+' · '+relatedConvs.length+t('条关联对话');
 
   const el=document.getElementById('messages');
   let h='<div style="max-width:860px;margin:0 auto;padding:24px;">';
+
+  h+='<div class="project-tools"><input type="search" placeholder="'+esc(t('搜索当前项目对话'))+'" oninput="filterProjectConversations(\''+p.uuid+'\',this.value)"><button onclick="exportProject(\''+p.uuid+'\')">⬇ '+t('导出项目')+'</button></div>';
+  h+='<div class="project-stat-grid"><div class="project-stat"><b>'+stats.conversations+'</b>'+t('条对话')+'</div><div class="project-stat"><b>'+stats.messages+'</b>'+t('条消息')+'</div><div class="project-stat"><b>'+stats.chars.toLocaleString()+'</b>'+t('字')+'</div><div class="project-stat"><b style="font-size:12px">'+esc(stats.range)+'</b>'+t('时间范围')+'</div></div>';
+  h+='<div style="font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.08em;margin-bottom:8px;">🕸 '+t('项目记忆与对话引用关系图')+'</div>'+renderProjectGraph(p,relatedConvs);
 
   // Description
   if(p.description){
@@ -1596,17 +1659,17 @@ async function openProject(uuid){
     +'<b style="color:var(--text2);">'+t('结果仅供参考')+'</b>. '+t('可能存在遗漏或误判。')
     +'</div>';
   if(relatedConvs.length){
-    h+=relatedConvs.map(c=>'<div class="conv-item" data-conv-uuid="'+c.uuid+'" role="button" tabindex="0" style="border:1px solid var(--border);border-radius:10px;margin-bottom:6px;padding:10px 14px;cursor:pointer;">'
+    h+=relatedConvs.map(c=>'<div class="conv-item" data-project-conv="'+c.uuid+'" data-project-uuid="'+p.uuid+'" role="button" tabindex="0" style="border:1px solid var(--border);border-radius:10px;margin-bottom:8px;padding:10px 14px;">'
       +'<div class="conv-title">'+esc(c.name||'('+t('无标题')+')')+'</div>'
       +'<div class="conv-meta"><span>'+fmtDate(c.updated_at)+'</span><span class="conv-count">'+(c.chat_messages||[]).length+t('条')+'</span></div>'
-      +'</div>').join('');
+      +projectMatchExplanation(c)+'<button type="button" onclick="openConvAndSwitch(\''+c.uuid+'\')">'+t('打开对话')+'</button></div>').join('');
   } else {
     h+='<div style="color:var(--text3);font-size:13px;padding:12px 0;">'+t('未能从对话名称/摘要中自动识别关联对话')+'</div>';
   }
+  h+='<details style="margin-top:18px"><summary style="cursor:pointer;color:var(--text2);font-weight:600">✏️ '+t('手动修正项目归属')+'</summary><div class="assignment-list">'+allConvs.map(c=>'<div class="assignment-row"><span>'+esc(c.name||t('无标题'))+'</span>'+projectAssignmentOptions(c.uuid)+'</div>').join('')+'</div><div style="font-size:11px;color:var(--text3);margin-top:8px">'+t('人工确认结果只保存在当前浏览器本地')+'</div></details>';
   h+='</div>';
 
   el.innerHTML=h;
-  el.querySelectorAll('[data-conv-uuid]').forEach(item=>item.addEventListener('click',()=>openConvAndSwitch(item.dataset.convUuid)));
   el.querySelectorAll('pre code').forEach(b=>{try{hljs.highlightElement(b);}catch(e){}});
   el.scrollTop=0;
 }
