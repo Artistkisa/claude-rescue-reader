@@ -19,6 +19,9 @@ projects/
 *.bmp
 *.tmp
 *.log
+node_modules/
+test-results/
+dist/
 
 # 系统文件
 .DS_Store

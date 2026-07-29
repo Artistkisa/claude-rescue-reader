@@ -1,0 +1,8 @@
+title = "claude-rescue-reader gitleaks configuration"
+
+[allowlist]
+description = "Allow documented synthetic examples and privacy-detection patterns"
+paths = [
+  '''tests/fixtures/synthetic-export\.mjs''',
+  '''scripts/privacy-guard\.mjs'''
+]
