@@ -434,7 +434,7 @@ const EN={
   'Claude 历史记录查看器':'Claude History Viewer','点击左侧按钮，选择 Claude 导出的文件夹':'Select a Claude export folder using the button on the left.',
   '📦 导出文件夹结构':'📦 Export folder structure','必须':'Required','账号信息':'Account information','可选':'Optional','如何导出？':'How do I export?',
   '下载 ZIP 后可直接选择 ZIP 加载（免解压），或解压后选择整个文件夹':'After downloading the ZIP, load it directly or extract it and select the entire folder.',
-  '📋 对话摘要':'📋 Conversation summary','🗂 元数据':'🗂 Metadata','项目':'Project','局限性说明':'Limitations',
+  '📋 对话摘要':'📋 Conversation summary','🗂 元数据':'🗂 Metadata','项目（单数）':'Project','局限性说明':'Limitations',
   'Claude 官方导出文件中不包含对话与项目的归属关系。':'Claude exports do not include conversation-to-project relationships.',
   '本查看器通过以下三种方式推断：① 工具调用中的项目文件路径（精确）；② 知识搜索查询词与项目文档的匹配（较准确）；③ 项目记忆关键词匹配（模糊）。':'This viewer infers them using: ① project file paths in tool calls (exact); ② knowledge-search terms matched against project documents (fairly accurate); ③ project-memory keyword matching (fuzzy).',
   '结果仅供参考':'Results are estimates','可能存在遗漏或误判。':'Some conversations may be missing or incorrectly assigned.',
@@ -755,7 +755,7 @@ function renderMemoryTab(){
         +'<span class="mem-card-icon">📁</span>'
         +'<div style="flex:1;min-width:0;">'
         +'<div class="mem-card-title">'+esc(projName)+'</div>'
-        +'<div class="mem-preview">'+(secs.length?secs.map(s=>s.title).join(' · '):mem.replace(/[*_#]/g,'').slice(0,60))+'</div>'
+        +'<div class="mem-preview">'+(secs.length?secs.map(s=>t(s.title)).join(' · '):mem.replace(/[*_#]/g,'').slice(0,60))+'</div>'
         +'</div>'
         +'<span class="mem-card-meta">'+totalChars+t('字')+'</span>'
         +'<span class="mem-card-chevron">'+ICON+'</span>'
@@ -1084,7 +1084,7 @@ async function openProject(uuid){
   document.querySelectorAll('.proj-card').forEach(el=>el.classList.toggle('active',el.dataset.projUuid===uuid));
   document.getElementById('chat-header').classList.remove('last-supper');
   document.getElementById('messages').classList.remove('last-supper-gallery');
-  document.getElementById('chat-title').textContent='📁 '+(p.name||t('项目'));
+  document.getElementById('chat-title').textContent='📁 '+(p.name||t('项目（单数）'));
   document.getElementById('chat-title').style.color='';
 
   if(!convProjectMapReady){
