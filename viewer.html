@@ -2084,7 +2084,12 @@ function toggleExportMenu(event){if(event)event.stopPropagation();const menu=doc
 function closeExportMenu(){document.getElementById('export-menu').style.display='none';}
 document.addEventListener('click',event=>{if(!event.target.closest('#export-wrap'))closeExportMenu();});
 function jumpMessages(where){const el=document.getElementById('messages');el.scrollTo({top:where==='top'?0:el.scrollHeight,behavior:'auto'});}
-function updateQuickNav(){const el=document.getElementById('quick-nav'),messages=document.getElementById('messages');el.style.display=currentConv&&messages.scrollHeight>messages.clientHeight+120?'flex':'none';}
+function updateQuickNav(){
+  const el=document.getElementById('quick-nav'),messages=document.getElementById('messages');
+  const isConversationView=currentView==='convs'||currentView==='design';
+  if(!el||!messages||!isConversationView||!currentConv){if(el)el.style.display='none';return;}
+  el.style.display=messages.scrollHeight>messages.clientHeight+120?'flex':'none';
+}
 document.getElementById('messages').addEventListener('scroll',updateQuickNav,{passive:true});
 function fullConversationHtml(conv){
   const linear=buildPath(conv.chat_messages||[]);let html='',lastDate='';
