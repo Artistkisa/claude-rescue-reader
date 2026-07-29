@@ -631,12 +631,14 @@ document.getElementById('zip-input').addEventListener('change',async e=>{
 const dropOverlay=document.getElementById('drop-overlay');
 let dragDepth=0;
 function setDropActive(active){if(dropOverlay){dropOverlay.classList.toggle('active',active);dropOverlay.setAttribute('aria-hidden',String(!active));}}
-async function readDropEntry(entry){
+const DROP_MAX_FILES=10000,DROP_MAX_DEPTH=24;
+async function readDropEntry(entry,depth=0,state={count:0}){
+  if(depth>DROP_MAX_DEPTH)throw new Error('Dropped folder is too deeply nested');
   if(entry.isFile)return new Promise((resolve,reject)=>entry.file(resolve,reject));
   if(!entry.isDirectory)return [];
   const reader=entry.createReader(),files=[];
   const readBatch=()=>new Promise((resolve,reject)=>reader.readEntries(resolve,reject));
-  for(;;){const batch=await readBatch();if(!batch.length)break;for(const child of batch){const value=await readDropEntry(child);if(Array.isArray(value))files.push(...value);else files.push(value);}}
+  for(;;){const batch=await readBatch();if(!batch.length)break;for(const child of batch){const value=await readDropEntry(child,depth+1,state);if(Array.isArray(value))files.push(...value);else files.push(value);if((state.count+=Array.isArray(value)?value.length:1)>DROP_MAX_FILES)throw new Error('Dropped folder contains too many files');}}
   return files;
 }
 async function droppedFiles(dataTransfer){
@@ -648,13 +650,15 @@ async function droppedFiles(dataTransfer){
 function routeDroppedFiles(files){
   const zip=files.find(f=>/\.zip$/i.test(f.name));
   const input=document.getElementById(zip?'zip-input':'file-input');
+  if(!input)return;
   const dt=new DataTransfer();for(const file of files)dt.items.add(file);
   input.files=dt.files;input.dispatchEvent(new Event('change',{bubbles:true}));
 }
-window.addEventListener('dragenter',e=>{if(e.dataTransfer?.types?.includes('Files')){e.preventDefault();dragDepth++;setDropActive(true);}});
-window.addEventListener('dragover',e=>{if(e.dataTransfer?.types?.includes('Files'))e.preventDefault();});
-window.addEventListener('dragleave',e=>{if(e.dataTransfer?.types?.includes('Files')){e.preventDefault();if(--dragDepth<=0){dragDepth=0;setDropActive(false);}}});
-window.addEventListener('drop',async e=>{if(!e.dataTransfer?.types?.includes('Files'))return;e.preventDefault();dragDepth=0;setDropActive(false);try{const files=await droppedFiles(e.dataTransfer);if(files.length)routeDroppedFiles(files);}catch(err){console.error('drop import',err);}});
+function hasDroppedFiles(e){const types=e.dataTransfer?.types;if(!types)return false;return typeof types.includes==='function'?types.includes('Files'):Array.prototype.indexOf.call(types,'Files')!==-1;}
+window.addEventListener('dragenter',e=>{if(hasDroppedFiles(e)){e.preventDefault();dragDepth++;setDropActive(true);}});
+window.addEventListener('dragover',e=>{if(hasDroppedFiles(e))e.preventDefault();});
+window.addEventListener('dragleave',e=>{if(hasDroppedFiles(e)){e.preventDefault();if(--dragDepth<=0){dragDepth=0;setDropActive(false);}}});
+window.addEventListener('drop',async e=>{if(!hasDroppedFiles(e))return;e.preventDefault();dragDepth=0;setDropActive(false);try{const files=await droppedFiles(e.dataTransfer);if(files.length)routeDroppedFiles(files);}catch(err){console.error('drop import',err);}});
 
 function parseConversationsJson(text){
   const conversations=JSON.parse(text);
