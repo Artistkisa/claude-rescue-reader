@@ -10,7 +10,7 @@ const added=addedDiff().split(/\r?\n/).filter(l=>l.startsWith('+')&&!l.startsWit
 const secretPatterns=[
   ['private key',/-----BEGIN (?:RSA |EC |OPENSSH )?PRIVATE KEY-----/],
   ['GitHub token',/\bgh[pousr]_[A-Za-z0-9]{30,}\b/],
-  ['Bearer token',/\bBearer\s+[A-Za-z0-9._~+\/-]{20,}/i],
+  ['Bearer token',/\bBearer\s+[A-Za-z0-9._~+/-]{20,}/i],
   ['AWS access key',/\bAKIA[0-9A-Z]{16}\b/]
 ];
 for(const line of added){

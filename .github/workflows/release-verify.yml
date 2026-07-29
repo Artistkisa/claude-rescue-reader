@@ -34,7 +34,19 @@ jobs:
         run: |
           $files = Get-ChildItem dist -File | Select-Object -ExpandProperty Name
           if (Compare-Object @('SHA256SUMS.txt','claude-rescue-reader.zip','viewer.html') $files) { throw 'Unexpected release files' }
-          if (Select-String -Path dist/viewer.html -Pattern '<<<<<<<|>>>>>>>|D:\\others\\|restrict-account-claude-history' -Quiet) { throw 'Conflict marker or private test path found in artifact' }
+          $privatePathPatterns = @(
+            '<<<<<<<|>>>>>>>'
+            '[A-Za-z]:\\Users\\[^\\\s"''<>]+\\'
+            '[A-Za-z]:\\Documents and Settings\\[^\\\s"''<>]+\\'
+            '/Users/[A-Za-z0-9._-]+/'
+            '/home/[A-Za-z0-9._-]+/'
+          )
+          if (Select-String -Path dist/viewer.html -Pattern $privatePathPatterns -Quiet) { throw 'Conflict marker or personal absolute path found in artifact' }
+          $zipEntries = tar -tf dist/claude-rescue-reader.zip
+          if (@($zipEntries).Count -ne 1 -or $zipEntries[0] -notmatch '^(?:dist/)?viewer\.html$') { throw 'Unexpected ZIP contents' }
+          $expected = ((Get-Content dist/SHA256SUMS.txt) -split '\s+')[0]
+          $actual = (Get-FileHash dist/viewer.html -Algorithm SHA256).Hash.ToLower()
+          if ($expected -ne $actual) { throw 'SHA-256 checksum mismatch' }
       - uses: actions/upload-artifact@v4
         with:
           name: claude-rescue-reader-${{ github.ref_name }}
