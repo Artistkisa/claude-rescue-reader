@@ -142,8 +142,11 @@ claude-export/
 
 ### Other
 - 🌙 / ☀️ Light/dark theme toggle, preference saved automatically
-- ⬇ **Export:** Export current conversation as a Markdown file (Ctrl/Cmd+E)
-- Export includes summary, full message stream, and thinking blocks (wrapped in `<details>`)
+- ⬇ **Export:** Export the current conversation as Markdown (Ctrl/Cmd+E) or PDF
+- PDF reuses the reader's complete message rendering, preserving code, Artifacts, thinking/tool panels, and branch-integrity warnings
+- Artifacts can be exported as PNG; computed styles are inlined for SVG, Mermaid, and static HTML, with automatic source fallback on failure
+- Claude Design exports are detected and classified separately without mixing them into regular conversations or analytics
+- Floating controls provide quick jumps to the top or bottom of the conversation
 
 ## Keyboard Shortcuts
 
@@ -175,6 +178,7 @@ github-dark.min.css    ← https://cdn.jsdelivr.net/npm/highlight.js@11.9.0/styl
 ## Known Limitations
 
 - Export files do not contain image binary data; images are shown as placeholders
+- Interactive HTML Artifacts that depend on scripts or dynamically drawn Canvas content may export only their static structure as PNG; the original source remains available through the automatic fallback
 - Conversation trees show the longest path by default; branches created by edits or regeneration can be switched beside the affected message
 - Project-conversation associations are high-confidence inferences, not official data; low-confidence conversations remain unassigned to avoid false matches
 - Very large datasets (tested with: 300+ conversations / 150MB+ / single conversation with 600+ messages) may load slowly on low-memory devices
