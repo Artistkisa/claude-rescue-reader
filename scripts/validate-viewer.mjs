@@ -5,7 +5,7 @@ const worker=fs.readFileSync('src/analytics-worker.js','utf8').trim();
 const failures=[];
 const fail=m=>failures.push(m);
 
-if(/^(<<<<<<<|=======|>>>>>>>) /m.test(html))fail('Git conflict marker found in viewer.html');
+if(/^(?:<<<<<<<[^\r\n]*|=======|>>>>>>>[^\r\n]*)\r?$/m.test(html))fail('Git conflict marker found in viewer.html');
 for(const marker of['// BEGIN GENERATED ANALYTICS WORKER','// END GENERATED ANALYTICS WORKER'])if(!html.includes(marker))fail(`Missing generated marker: ${marker}`);
 const generated=html.match(/\/\/ BEGIN GENERATED ANALYTICS WORKER[^\r\n]*\r?\n([\s\S]*?)\r?\n\/\/ END GENERATED ANALYTICS WORKER/);
 if(!generated)fail('Embedded analytics worker section was not found');

@@ -1,5 +1,5 @@
 import fs from 'node:fs';
-import {changedFiles,git} from './git-diff-utils.mjs';
+import {changedFiles} from './git-diff-utils.mjs';
 
 const failures=[],eventPath=process.env.GITHUB_EVENT_PATH;
 if(eventPath&&fs.existsSync(eventPath)){
@@ -11,9 +11,9 @@ for(const row of rows){const m=row.match(/^(\S+)\s+(.+)$/);if(!m)continue;const 
   if(/(?:^|\/)(?:tmp|temp|output|results?)(?:\/|$)|\.(?:tmp|log|bak|swp)$/i.test(file))failures.push(`Temporary file is not allowed: ${file}`);
   if(/(?:^|\/)\.tmp-fixture(?:\/|$)/.test(file))failures.push(`Private fixture directory is not allowed: ${file}`);
   if(/^tests\/fixtures\//.test(file)&&!/synthetic|fixture/i.test(file))failures.push(`Fixture must be clearly synthetic: ${file}`);
-  if(status.startsWith('A')){try{const size=Number(git(['cat-file','-s',`HEAD:${file}`]).trim());if(size>5*1024*1024)failures.push(`New file exceeds 5 MiB: ${file}`);}catch{}}
+  if(status.startsWith('A')){try{const size=fs.statSync(file).size;if(size>5*1024*1024)failures.push(`New file exceeds 5 MiB: ${file}`);}catch(err){failures.push(`Unable to inspect new file: ${file} (${err.message})`);}}
 }
 if(paths.includes('src/analytics-worker.js')&&!paths.includes('viewer.html'))failures.push('Worker source changed without rebuilding viewer.html');
-for(const file of paths.filter(f=>/\.(?:html|js|mjs|md|yml|yaml|json|ps1)$/i.test(f))){try{if(/^(<<<<<<<|=======|>>>>>>>) /m.test(fs.readFileSync(file,'utf8')))failures.push(`Conflict marker found: ${file}`);}catch{}}
+for(const file of paths.filter(f=>/\.(?:html|js|mjs|md|yml|yaml|json|ps1)$/i.test(f))){try{if(/^(?:<<<<<<<[^\r\n]*|=======|>>>>>>>[^\r\n]*)\r?$/m.test(fs.readFileSync(file,'utf8')))failures.push(`Conflict marker found: ${file}`);}catch{}}
 if(failures.length){console.error([...new Set(failures)].map(x=>`- ${x}`).join('\n'));process.exit(1);}
 console.log(`PR policy passed (${paths.length} changed files)`);
