@@ -302,26 +302,26 @@ mark.cs.active { background:var(--accent); color:#fff; }
 <div id="sidebar">
   <div id="sidebar-header">
     <h1>💬 Claude Export <span id="conv-total">0</span></h1>
-    <button id="load-btn" onclick="document.getElementById('file-input').click()">📂 选择导出文件夹</button>
+    <button id="load-btn" data-i18n="📂 选择导出文件夹" onclick="document.getElementById('file-input').click()">📂 选择导出文件夹</button>
     <input type="file" id="file-input" webkitdirectory multiple accept=".json">
-    <button id="load-zip-btn" onclick="document.getElementById('zip-input').click()">🗜️ 直接选择 ZIP 压缩包（免解压）</button>
+    <button id="load-zip-btn" data-i18n="🗜️ 直接选择 ZIP 压缩包（免解压）" onclick="document.getElementById('zip-input').click()">🗜️ 直接选择 ZIP 压缩包（免解压）</button>
     <input type="file" id="zip-input" accept=".zip,application/zip" style="display:none;">
     <div id="stats-bar" style="display:none;margin-top:8px;padding:8px 10px;background:var(--bg3);border-radius:8px;font-size:11.5px;color:var(--text3);line-height:1.8;"></div>
-    <input type="text" id="search-box" placeholder="搜索对话…" oninput="filterConvs(this.value)">
+    <input type="text" id="search-box" data-i18n-placeholder="搜索对话…" placeholder="搜索对话…" oninput="filterConvs(this.value)">
     <div style="display:flex;align-items:center;gap:6px;margin-top:6px;">
       <label style="font-size:11px;color:var(--text3);display:flex;align-items:center;gap:4px;cursor:pointer;">
-        <input type="checkbox" id="search-fulltext" style="width:12px;height:12px;"> 全文搜索
+        <input type="checkbox" id="search-fulltext" style="width:12px;height:12px;"> <span data-i18n="全文搜索">全文搜索</span>
       </label>
       <span style="flex:1"></span>
-      <button class="sort-btn active" data-sort="updated" onclick="setSort('updated')" title="按最近更新时间排序">最新</button>
-      <button class="sort-btn" data-sort="created" onclick="setSort('created')" title="按最早创建时间排序">最早</button>
-      <button class="sort-btn" data-sort="msgs" onclick="setSort('msgs')" title="按消息数量排序">最多</button>
+      <button class="sort-btn active" data-sort="updated" data-i18n="最新" data-i18n-title="按最近更新时间排序" onclick="setSort('updated')" title="按最近更新时间排序">最新</button>
+      <button class="sort-btn" data-sort="created" data-i18n="最早" data-i18n-title="按最早创建时间排序" onclick="setSort('created')" title="按最早创建时间排序">最早</button>
+      <button class="sort-btn" data-sort="msgs" data-i18n="最多" data-i18n-title="按消息数量排序" onclick="setSort('msgs')" title="按消息数量排序">最多</button>
     </div>
   </div>
   <div id="tabs">
-    <button class="tab-btn active" onclick="switchTab('convs',this)">对话</button>
-    <button class="tab-btn" onclick="switchTab('projects',this)">项目</button>
-    <button class="tab-btn" onclick="switchTab('memory',this)">记忆</button>
+    <button class="tab-btn active" data-i18n="对话" onclick="switchTab('convs',this)">对话</button>
+    <button class="tab-btn" data-i18n="项目" onclick="switchTab('projects',this)">项目</button>
+    <button class="tab-btn" data-i18n="记忆" onclick="switchTab('memory',this)">记忆</button>
   </div>
   <div id="conv-list"></div>
 </div>
@@ -329,42 +329,43 @@ mark.cs.active { background:var(--accent); color:#fff; }
 <!-- Main -->
 <div id="main">
   <div id="chat-header">
-    <div id="chat-title" style="color:var(--text3)">← 选择一个对话</div>
-    <div id="last-supper-plaque" title="这份导出中，时间上最后结束的对话">最后的晚餐</div>
+    <div id="chat-title" data-i18n="← 选择一个对话" style="color:var(--text3)">← 选择一个对话</div>
+    <div id="last-supper-plaque" data-i18n="最后的晚餐" data-i18n-title="这份导出中，时间上最后结束的对话" title="这份导出中，时间上最后结束的对话">最后的晚餐</div>
     <div id="chat-header-meta"></div>
     <button id="toggle-summary" onclick="toggleSummary()">摘要 ▶</button>
-    <input type="text" id="csearch" placeholder="对话内搜索…" style="display:none;" oninput="cSearch(this.value)" onkeydown="if(event.key==='Enter'){event.shiftKey?cNav(-1):cNav(1)}">
+    <input type="text" id="csearch" data-i18n-placeholder="对话内搜索…" placeholder="对话内搜索…" style="display:none;" oninput="cSearch(this.value)" onkeydown="if(event.key==='Enter'){event.shiftKey?cNav(-1):cNav(1)}">
     <span id="csearch-count" style="display:none;"></span>
-    <button id="cprev" onclick="cNav(-1)" title="上一个匹配" style="display:none;padding:4px 7px;background:var(--bg3);border:1px solid var(--border);border-radius:6px;color:var(--text2);cursor:pointer;">↑</button>
-    <button id="cnext" onclick="cNav(1)" title="下一个匹配" style="display:none;padding:4px 7px;background:var(--bg3);border:1px solid var(--border);border-radius:6px;color:var(--text2);cursor:pointer;">↓</button>
-    <button id="export-btn" onclick="exportConv()" title="导出为 Markdown" style="padding:5px 9px;background:var(--bg3);border:1px solid var(--border);border-radius:6px;color:var(--text2);font-size:13px;cursor:pointer;display:none;">⬇ 导出</button>
-    <button id="theme-btn" onclick="toggleTheme()" title="切换明暗主题" style="padding:5px 9px;background:var(--bg3);border:1px solid var(--border);border-radius:6px;color:var(--text2);font-size:14px;cursor:pointer;line-height:1;">🌙</button>
+    <button id="cprev" onclick="cNav(-1)" data-i18n-title="上一个匹配" title="上一个匹配" style="display:none;padding:4px 7px;background:var(--bg3);border:1px solid var(--border);border-radius:6px;color:var(--text2);cursor:pointer;">↑</button>
+    <button id="cnext" onclick="cNav(1)" data-i18n-title="下一个匹配" title="下一个匹配" style="display:none;padding:4px 7px;background:var(--bg3);border:1px solid var(--border);border-radius:6px;color:var(--text2);cursor:pointer;">↓</button>
+    <button id="export-btn" onclick="exportConv()" data-i18n-title="导出为 Markdown" title="导出为 Markdown" style="padding:5px 9px;background:var(--bg3);border:1px solid var(--border);border-radius:6px;color:var(--text2);font-size:13px;cursor:pointer;display:none;">⬇ 导出</button>
+    <button id="lang-btn" onclick="toggleLanguage()" title="Switch UI language" style="padding:5px 9px;background:var(--bg3);border:1px solid var(--border);border-radius:6px;color:var(--text2);font-size:12px;cursor:pointer;line-height:1;">🌐 EN</button>
+    <button id="theme-btn" onclick="toggleTheme()" data-i18n-title="切换明暗主题" title="切换明暗主题" style="padding:5px 9px;background:var(--bg3);border:1px solid var(--border);border-radius:6px;color:var(--text2);font-size:14px;cursor:pointer;line-height:1;">🌙</button>
   </div>
   <div id="messages">
     <div id="empty-state">
       <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>
-      <p style="font-size:17px;font-weight:600;color:var(--text2);margin-bottom:4px;">Claude 历史记录查看器</p>
-      <p style="font-size:13px;color:var(--text3);">点击左侧按钮，选择 Claude 导出的文件夹</p>
+      <p data-i18n="Claude 历史记录查看器" style="font-size:17px;font-weight:600;color:var(--text2);margin-bottom:4px;">Claude 历史记录查看器</p>
+      <p data-i18n="点击左侧按钮，选择 Claude 导出的文件夹" style="font-size:13px;color:var(--text3);">点击左侧按钮，选择 Claude 导出的文件夹</p>
 
       <div style="margin-top:8px;background:var(--bg3);border:1px solid var(--border);border-radius:10px;padding:16px 20px;text-align:left;width:380px;max-width:90vw;">
-        <div style="font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.08em;margin-bottom:10px;">📦 导出文件夹结构</div>
+        <div data-i18n="📦 导出文件夹结构" style="font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.08em;margin-bottom:10px;">📦 导出文件夹结构</div>
         <div style="font-family:'SFMono-Regular',Consolas,monospace;font-size:12.5px;line-height:2;color:var(--text2);">
           <div><span style="color:var(--accent);font-weight:600;">claude-export/</span></div>
           <div style="padding-left:16px;">
             <span style="color:var(--text3);">├─ </span><span style="color:var(--blue);">conversations.json</span>
-            <span style="margin-left:8px;font-size:11px;color:var(--green);background:rgba(31,136,61,.1);padding:1px 6px;border-radius:4px;">必须</span>
+            <span data-i18n="必须" style="margin-left:8px;font-size:11px;color:var(--green);background:rgba(31,136,61,.1);padding:1px 6px;border-radius:4px;">必须</span>
           </div>
           <div style="padding-left:16px;">
             <span style="color:var(--text3);">├─ </span><span style="color:var(--blue);">users.json</span>
-            <span style="margin-left:8px;font-size:11px;color:var(--text3);">账号信息</span>
+            <span data-i18n="账号信息" style="margin-left:8px;font-size:11px;color:var(--text3);">账号信息</span>
           </div>
           <div style="padding-left:16px;">
             <span style="color:var(--text3);">├─ </span><span style="color:var(--blue);">memories.json</span>
-            <span style="margin-left:8px;font-size:11px;color:var(--orange);background:rgba(154,103,0,.08);padding:1px 6px;border-radius:4px;">可选</span>
+            <span data-i18n="可选" style="margin-left:8px;font-size:11px;color:var(--orange);background:rgba(154,103,0,.08);padding:1px 6px;border-radius:4px;">可选</span>
           </div>
           <div style="padding-left:16px;">
             <span style="color:var(--text3);">└─ </span><span style="color:var(--accent);font-weight:600;">projects/</span>
-            <span style="margin-left:8px;font-size:11px;color:var(--orange);background:rgba(154,103,0,.08);padding:1px 6px;border-radius:4px;">可选</span>
+            <span data-i18n="可选" style="margin-left:8px;font-size:11px;color:var(--orange);background:rgba(154,103,0,.08);padding:1px 6px;border-radius:4px;">可选</span>
           </div>
           <div style="padding-left:40px;">
             <span style="color:var(--text3);">├─ </span><span style="color:var(--blue);">&lt;uuid&gt;.json</span>
@@ -375,9 +376,9 @@ mark.cs.active { background:var(--accent); color:#fff; }
         </div>
 
         <div style="margin-top:12px;padding-top:12px;border-top:1px solid var(--border);font-size:12px;color:var(--text3);line-height:1.7;">
-          <b style="color:var(--text2);">如何导出？</b><br>
+          <b data-i18n="如何导出？" style="color:var(--text2);">如何导出？</b><br>
           claude.ai → Settings → Account → <b style="color:var(--text2);">Export Data</b><br>
-          下载 ZIP 后可直接选择 ZIP 加载（免解压），或解压后选择整个文件夹
+          <span data-i18n="下载 ZIP 后可直接选择 ZIP 加载（免解压），或解压后选择整个文件夹">下载 ZIP 后可直接选择 ZIP 加载（免解压），或解压后选择整个文件夹</span>
         </div>
       </div>
     </div>
@@ -387,9 +388,9 @@ mark.cs.active { background:var(--accent); color:#fff; }
 <!-- Summary Panel -->
 <div id="summary" class="hidden">
   <div id="summary-inner">
-    <h2>📋 对话摘要</h2>
+    <h2 data-i18n="📋 对话摘要">📋 对话摘要</h2>
     <div id="summary-text"></div>
-    <div style="margin-top:16px;"><h2>🗂 元数据</h2></div>
+    <div style="margin-top:16px;"><h2 data-i18n="🗂 元数据">🗂 元数据</h2></div>
     <div id="meta-box" style="margin-top:8px;"></div>
   </div>
 </div>
@@ -397,6 +398,71 @@ mark.cs.active { background:var(--accent); color:#fff; }
 const ICON='<svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 2l4 4-4 4"/></svg>';
 let allConvs=[],allProjects=[],memoryData=null,currentConv=null,summaryVisible=false,lastConversationUuid='';
 let dataLoadGeneration=0;
+let currentLang=localStorage.getItem('cv-lang')==='en'?'en':'zh';
+let currentView='convs',currentProjectUuid='';
+const EN={
+  '📂 选择导出文件夹':'📂 Select Export Folder','🗜️ 直接选择 ZIP 压缩包（免解压）':'🗜️ Select ZIP Archive (no extraction)',
+  '搜索对话…':'Search conversations…','全文搜索':'Full-text search','最新':'Newest','最早':'Oldest','最多':'Most',
+  '按最近更新时间排序':'Sort by most recently updated','按最早创建时间排序':'Sort by earliest created','按消息数量排序':'Sort by message count',
+  '对话':'Conversations','项目':'Projects','记忆':'Memories','← 选择一个对话':'← Select a conversation',
+  '最后的晚餐':'The Last Supper','这份导出中，时间上最后结束的对话':'The chronologically final conversation in this export',
+  '摘要':'Summary','对话内搜索…':'Search in conversation…','上一个匹配':'Previous match','下一个匹配':'Next match',
+  '导出为 Markdown':'Export as Markdown','切换明暗主题':'Toggle light/dark theme','导出':'Export',
+  '解析中，请稍候…':'Parsing, please wait…','解压中，请稍候…':'Extracting, please wait…',
+  '未找到 conversations.json':'conversations.json not found','ZIP 中未找到 conversations.json':'conversations.json not found in ZIP',
+  'ZIP 解析库未加载，请联网刷新，或手动解压后选文件夹':'ZIP library unavailable. Refresh online or extract the archive and select its folder.',
+  '加载失败':'Load failed','ZIP 加载失败':'ZIP load failed','已取消：已选择更新的数据':'Cancelled: a newer dataset was selected','conversations.json 格式不正确':'Invalid conversations.json format',
+  '暂无对话':'No conversations','暂无项目':'No projects','暂无记忆':'No memories','无标题':'Untitled','无名称':'Unnamed','无描述':'No description',
+  '条':' msgs','条对话':' conversations','条消息':' messages','个项目':' projects','个文档':' documents','条关联对话':' related conversations',
+  '工作背景':'Work context','个人背景':'Personal context','当前重点':'Top of mind','历史摘要':'Brief history',
+  '目的与背景':'Purpose & context','当前状态':'Current state','未来规划':'On the horizon','关键经验':'Key learnings & principles','工作方式':'Approach & patterns','工具资源':'Tools & resources',
+  '全局对话记忆':'Global conversation memory','全局记忆':'Global memory','项目级记忆':'Project memories','字':' chars',
+  '无摘要':'No summary','创建时间':'Created','更新时间':'Updated','消息数':'Messages',
+  '正在分析关联对话…':'Analyzing related conversations…','正在建立项目关联索引…':'Building project relationship index…',
+  '关联索引失败':'Relationship index failed','项目关联索引失败，请重新选择项目重试。':'Project relationship indexing failed. Select the project again to retry.',
+  '项目文档':'Project documents','未命名':'Untitled','无内容':'No content','关联对话':'Related conversations',
+  '未能从对话名称/摘要中自动识别关联对话':'No related conversations could be identified automatically from titles or summaries.',
+  '此对话无消息':'This conversation has no messages','加载更早消息':'Load earlier messages','剩余':'remaining',
+  '对话分支结构异常，已按时间顺序展示全部消息':'Conversation branch structure is invalid; all messages are shown chronologically.',
+  '以下消息无法归入对话分支（可能是已删除分支的残留）':'The following messages could not be attached to a branch (possibly remnants of a deleted branch).',
+  '此消息渲染出错':'This message could not be rendered','流程图':'Diagram','图表':'Chart','交互预览':'Interactive preview',
+  '下载':'Download','查看源码':'View source','内容未包含在导出中':'Content not included in export','打开':'Open','此回复生成的文件':'Files generated by this response',
+  '文件':'File','附件':'Attachment','搜索了网页':'Searched the web','空消息':'Empty message',
+  '此处有多个版本（编辑或重新生成），切换后后续对话随之改变':'Multiple versions exist here (edited or regenerated); switching also changes subsequent messages.',
+  '复制这条消息':'Copy this message','你':'You','思考过程':'Thinking','工具':'Tool','结果':'Result','图片':'Image','知识引用':'Knowledge reference','搜索引用':'Search citation',
+  '对话内容':'Conversation','工具调用':'Tool call','工具结果':'Tool result','查看 Mermaid 源码':'View Mermaid source','复制':'Copy','已复制':'Copied','匹配':'matches',
+  'Claude 历史记录查看器':'Claude History Viewer','点击左侧按钮，选择 Claude 导出的文件夹':'Select a Claude export folder using the button on the left.',
+  '📦 导出文件夹结构':'📦 Export folder structure','必须':'Required','账号信息':'Account information','可选':'Optional','如何导出？':'How do I export?',
+  '下载 ZIP 后可直接选择 ZIP 加载（免解压），或解压后选择整个文件夹':'After downloading the ZIP, load it directly or extract it and select the entire folder.',
+  '📋 对话摘要':'📋 Conversation summary','🗂 元数据':'🗂 Metadata','项目':'Project','局限性说明':'Limitations',
+  'Claude 官方导出文件中不包含对话与项目的归属关系。':'Claude exports do not include conversation-to-project relationships.',
+  '本查看器通过以下三种方式推断：① 工具调用中的项目文件路径（精确）；② 知识搜索查询词与项目文档的匹配（较准确）；③ 项目记忆关键词匹配（模糊）。':'This viewer infers them using: ① project file paths in tool calls (exact); ② knowledge-search terms matched against project documents (fairly accurate); ③ project-memory keyword matching (fuzzy).',
+  '结果仅供参考':'Results are estimates','可能存在遗漏或误判。':'Some conversations may be missing or incorrectly assigned.',
+  '共':'Total','以下按时间顺序展示全部消息':'all messages below are shown chronologically'
+};
+function t(key,vars){
+  let value=currentLang==='en'?(EN[key]||key):key;
+  if(vars)for(const[k,v]of Object.entries(vars))value=value.replaceAll('{'+k+'}',v);
+  return value;
+}
+function applyLanguage(lang){
+  currentLang=lang==='en'?'en':'zh';
+  document.documentElement.lang=currentLang==='en'?'en':'zh-CN';
+  document.querySelectorAll('[data-i18n]').forEach(el=>el.textContent=t(el.dataset.i18n));
+  document.querySelectorAll('[data-i18n-placeholder]').forEach(el=>el.placeholder=t(el.dataset.i18nPlaceholder));
+  document.querySelectorAll('[data-i18n-title]').forEach(el=>el.title=t(el.dataset.i18nTitle));
+  const langBtn=document.getElementById('lang-btn');
+  if(langBtn){langBtn.textContent=currentLang==='en'?'🌐 中文':'🌐 EN';langBtn.title=currentLang==='en'?'切换到中文界面':'Switch to English UI';}
+  document.getElementById('export-btn').textContent='⬇ '+t('导出');
+  document.getElementById('toggle-summary').textContent=t('摘要')+(summaryVisible?' ◀':' ▶');
+}
+function toggleLanguage(){
+  applyLanguage(currentLang==='zh'?'en':'zh');
+  localStorage.setItem('cv-lang',currentLang);
+  if(currentView==='projects'){renderProjectList();if(currentProjectUuid)void openProject(currentProjectUuid);}
+  else if(currentView==='memory')renderMemoryTab();
+  else {renderConvList(getSortedConvs());if(currentConv)openConv(currentConv.uuid);}
+}
 const MESSAGE_BATCH_SIZE=100;
 const MESSAGE_BATCH_BUDGET=100;
 const MESSAGE_BATCH_MIN=24;
@@ -409,14 +475,14 @@ document.getElementById('file-input').addEventListener('change',async e=>{
   const files=[...e.target.files];
   e.target.value=''; // 允许重选同一个文件夹（与 ZIP 入口行为一致）
   const btn=document.getElementById('load-btn');
-  btn.innerHTML='<span class="spinner"></span> 解析中，请稍候…';
+  btn.innerHTML='<span class="spinner"></span> '+t('解析中，请稍候…');
   try{
     const cf=files.find(f=>f.name==='conversations.json');
     const pf=files.filter(f=>f.webkitRelativePath.includes('/projects/')&&f.name.endsWith('.json'));
     const mf=files.find(f=>f.name==='memories.json');
-    if(!cf){btn.textContent='⚠️ 未找到 conversations.json';return;}
+    if(!cf){btn.textContent='⚠️ '+t('未找到 conversations.json');return;}
     await ingestData(await cf.arrayBuffer(),await Promise.all(pf.map(p=>p.text())),mf?await mf.text():null,btn);
-  }catch(err){btn.textContent='❌ 加载失败：'+err.message;console.error(err);}
+  }catch(err){btn.textContent='❌ '+t('加载失败')+': '+t(err.message);console.error(err);}
 });
 
 // ZIP 直读：免去手动解压一步（封号抢救场景下少一个操作环节）
@@ -425,8 +491,8 @@ document.getElementById('zip-input').addEventListener('change',async e=>{
   e.target.value=''; // allow re-selecting the same file
   if(!file)return;
   const btn=document.getElementById('load-zip-btn');
-  if(typeof JSZip==='undefined'){btn.textContent='⚠️ ZIP 解析库未加载，请联网刷新，或手动解压后选文件夹';return;}
-  btn.innerHTML='<span class="spinner"></span> 解压中，请稍候…';
+  if(typeof JSZip==='undefined'){btn.textContent='⚠️ '+t('ZIP 解析库未加载，请联网刷新，或手动解压后选文件夹');return;}
+  btn.innerHTML='<span class="spinner"></span> '+t('解压中，请稍候…');
   // yield to browser to render spinner before blocking ZIP parsing
   await new Promise(r=>setTimeout(r,30));
   try{
@@ -436,7 +502,7 @@ document.getElementById('zip-input').addEventListener('change',async e=>{
     const convName=entries.find(n=>/(^|\/)conversations\.json$/i.test(n));
     const projNames=entries.filter(n=>/(^|\/)projects\/[^/]+\.json$/i.test(n));
     const memName=entries.find(n=>/(^|\/)memories\.json$/i.test(n));
-    if(!convName){btn.textContent='⚠️ ZIP 中未找到 conversations.json';return;}
+    if(!convName){btn.textContent='⚠️ '+t('ZIP 中未找到 conversations.json');return;}
     // 并行解压，避免大文件串行等待
     const [convBytes,memText]=await Promise.all([
       zip.files[convName].async('uint8array'),
@@ -446,7 +512,7 @@ document.getElementById('zip-input').addEventListener('change',async e=>{
     const convBuffer=convBytes.byteOffset===0&&convBytes.byteLength===convBytes.buffer.byteLength
       ?convBytes.buffer:convBytes.buffer.slice(convBytes.byteOffset,convBytes.byteOffset+convBytes.byteLength);
     await ingestData(convBuffer,projTexts,memText,btn);
-  }catch(err){btn.textContent='❌ ZIP 加载失败：'+err.message;console.error(err);}
+  }catch(err){btn.textContent='❌ '+t('ZIP 加载失败')+': '+t(err.message);console.error(err);}
 });
 
 function parseConversationsJson(text){
@@ -520,7 +586,7 @@ async function ingestData(convSource,projTexts,memText,btn){
   await new Promise(r=>setTimeout(r,30));
   // 错误统一抛给调用方：各入口在自己的 catch 里设置按钮文案，避免双层处理互相覆盖
   const parsed=await parseConversations(convSource);
-  if(loadGeneration!==dataLoadGeneration){btn.textContent='已取消：已选择更新的数据';return;}
+  if(loadGeneration!==dataLoadGeneration){btn.textContent=t('已取消：已选择更新的数据');return;}
   projectMapGeneration++;
   allConvs=parsed.conversations;
   lastConversationUuid=findLastConversationUuid(allConvs);
@@ -537,18 +603,19 @@ async function ingestData(convSource,projTexts,memText,btn){
   convProjectMap={};
   convProjectMapReady=!allProjects.length;
   convProjectMapPromise=null;
-  btn.textContent='✅ 已加载 '+allConvs.length+' 条对话';
+  btn.textContent='✅ '+(currentLang==='en'?'Loaded '+allConvs.length+' conversations':'已加载 '+allConvs.length+' 条对话');
   const totalMsgs=Number.isFinite(parsed.totalMsgs)?parsed.totalMsgs:allConvs.reduce((s,c)=>s+(Array.isArray(c.chat_messages)?c.chat_messages.length:0),0);
   const dates=parsed.minDate&&parsed.maxDate?[parsed.minDate,parsed.maxDate]:allConvs.map(c=>c.created_at).filter(Boolean).sort();
   const span=dates.length?fmtDateOnly(dates[0])+' — '+fmtDateOnly(dates[dates.length-1]):'';
   const sb=document.getElementById('stats-bar');
   sb.style.display='';
-  sb.innerHTML='📊 <b>'+allConvs.length+'</b> 条对话 · <b>'+totalMsgs.toLocaleString()+'</b> 条消息'
-    +(allProjects.length?' · 📁 <b>'+allProjects.length+'</b> 个项目':'')
+  sb.innerHTML='📊 <b>'+allConvs.length+'</b>'+t('条对话')+' · <b>'+totalMsgs.toLocaleString(currentLang==='en'?'en-US':'zh-CN')+'</b>'+t('条消息')
+    +(allProjects.length?' · 📁 <b>'+allProjects.length+'</b>'+t('个项目'):'')
     +(span?'<br>📅 '+esc(span):'');
 }
 
 function switchTab(tab,btn){
+  currentView=tab;
   document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));
   btn.classList.add('active');
   if(tab==='convs')renderConvList(getSortedConvs());
@@ -557,13 +624,13 @@ function switchTab(tab,btn){
 }
 function renderConvList(convs){
   const el=document.getElementById('conv-list');
-  if(!convs.length){el.innerHTML='<div style="padding:20px;text-align:center;color:var(--text3)">暂无对话</div>';return;}
+  if(!convs.length){el.innerHTML='<div style="padding:20px;text-align:center;color:var(--text3)">'+t('暂无对话')+'</div>';return;}
   el.innerHTML=convs.map(c=>{
     const ac=currentConv&&currentConv.uuid===c.uuid?' active':'';
     const last=c.uuid===lastConversationUuid;
     return '<div class="conv-item'+ac+(last?' last-supper':'')+'" data-conv-uuid="'+c.uuid+'" role="button" tabindex="0">'
-      +'<div class="conv-title">'+esc(c.name||'(无标题)')+(last?'<span class="last-supper-badge">最后的晚餐</span>':'')+'</div>'
-      +'<div class="conv-meta"><span>'+fmtDate(c.updated_at)+'</span><span class="conv-count">'+(c.chat_messages||[]).length+'条</span></div></div>';
+      +'<div class="conv-title">'+esc(c.name||'('+t('无标题')+')')+(last?'<span class="last-supper-badge">'+t('最后的晚餐')+'</span>':'')+'</div>'
+      +'<div class="conv-meta"><span>'+fmtDate(c.updated_at)+'</span><span class="conv-count">'+(c.chat_messages||[]).length+t('条')+'</span></div></div>';
   }).join('');
   el.querySelectorAll('[data-conv-uuid]').forEach(item=>item.addEventListener('click',()=>openConv(item.dataset.convUuid)));
 }
@@ -589,15 +656,15 @@ function findLastConversationUuid(convs){
 }
 function renderProjectList(){
   const el=document.getElementById('conv-list');
-  if(!allProjects.length){el.innerHTML='<div style="padding:20px;text-align:center;color:var(--text3)">暂无项目</div>';return;}
+  if(!allProjects.length){el.innerHTML='<div style="padding:20px;text-align:center;color:var(--text3)">'+t('暂无项目')+'</div>';return;}
   el.innerHTML=allProjects.map(p=>'<div class="proj-card" data-proj-uuid="'+p.uuid+'" role="button" tabindex="0">'
-    +'<div class="proj-card-name">'+esc(p.name||'无名称')+'</div>'
-    +'<div class="proj-card-desc">'+esc((p.description||'').slice(0,80)||'无描述')+'</div></div>').join('');
+    +'<div class="proj-card-name">'+esc(p.name||t('无名称'))+'</div>'
+    +'<div class="proj-card-desc">'+esc((p.description||'').slice(0,80)||t('无描述'))+'</div></div>').join('');
   el.querySelectorAll('[data-proj-uuid]').forEach(item=>item.addEventListener('click',()=>openProject(item.dataset.projUuid)));
 }
 function renderMemoryTab(){
   const el=document.getElementById('conv-list');
-  if(!memoryData){el.innerHTML='<div style="padding:20px;text-align:center;color:var(--text3)">暂无记忆</div>';return;}
+  if(!memoryData){el.innerHTML='<div style="padding:20px;text-align:center;color:var(--text3)">'+t('暂无记忆')+'</div>';return;}
 
   // Section config for conversations_memory
   const globalSections=[
@@ -660,19 +727,19 @@ function renderMemoryTab(){
   // Global memory sections
   if(memoryData.conversations_memory){
     const secs=parseSections(memoryData.conversations_memory,globalSections);
-    h+='<div class="mem-section-label">🌐 全局对话记忆</div>';
+    h+='<div class="mem-section-label">🌐 '+t('全局对话记忆')+'</div>';
     if(secs.length){
-      secs.forEach((s,i)=>{ h+=memCard(s.icon,s.title,s.chars+'字',s.content,i===0); });
+      secs.forEach((s,i)=>{ h+=memCard(s.icon,t(s.title),s.chars+t('字'),s.content,i===0); });
     } else {
       // fallback: show raw
-      h+=memCard('📝','全局记忆','',memoryData.conversations_memory,true);
+      h+=memCard('📝',t('全局记忆'),'',memoryData.conversations_memory,true);
     }
   }
 
   // Project memories
   const pm=memoryData.project_memories;
   if(pm&&Object.keys(pm).length){
-    h+='<div class="mem-section-label">📁 项目级记忆 ('+Object.keys(pm).length+'个项目)</div>';
+    h+='<div class="mem-section-label">📁 '+t('项目级记忆')+' ('+Object.keys(pm).length+t('个项目')+')</div>';
     for(const[pid,mem] of Object.entries(pm)){
       const proj=allProjects.find(p=>p.uuid===pid);
       const projName=proj?proj.name:pid.slice(0,12)+'…';
@@ -686,7 +753,7 @@ function renderMemoryTab(){
         +'<div class="mem-card-title">'+esc(projName)+'</div>'
         +'<div class="mem-preview">'+(secs.length?secs.map(s=>s.title).join(' · '):mem.replace(/[*_#]/g,'').slice(0,60))+'</div>'
         +'</div>'
-        +'<span class="mem-card-meta">'+totalChars+'字</span>'
+        +'<span class="mem-card-meta">'+totalChars+t('字')+'</span>'
         +'<span class="mem-card-chevron">'+ICON+'</span>'
         +'</div>';
       h+='<div class="mem-card-body" style="display:none;padding:0;">';
@@ -767,6 +834,7 @@ function toggleMemCard(header){
 }
 
 function openConv(uuid){
+  currentView='convs';currentProjectUuid='';
   if(!currentConv||currentConv.uuid!==uuid)branchChoices={}; // 切换对话时重置分支选择
   if(currentConv&&currentConv.uuid!==uuid)clearCSearchMarks(); // 切换对话时清除旧高亮
   currentConv=allConvs.find(c=>c.uuid===uuid);
@@ -774,18 +842,18 @@ function openConv(uuid){
   ['csearch','csearch-count','cprev','cnext'].forEach(id=>{const el=document.getElementById(id);if(el)el.style.display='';});
   const cs=document.getElementById('csearch');if(cs)cs.value='';
   document.querySelectorAll('.conv-item').forEach(el=>el.classList.toggle('active',el.dataset.convUuid===uuid));
-  document.getElementById('chat-title').textContent=currentConv.name||'(无标题)';
+  document.getElementById('chat-title').textContent=currentConv.name||'('+t('无标题')+')';
   document.getElementById('chat-title').style.color='';
   const isLast=currentConv.uuid===lastConversationUuid;
   document.getElementById('chat-header').classList.toggle('last-supper',isLast);
   document.getElementById('messages').classList.toggle('last-supper-gallery',isLast);
   const msgs=currentConv.chat_messages||[];
-  document.getElementById('chat-header-meta').textContent=fmtDate(currentConv.created_at)+' · '+msgs.length+'条消息';
+  document.getElementById('chat-header-meta').textContent=fmtDate(currentConv.created_at)+' · '+msgs.length+t('条消息');
   renderMessages(msgs);
   document.getElementById('export-btn').style.display='';
   const st=document.getElementById('summary-text');
-  st.innerHTML=currentConv.summary?(typeof marked!=='undefined'?marked.parse(currentConv.summary):esc(currentConv.summary)):'<span style="color:var(--text3)">无摘要</span>';
-  document.getElementById('meta-box').innerHTML=metaRow('创建时间',fmtDate(currentConv.created_at))+metaRow('更新时间',fmtDate(currentConv.updated_at))+metaRow('消息数',msgs.length)+metaRow('UUID',currentConv.uuid.slice(0,18)+'…');
+  st.innerHTML=currentConv.summary?(typeof marked!=='undefined'?marked.parse(currentConv.summary):esc(currentConv.summary)):'<span style="color:var(--text3)">'+t('无摘要')+'</span>';
+  document.getElementById('meta-box').innerHTML=metaRow(t('创建时间'),fmtDate(currentConv.created_at))+metaRow(t('更新时间'),fmtDate(currentConv.updated_at))+metaRow(t('消息数'),msgs.length)+metaRow('UUID',currentConv.uuid.slice(0,18)+'…');
 }
 function metaRow(k,v){return '<div class="meta-row"><span class="meta-key">'+esc(String(k))+'</span><span class="meta-val">'+esc(String(v))+'</span></div>';}
 
@@ -1007,24 +1075,25 @@ function findProjectConvs(p){
 
 async function openProject(uuid){
   const p=allProjects.find(x=>x.uuid===uuid);if(!p)return;
+  currentView='projects';currentProjectUuid=uuid;currentConv=null;
   // Highlight active in sidebar
   document.querySelectorAll('.proj-card').forEach(el=>el.classList.toggle('active',el.dataset.projUuid===uuid));
   document.getElementById('chat-header').classList.remove('last-supper');
   document.getElementById('messages').classList.remove('last-supper-gallery');
-  document.getElementById('chat-title').textContent='📁 '+(p.name||'项目');
+  document.getElementById('chat-title').textContent='📁 '+(p.name||t('项目'));
   document.getElementById('chat-title').style.color='';
 
   if(!convProjectMapReady){
-    document.getElementById('chat-header-meta').textContent='正在分析关联对话…';
-    document.getElementById('messages').innerHTML='<div style="display:flex;align-items:center;justify-content:center;height:100%;color:var(--text3)"><span class="spinner"></span>&nbsp; 正在建立项目关联索引…</div>';
+    document.getElementById('chat-header-meta').textContent=t('正在分析关联对话…');
+    document.getElementById('messages').innerHTML='<div style="display:flex;align-items:center;justify-content:center;height:100%;color:var(--text3)"><span class="spinner"></span>&nbsp; '+t('正在建立项目关联索引…')+'</div>';
     try{
       await ensureConvProjectMap();
     }catch(e){
       console.error('项目关联索引失败',e);
       const active=document.querySelector('.proj-card.active');
       if(active&&active.dataset.projUuid===uuid){
-        document.getElementById('chat-header-meta').textContent='关联索引失败';
-        document.getElementById('messages').innerHTML='<div style="display:flex;align-items:center;justify-content:center;height:100%;color:var(--red)">项目关联索引失败，请重新选择项目重试。</div>';
+        document.getElementById('chat-header-meta').textContent=t('关联索引失败');
+        document.getElementById('messages').innerHTML='<div style="display:flex;align-items:center;justify-content:center;height:100%;color:var(--red)">'+t('项目关联索引失败，请重新选择项目重试。')+'</div>';
       }
       return;
     }
@@ -1033,7 +1102,7 @@ async function openProject(uuid){
   }
 
   const relatedConvs=findProjectConvs(p);
-  document.getElementById('chat-header-meta').textContent=(p.docs||[]).length+'个文档 · '+relatedConvs.length+'条关联对话';
+  document.getElementById('chat-header-meta').textContent=(p.docs||[]).length+t('个文档')+' · '+relatedConvs.length+t('条关联对话');
 
   const el=document.getElementById('messages');
   let h='<div style="max-width:860px;margin:0 auto;padding:24px;">';
@@ -1045,35 +1114,35 @@ async function openProject(uuid){
 
   // Docs section
   if((p.docs||[]).length){
-    h+='<div style="font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.08em;margin-bottom:10px;">📄 项目文档</div>';
+    h+='<div style="font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.08em;margin-bottom:10px;">📄 '+t('项目文档')+'</div>';
     for(const doc of p.docs){
       const id='doc_'+doc.uuid;
       h+='<div style="border:1px solid var(--border);border-radius:10px;margin-bottom:10px;overflow:hidden;">'
         +'<div style="padding:10px 16px;background:var(--bg3);cursor:pointer;display:flex;align-items:center;justify-content:space-between;" onclick="toggleDoc(this)">'
-        +'<span style="font-size:13px;font-weight:600;">📄 '+esc(doc.filename||'未命名')+'</span>'
-        +'<span style="font-size:11px;color:var(--text3);">'+((doc.content||'').length)+'字 '+ICON+'</span>'
+        +'<span style="font-size:13px;font-weight:600;">📄 '+esc(doc.filename||t('未命名'))+'</span>'
+        +'<span style="font-size:11px;color:var(--text3);">'+((doc.content||'').length)+t('字')+' '+ICON+'</span>'
         +'</div>'
         +'<div id="'+id+'" style="display:none;padding:16px 18px;font-size:13.5px;line-height:1.7;color:var(--text);">'
-        +(doc.content?(typeof marked!=='undefined'?marked.parse(doc.content):esc(doc.content)):'<span style="color:var(--text3)">无内容</span>')
+        +(doc.content?(typeof marked!=='undefined'?marked.parse(doc.content):esc(doc.content)):'<span style="color:var(--text3)">'+t('无内容')+'</span>')
         +'</div></div>';
     }
     h+='<div style="margin-bottom:24px;"></div>';
   }
 
   // Related conversations section
-  h+='<div style="font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.08em;margin-bottom:8px;">💬 关联对话 ('+relatedConvs.length+')</div>';
+  h+='<div style="font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.08em;margin-bottom:8px;">💬 '+t('关联对话')+' ('+relatedConvs.length+')</div>';
   h+='<div style="font-size:11.5px;color:var(--text3);background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:8px 12px;margin-bottom:12px;line-height:1.6;">'
-    +'⚠️ <b style="color:var(--text2);">局限性说明</b>：Claude 官方导出文件中不包含对话与项目的归属关系。'
-    +'本查看器通过以下三种方式推断：① 工具调用中的项目文件路径（精确）；② 知识搜索查询词与项目文档的匹配（较准确）；③ 项目记忆关键词匹配（模糊）。'
-    +'<b style="color:var(--text2);">结果仅供参考</b>，可能存在遗漏或误判。'
+    +'⚠️ <b style="color:var(--text2);">'+t('局限性说明')+'</b>: '+t('Claude 官方导出文件中不包含对话与项目的归属关系。')+' '
+    +t('本查看器通过以下三种方式推断：① 工具调用中的项目文件路径（精确）；② 知识搜索查询词与项目文档的匹配（较准确）；③ 项目记忆关键词匹配（模糊）。')+' '
+    +'<b style="color:var(--text2);">'+t('结果仅供参考')+'</b>. '+t('可能存在遗漏或误判。')
     +'</div>';
   if(relatedConvs.length){
     h+=relatedConvs.map(c=>'<div class="conv-item" data-conv-uuid="'+c.uuid+'" role="button" tabindex="0" style="border:1px solid var(--border);border-radius:10px;margin-bottom:6px;padding:10px 14px;cursor:pointer;">'
-      +'<div class="conv-title">'+esc(c.name||'(无标题)')+'</div>'
-      +'<div class="conv-meta"><span>'+fmtDate(c.updated_at)+'</span><span class="conv-count">'+(c.chat_messages||[]).length+'条</span></div>'
+      +'<div class="conv-title">'+esc(c.name||'('+t('无标题')+')')+'</div>'
+      +'<div class="conv-meta"><span>'+fmtDate(c.updated_at)+'</span><span class="conv-count">'+(c.chat_messages||[]).length+t('条')+'</span></div>'
       +'</div>').join('');
   } else {
-    h+='<div style="color:var(--text3);font-size:13px;padding:12px 0;">未能从对话名称/摘要中自动识别关联对话</div>';
+    h+='<div style="color:var(--text3);font-size:13px;padding:12px 0;">'+t('未能从对话名称/摘要中自动识别关联对话')+'</div>';
   }
   h+='</div>';
 
@@ -1108,7 +1177,7 @@ function openConvAndSwitch(uuid){
 function toggleSummary(){
   summaryVisible=!summaryVisible;
   document.getElementById('summary').classList.toggle('hidden',!summaryVisible);
-  document.getElementById('toggle-summary').textContent=summaryVisible?'摘要 ◀':'摘要 ▶';
+  document.getElementById('toggle-summary').textContent=t('摘要')+(summaryVisible?' ◀':' ▶');
 }
 
 // ── 分支状态：parentKey -> 选中的兄弟索引（切换对话时重置）──
@@ -1253,7 +1322,7 @@ function renderMessages(msgs,opts){
   // 释放上次渲染为文件卡片创建的 Blob URL，防止长期浏览内存持续上涨
   for(const k in FILESTORE){try{URL.revokeObjectURL(FILESTORE[k].url);}catch(e){}delete FILESTORE[k];}
   for(const k in MSGTEXT)delete MSGTEXT[k];
-  if(!msgs.length){container.innerHTML='<div style="display:flex;align-items:center;justify-content:center;height:100%;color:var(--text3)">此对话无消息</div>';return;}
+  if(!msgs.length){container.innerHTML='<div style="display:flex;align-items:center;justify-content:center;height:100%;color:var(--text3)">'+t('此对话无消息')+'</div>';return;}
   const linear=buildPath(msgs);
   const convUuid=currentConv&&currentConv.uuid||'';
   let start;
@@ -1262,15 +1331,15 @@ function renderMessages(msgs,opts){
   messageRenderState={convUuid,linear,start};
   const scrollPos=(opts&&opts.keepScroll)?container.scrollTop:null;
   let h='',lastDate='';
-  if(start>0)h+='<div class="load-earlier-wrap"><button class="load-earlier-btn" type="button" onclick="loadEarlierMessages()">↑ 加载更早消息（剩余 '+start+' 条）</button></div>';
+  if(start>0)h+='<div class="load-earlier-wrap"><button class="load-earlier-btn" type="button" onclick="loadEarlierMessages()">↑ '+t('加载更早消息')+' ('+t('剩余')+' '+start+t('条')+')</button></div>';
   for(const msg of linear.slice(start)){
     if(!msg||typeof msg!=='object')continue;
-    if(msg._divider==='linear'){h+='<div class="date-divider"><span>⚠️ 对话分支结构异常，已按时间顺序展示全部消息</span></div>';lastDate='';continue;}
-    if(msg._divider==='orphan'){h+='<div class="date-divider"><span>🧩 以下 '+msg.count+' 条消息无法归入对话分支（可能是已删除分支的残留）</span></div>';lastDate='';continue;}
+    if(msg._divider==='linear'){h+='<div class="date-divider"><span>⚠️ '+t('对话分支结构异常，已按时间顺序展示全部消息')+'</span></div>';lastDate='';continue;}
+    if(msg._divider==='orphan'){h+='<div class="date-divider"><span>🧩 '+t('以下消息无法归入对话分支（可能是已删除分支的残留）')+' ('+msg.count+')</span></div>';lastDate='';continue;}
     const d=fmtDateOnly(msg.created_at);
     if(d!==lastDate)lastDate=d;
     try{h+=renderMsg(msg);}
-    catch(e){h+='<div style="padding:8px 16px;color:var(--text3);font-size:12px;">⚠️ 此消息渲染出错</div>';console.warn('renderMsg error',e);}
+    catch(e){h+='<div style="padding:8px 16px;color:var(--text3);font-size:12px;">⚠️ '+t('此消息渲染出错')+'</div>';console.warn('renderMsg error',e);}
   }
   container.innerHTML=h;
   initLazyHighlight(container);
@@ -1316,9 +1385,9 @@ let _vid=0;
 function renderVisual(v){
   const id='v'+(_vid++);
   const showCap=v.title&&!(/^[a-z0-9]+(_[a-z0-9]+)+$/.test(v.title));
-  const cap='<div class="vcap"><span class="vtitle">'+esc(showCap?v.title:(v.kind==='mermaid'?'流程图':v.kind==='svg'?'图表':'交互预览'))+'</span>'
-    +'<button class="vdl" type="button" onclick="downloadVisual(\''+id+'\')">下载</button></div>';
-  const src='<details class="vsrc"><summary>查看源码</summary><pre><code>'+esc(v.code)+'</code></pre></details>';
+  const cap='<div class="vcap"><span class="vtitle">'+esc(showCap?v.title:(v.kind==='mermaid'?t('流程图'):v.kind==='svg'?t('图表'):t('交互预览')))+'</span>'
+    +'<button class="vdl" type="button" onclick="downloadVisual(\''+id+'\')">'+t('下载')+'</button></div>';
+  const src='<details class="vsrc"><summary>'+t('查看源码')+'</summary><pre><code>'+esc(v.code)+'</code></pre></details>';
   let body;
   if(v.kind==='mermaid')body='<div class="mermaid">'+esc(v.code)+'</div>';
   else{
@@ -1432,18 +1501,18 @@ function renderFileCards(files){
   if(!files.length)return '';
   const rows=files.map(f=>{
     if(f.content==null){
-      return '<div class="filerow"><span>📄</span><span class="fname">'+esc(f.name)+'</span><span class="fsize nocontent">内容未包含在导出中</span></div>';
+      return '<div class="filerow"><span>📄</span><span class="fname">'+esc(f.name)+'</span><span class="fsize nocontent">'+t('内容未包含在导出中')+'</span></div>';
     }
     const id=registerFile(f.name,f.content);
     const openable=/\.(html?|svg)$/i.test(f.name);
     return '<div class="filerow"><span>📄</span><span class="fname">'+esc(f.name)+'</span>'
       +'<span class="fsize">'+(f.content.length/1024).toFixed(1)+' KB</span>'
       +'<span class="fbtns">'
-      +(openable?'<a class="fbtn" href="'+FILESTORE[id].url+'" target="_blank" rel="noopener">打开</a>':'')
-      +'<a class="fbtn primary" href="'+FILESTORE[id].url+'" download="'+esc(f.name)+'">下载</a>'
+      +(openable?'<a class="fbtn" href="'+FILESTORE[id].url+'" target="_blank" rel="noopener">'+t('打开')+'</a>':'')
+      +'<a class="fbtn primary" href="'+FILESTORE[id].url+'" download="'+esc(f.name)+'">'+t('下载')+'</a>'
       +'</span></div>';
   }).join('');
-  return '<div class="files"><div class="filehd">📦 此回复生成的文件（'+files.length+'）</div>'+rows+'</div>';
+  return '<div class="files"><div class="filehd">📦 '+t('此回复生成的文件')+' ('+files.length+')</div>'+rows+'</div>';
 }
 
 function renderMsg(msg){
@@ -1502,12 +1571,12 @@ function renderMsg(msg){
   for(const att of atts){
     const name=att.file_name||att.filename||att.name||'';
     const type=att.file_type||att.media_type||'';
-    const label=name||type||(att.file_uuid?'文件 ('+att.file_uuid.slice(0,8)+'…)':'附件');
+    const label=name||type||(att.file_uuid?t('文件')+' ('+att.file_uuid.slice(0,8)+'…)':t('附件'));
     inner+='<div class="attachment-block"><span class="file-icon">📎</span>'+esc(label)+'</div>';
   }
   // 搜索面板（折叠展示查询与来源）
   if(searchQueries.length||searchResults.length){
-    let sp='<div class="searchpanel"><div class="collapsible-header sp-hd" style="cursor:pointer;">'+ICON+' 🔍 搜索了网页'
+    let sp='<div class="searchpanel"><div class="collapsible-header sp-hd" style="cursor:pointer;">'+ICON+' 🔍 '+t('搜索了网页')
       +(searchQueries.length?'：'+esc(searchQueries.join('；')):'')+'</div><div style="display:none;">';
     for(const r of searchResults)sp+='<div class="sp-row">🔗 <a href="'+esc(r.url)+'" target="_blank" rel="noopener">'+esc(r.title)+'</a></div>';
     inner+=sp+'</div></div>';
@@ -1522,12 +1591,12 @@ function renderMsg(msg){
   if(!inner.trim()&&msg.text)inner='<div>'+renderMd(msg.text)+'</div>';
   if(files.length)inner+=renderFileCards(files);
   // If still nothing visible, show a subtle placeholder so the bubble isn't invisible
-  if(!inner.trim())inner='<span style="color:var(--text3);font-size:12px;font-style:italic;">(空消息)</span>';
+  if(!inner.trim())inner='<span style="color:var(--text3);font-size:12px;font-style:italic;">('+t('空消息')+')</span>';
   // 分支导航（编辑/重新生成的多个版本）
   let brNav='';
   const br=brMeta[msg.uuid];
   if(br){
-    brNav='<span class="brnav" title="此处有多个版本（编辑或重新生成），切换后后续对话随之改变">'
+    brNav='<span class="brnav" title="'+t('此处有多个版本（编辑或重新生成），切换后后续对话随之改变')+'">'
       +'<button onclick="switchBranch(\''+esc(br.key)+'\','+(br.index-1)+',event)" '+(br.index<=0?'disabled':'')+'>‹</button>'
       +'<span class="brcount">'+(br.index+1)+'/'+br.count+'</span>'
       +'<button onclick="switchBranch(\''+esc(br.key)+'\','+(br.index+1)+',event)" '+(br.index>=br.count-1?'disabled':'')+'>›</button>'
@@ -1537,9 +1606,9 @@ function renderMsg(msg){
   const cid='m'+(_mid++);
   const plain=content.filter(b=>b&&b.type==='text').map(b=>b.text||'').join('\n\n')||msg.text||'';
   MSGTEXT[cid]=plain;
-  const copyBtn=plain?'<button class="msgcopy" onclick="copyMsg(\''+cid+'\',this)" title="复制这条消息">📋</button>':'';
-  const avatarLabel=role==='human'?'你':'✦';
-  const nameLabel=role==='human'?'你':'Claude';
+  const copyBtn=plain?'<button class="msgcopy" onclick="copyMsg(\''+cid+'\',this)" title="'+t('复制这条消息')+'">📋</button>':'';
+  const avatarLabel=role==='human'?t('你'):'✦';
+  const nameLabel=role==='human'?t('你'):'Claude';
   return '<div class="msg-wrap '+role+'">'
     +'<div class="msg-avatar">'+avatarLabel+'</div>'
     +'<div class="msg-body">'
@@ -1553,10 +1622,10 @@ function renderBlock(block){
   const t=block.type||'unknown';
   if(t==='text')return '<div>'+renderMd(block.text||'')+'</div>';
   if(t==='thinking'){
-    return '<div class="think-block"><div class="collapsible-header think-header">'+ICON+' <span>💭 思考过程</span></div><div class="think-body" style="display:none">'+esc(block.thinking||'')+'</div></div>';
+    return '<div class="think-block"><div class="collapsible-header think-header">'+ICON+' <span>💭 '+t('思考过程')+'</span></div><div class="think-body" style="display:none">'+esc(block.thinking||'')+'</div></div>';
   }
   if(t==='tool_use'){
-    const nm=block.name||'工具';
+    const nm=block.name||t('工具');
     const intg=block.integration_name||'';
     const msg=block.message||'';
     const inp=block.input?JSON.stringify(block.input,null,2):'';
@@ -1566,33 +1635,33 @@ function renderBlock(block){
       +'<div class="tool-body" style="display:none"><pre><code class="language-json">'+esc(inp)+'</code></pre></div></div>';
   }
   if(t==='tool_result'){
-    const nm=block.name||'结果';
+    const nm=block.name||t('结果');
     const isErr=block.is_error;
     const content=block.content||[];
     let body='';
     for(const c of content){
       if(c.type==='text')body+='<div style="white-space:pre-wrap;word-break:break-word;">'+esc(c.text||'')+'</div>';
-      else if(c.type==='image')body+='<div class="img-placeholder">🖼 图片 ('+esc(c.file_uuid||'')+')</div>';
-      else if(c.type==='knowledge')body+='<div class="attachment-block">📚 <a href="'+esc(c.url||'')+'" target="_blank" style="color:var(--blue);text-decoration:none;">'+esc(c.title||'知识引用')+'</a></div>';
-      else if(c.type==='local_resource')body+='<div class="attachment-block"><span class="file-icon">📄</span>'+esc(c.name||c.file_path||'文件')+' <span style="color:var(--text3);font-size:11px;">('+esc(c.mime_type||'')+')</span></div>';
+      else if(c.type==='image')body+='<div class="img-placeholder">🖼 '+t('图片')+' ('+esc(c.file_uuid||'')+')</div>';
+      else if(c.type==='knowledge')body+='<div class="attachment-block">📚 <a href="'+esc(c.url||'')+'" target="_blank" style="color:var(--blue);text-decoration:none;">'+esc(c.title||t('知识引用'))+'</a></div>';
+      else if(c.type==='local_resource')body+='<div class="attachment-block"><span class="file-icon">📄</span>'+esc(c.name||c.file_path||t('文件'))+' <span style="color:var(--text3);font-size:11px;">('+esc(c.mime_type||'')+')</span></div>';
       else body+='<div style="color:var(--text3)">['+esc(c.type)+']</div>';
     }
     if(!body&&block.structured_content)body='<pre><code>'+esc(JSON.stringify(block.structured_content,null,2))+'</code></pre>';
     const label=(isErr?'❌ ':'✅ ')+esc(nm);
     return '<div class="tool-result-block"><div class="collapsible-header tool-result-header">'+ICON+'<span class="tool-result-label">'+label+'</span></div>'
-      +'<div class="tool-result-body" style="display:none">'+(body||'<span style="color:var(--text3)">无内容</span>')+'</div></div>';
+      +'<div class="tool-result-body" style="display:none">'+(body||'<span style="color:var(--text3)">'+t('无内容')+'</span>')+'</div></div>';
   }
   if(t==='image'){
-    return '<div class="img-placeholder">🖼 图片 ('+esc(block.file_uuid||'')+')</div>';
+    return '<div class="img-placeholder">🖼 '+t('图片')+' ('+esc(block.file_uuid||'')+')</div>';
   }
   if(t==='rich_content'||t==='rich_link'||t==='webpage_metadata'){
     const url=block.url||(block.metadata&&block.metadata.url)||'';
     const title=block.title||(block.metadata&&block.metadata.title)||t;
     return '<div class="attachment-block">🔗 <a href="'+esc(url)+'" target="_blank" style="color:var(--blue);text-decoration:none;">'+esc(title)+'</a></div>';
   }
-  if(t==='web_search_citation')return '<div class="attachment-block" style="font-size:11px;color:var(--text3)">🔍 '+esc(block.title||block.url||'搜索引用')+'</div>';
-  if(t==='knowledge')return '<div class="attachment-block">📚 <a href="'+esc(block.url||'')+'" target="_blank" style="color:var(--blue);text-decoration:none;">'+esc(block.title||'知识引用')+'</a></div>';
-  if(t==='local_resource')return '<div class="attachment-block"><span class="file-icon">📄</span>'+esc(block.name||block.file_path||'文件')+'</div>';
+  if(t==='web_search_citation')return '<div class="attachment-block" style="font-size:11px;color:var(--text3)">🔍 '+esc(block.title||block.url||t('搜索引用'))+'</div>';
+  if(t==='knowledge')return '<div class="attachment-block">📚 <a href="'+esc(block.url||'')+'" target="_blank" style="color:var(--blue);text-decoration:none;">'+esc(block.title||t('知识引用'))+'</a></div>';
+  if(t==='local_resource')return '<div class="attachment-block"><span class="file-icon">📄</span>'+esc(block.name||block.file_path||t('文件'))+'</div>';
   return '<div style="font-size:11px;color:var(--text3);padding:4px 0">['+esc(t)+']</div>';
 }
 
@@ -1603,20 +1672,20 @@ function exportConv(){
   const linear=buildPath(msgs); // 跟随界面当前的分支选择
   const msgCount=linear.filter(m=>m&&!m._divider).length;
 
-  let md='# '+((currentConv.name||'对话').replace(/[<>]/g,''))+'\n\n';
-  md+='> 创建：'+fmtDate(currentConv.created_at)+'　更新：'+fmtDate(currentConv.updated_at)+'　共 '+msgCount+' 条消息\n\n';
-  if(currentConv.summary)md+='## 摘要\n\n'+currentConv.summary+'\n\n---\n\n';
-  md+='## 对话内容\n\n';
+  let md='# '+((currentConv.name||t('对话')).replace(/[<>]/g,''))+'\n\n';
+  md+='> '+t('创建时间')+': '+fmtDate(currentConv.created_at)+' · '+t('更新时间')+': '+fmtDate(currentConv.updated_at)+' · '+t('消息数')+': '+msgCount+'\n\n';
+  if(currentConv.summary)md+='## '+t('摘要')+'\n\n'+currentConv.summary+'\n\n---\n\n';
+  md+='## '+t('对话内容')+'\n\n';
 
   for(const msg of linear){
     if(!msg||typeof msg!=='object')continue;
-    if(msg._divider==='linear'){md+='## ⚠️ 对话分支结构异常，以下按时间顺序展示全部消息\n\n';continue;}
-    if(msg._divider==='orphan'){md+='## 🧩 以下 '+msg.count+' 条消息无法归入对话分支（可能是已删除分支的残留）\n\n';continue;}
-    const role=msg.sender==='human'?'**你**':'**Claude**';
+    if(msg._divider==='linear'){md+='## ⚠️ '+t('对话分支结构异常，已按时间顺序展示全部消息')+'\n\n';continue;}
+    if(msg._divider==='orphan'){md+='## 🧩 '+t('以下消息无法归入对话分支（可能是已删除分支的残留）')+' ('+msg.count+')\n\n';continue;}
+    const role=msg.sender==='human'?'**'+t('你')+'**':'**Claude**';
     md+=role+' · '+fmtTime(msg.created_at)+'\n\n';
     // Attachments
     for(const att of[...(msg.attachments||[]),...(msg.files||[])]){
-      md+='> 📎 附件：'+(att.file_name||att.name||'文件')+'\n\n';
+      md+='> 📎 '+t('附件')+': '+(att.file_name||att.name||t('文件'))+'\n\n';
     }
     // Content blocks
     const content=msg.content||[];
@@ -1624,9 +1693,9 @@ function exportConv(){
     for(const b of content){
       if(!b||typeof b!=='object')continue;
       if(b.type==='text'){md+=(b.text||'')+'\n\n';hasContent=true;}
-      else if(b.type==='thinking'){md+='<details>\n<summary>💭 思考过程</summary>\n\n'+(b.thinking||'')+'\n\n</details>\n\n';hasContent=true;}
-      else if(b.type==='tool_use'){md+='> ⚙ 工具调用：`'+(b.name||'unknown')+'`'+(b.message?' — '+b.message:'')+'\n\n';hasContent=true;}
-      else if(b.type==='tool_result'){md+='> ✅ 工具结果：`'+(b.name||'')+'`\n\n';hasContent=true;}
+      else if(b.type==='thinking'){md+='<details>\n<summary>💭 '+t('思考过程')+'</summary>\n\n'+(b.thinking||'')+'\n\n</details>\n\n';hasContent=true;}
+      else if(b.type==='tool_use'){md+='> ⚙ '+t('工具调用')+': `'+(b.name||'unknown')+'`'+(b.message?' — '+b.message:'')+'\n\n';hasContent=true;}
+      else if(b.type==='tool_result'){md+='> ✅ '+t('工具结果')+': `'+(b.name||'')+'`\n\n';hasContent=true;}
     }
     if(!hasContent&&msg.text)md+=msg.text+'\n\n';
     md+='---\n\n';
@@ -1655,17 +1724,17 @@ function escAttr(s){
 }
 function fmtDate(iso){
   if(!iso)return '';
-  try{return new Date(iso).toLocaleDateString('zh-CN',{year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'});}
+  try{return new Date(iso).toLocaleDateString(currentLang==='en'?'en-US':'zh-CN',{year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'});}
   catch(e){return iso;}
 }
 function fmtDateOnly(iso){
   if(!iso)return '';
-  try{return new Date(iso).toLocaleDateString('zh-CN',{year:'numeric',month:'long',day:'numeric'});}
+  try{return new Date(iso).toLocaleDateString(currentLang==='en'?'en-US':'zh-CN',{year:'numeric',month:'long',day:'numeric'});}
   catch(e){return iso;}
 }
 function fmtTime(iso){
   if(!iso)return '';
-  try{return new Date(iso).toLocaleTimeString('zh-CN',{hour:'2-digit',minute:'2-digit'});}
+  try{return new Date(iso).toLocaleTimeString(currentLang==='en'?'en-US':'zh-CN',{hour:'2-digit',minute:'2-digit'});}
   catch(e){return '';}
 }
 if(typeof marked!=='undefined'){
@@ -1686,7 +1755,7 @@ if(typeof marked!=='undefined'){
       l=(lang||'').trim();
     }
     const safeCode=rawCode.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-    if(l==='mermaid')return '<div class="visual"><div class="mermaid">'+safeCode+'</div><details class="vsrc"><summary>查看 Mermaid 源码</summary><pre><code>'+safeCode+'</code></pre></details></div>';
+    if(l==='mermaid')return '<div class="visual"><div class="mermaid">'+safeCode+'</div><details class="vsrc"><summary>'+t('查看 Mermaid 源码')+'</summary><pre><code>'+safeCode+'</code></pre></details></div>';
     const id='cb_'+Math.random().toString(36).slice(2);
     const highlighted=typeof hljs!=='undefined'&&l&&hljs.getLanguage(l)
       ?hljs.highlight(safeCode,{language:l}).value
@@ -1694,7 +1763,7 @@ if(typeof marked!=='undefined'){
     return '<div class="code-block">'
       +'<div class="code-block-header">'
       +'<span class="code-lang">'+l+'</span>'
-      +'<button class="copy-btn" onclick="copyCode(this,\''+id+'\')">复制</button>'
+      +'<button class="copy-btn" onclick="copyCode(this,\''+id+'\')">'+t('复制')+'</button>'
       +'</div>'
       +'<pre><code id="'+id+'" class="'+(l?'language-'+l:'')+'">'+highlighted+'</code></pre>'
       +'</div>';
@@ -1753,7 +1822,7 @@ function cSearch(q){
   }
   const cc=document.getElementById('csearch-count');
   if(CS.matches.length){CS.idx=0;activateCS();}
-  else if(cc)cc.textContent='0 匹配';
+  else if(cc)cc.textContent='0 '+t('匹配');
 }
 function activateCS(){
   CS.matches.forEach((m,i)=>m.classList.toggle('active',i===CS.idx));
@@ -1772,8 +1841,8 @@ function copyCode(btn,id){
   const el=document.getElementById(id);
   if(!el)return;
   navigator.clipboard.writeText(el.innerText).then(()=>{
-    btn.textContent='✓ 已复制';btn.classList.add('copied');
-    setTimeout(()=>{btn.textContent='复制';btn.classList.remove('copied');},2000);
+    btn.textContent='✓ '+t('已复制');btn.classList.add('copied');
+    setTimeout(()=>{btn.textContent=t('复制');btn.classList.remove('copied');},2000);
   });
 }
 
@@ -1793,6 +1862,7 @@ function applyTheme(theme){
 (function(){
   const saved=localStorage.getItem('cv-theme')||'light';
   applyTheme(saved);
+  applyLanguage(currentLang);
   // Keyboard navigation: j/k or ↑↓ to move between conversations (convs tab only)
   document.addEventListener('keydown',e=>{
     if(['INPUT','TEXTAREA'].includes(document.activeElement.tagName))return;
