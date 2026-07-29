@@ -115,6 +115,17 @@ test('persistent data worker accepts transferable chunks and returns metadata fi
   expect(errors).toEqual([]);
 });
 
+test('persistent data worker rejects a truncated messages array',async({page})=>{
+  const errors=await openViewer(page);
+  const message=await page.evaluate(async()=>{
+    const generation=nextDataWorkerGeneration();
+    try{await dataWorkerRequest('ingest','[{"uuid":"broken","chat_messages":[{"uuid":"m1"}',[],generation);return'';}
+    catch(error){return error.message;}
+  });
+  expect(message).toMatch(/Unterminated|Invalid|Unexpected/);
+  expect(errors).toEqual([]);
+});
+
 test('IndexedDB parse cache hits only for the same source fingerprint',async({page})=>{
   const errors=await openViewer(page),payload=JSON.stringify(conversations);
   await expect(page.locator('#clear-cache-btn')).toBeVisible();await page.locator('#clear-cache-btn').click();await expect(page.locator('#clear-cache-btn')).toContainText(/已清除|cleared/i);

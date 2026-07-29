@@ -35,6 +35,7 @@ function dataWorkerMain(){
     let index=skipWs(text,start+1),count=0;
     if(text[index]===']')return 0;
     while(index<end){index=valueEnd(text,index);count++;index=skipWs(text,index);if(text[index]===','){index=skipWs(text,index+1);continue;}if(text[index]===']')break;throw new Error('Invalid JSON array');}
+    if(text[index]!==']')throw new Error('Unterminated chat_messages array');
     return count;
   }
   function inspectConversation(raw){
@@ -83,7 +84,7 @@ function dataWorkerMain(){
     if(searchIndex)return searchIndex;
     searchIndex=new Map();
     for(const record of records){const conversation=materialize(record),text=[record.meta.name,record.meta.summary,...list(conversation.chat_messages).map(messageText)].join('\n').toLowerCase();searchIndex.set(record.meta.uuid,text);}
-    parsedCache.clear();return searchIndex;
+    return searchIndex;
   }
   function calculateAnalytics(customStopZh=[]){
     const state={conversations:0,messages:0,human:0,assistant:0,humanCharacters:0,assistantCharacters:0,characters:0,thinking:0,tools:0,attachments:0,textBlocks:0,imageBlocks:0,artifacts:0,webSearches:0,emptyMessages:0,branchPoints:0,alternativeMessages:0,branchedConversations:0,conversationDurationMs:0,months:{},activeDates:{},weekdays:Array(7).fill(0),hours:Array(24).fill(0),models:{},depths:{},wordsZh:{},wordsEn:{},responseLatencies:[],longest:[]};
@@ -167,10 +168,11 @@ function dataWorkerMain(){
     }
     parsedCache.clear();return{map,evidence,stats};
   }
-  const reply=(request,result)=>self.postMessage({requestId:request.requestId,generation,type:'result',result});
-  const fail=(request,error)=>self.postMessage({requestId:request.requestId,generation,type:'error',error:error?.message||String(error)});
+  const responseGeneration=request=>Number(request.generation)||generation;
+  const reply=(request,result)=>self.postMessage({requestId:request.requestId,generation:responseGeneration(request),type:'result',result});
+  const fail=(request,error)=>self.postMessage({requestId:request.requestId,generation:responseGeneration(request),type:'error',error:error?.message||String(error)});
   function reset(nextGeneration){generation=Number(nextGeneration)||generation+1;records=[];byUuid=new Map();decoder=null;textChunks=[];searchIndex=null;parsedCache.clear();}
-  function cacheDb(){return new Promise((resolve,reject)=>{if(!self.indexedDB){resolve(null);return;}const request=indexedDB.open(CACHE_DB,1);request.onupgradeneeded=()=>request.result.createObjectStore(CACHE_STORE);request.onsuccess=()=>resolve(request.result);request.onerror=()=>reject(request.error);});}
+  function cacheDb(){return new Promise((resolve,reject)=>{if(!self.indexedDB){resolve(null);return;}const request=indexedDB.open(CACHE_DB,1);request.onupgradeneeded=()=>{const db=request.result;if(!db.objectStoreNames.contains(CACHE_STORE))db.createObjectStore(CACHE_STORE);};request.onsuccess=()=>resolve(request.result);request.onerror=()=>reject(request.error);});}
   async function cacheGet(key){const db=await cacheDb();if(!db)return null;try{return await new Promise((resolve,reject)=>{const request=db.transaction(CACHE_STORE,'readonly').objectStore(CACHE_STORE).get(key);request.onsuccess=()=>resolve(request.result||null);request.onerror=()=>reject(request.error);});}finally{db.close();}}
   async function cachePut(key,value){const db=await cacheDb();if(!db)return false;try{await new Promise((resolve,reject)=>{const transaction=db.transaction(CACHE_STORE,'readwrite');transaction.objectStore(CACHE_STORE).put(value,key);transaction.oncomplete=()=>resolve();transaction.onerror=()=>reject(transaction.error);transaction.onabort=()=>reject(transaction.error||new Error('cache transaction aborted'));});return true;}finally{db.close();}}
   async function cacheDeleteAll(){const db=await cacheDb();if(!db)return false;try{await new Promise((resolve,reject)=>{const request=db.transaction(CACHE_STORE,'readwrite').objectStore(CACHE_STORE).clear();request.onsuccess=()=>resolve();request.onerror=()=>reject(request.error);});return true;}finally{db.close();}}
