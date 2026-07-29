@@ -43,9 +43,10 @@ jobs:
           )
           if (Select-String -Path dist/viewer.html -Pattern $privatePathPatterns -Quiet) { throw 'Conflict marker or personal absolute path found in artifact' }
           Add-Type -AssemblyName System.IO.Compression
+          $archive = $null
           $archive = [System.IO.Compression.ZipFile]::OpenRead((Resolve-Path dist/claude-rescue-reader.zip))
           try { $zipEntries = @($archive.Entries | ForEach-Object FullName) }
-          finally { $archive.Dispose() }
+          finally { if ($archive) { $archive.Dispose() } }
           if ($zipEntries.Count -ne 1 -or $zipEntries[0] -ne 'viewer.html') { throw 'Unexpected ZIP contents' }
           $expected = ((Get-Content dist/SHA256SUMS.txt) -split '\s+')[0]
           $actual = (Get-FileHash dist/viewer.html -Algorithm SHA256).Hash.ToLower()
