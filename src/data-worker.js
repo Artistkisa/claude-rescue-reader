@@ -87,7 +87,7 @@ function dataWorkerMain(){
     return searchIndex;
   }
   function calculateAnalytics(customStopZh=[]){
-    const state={conversations:0,messages:0,human:0,assistant:0,humanCharacters:0,assistantCharacters:0,characters:0,thinking:0,tools:0,attachments:0,textBlocks:0,imageBlocks:0,artifacts:0,webSearches:0,emptyMessages:0,branchPoints:0,alternativeMessages:0,branchedConversations:0,conversationDurationMs:0,months:{},activeDates:{},weekdays:Array(7).fill(0),hours:Array(24).fill(0),models:{},depths:{},wordsZh:{},wordsEn:{},responseLatencies:[],longest:[]};
+    const state={conversations:0,messages:0,human:0,assistant:0,humanCharacters:0,assistantCharacters:0,characters:0,thinking:0,tools:0,toolErrors:0,attachments:0,textBlocks:0,imageBlocks:0,artifacts:0,webSearches:0,emptyMessages:0,branchPoints:0,alternativeMessages:0,branchedConversations:0,conversationDurationMs:0,months:{},activeDates:{},weekdays:Array(7).fill(0),hours:Array(24).fill(0),models:{},toolNames:{},depths:{},wordsZh:{},wordsEn:{},responseLatencies:[],longest:[],lateNightMessages:0,longestThinking:null,mostToolErrors:null};
     const add=(object,key,n=1)=>{object[key]=(object[key]||0)+n;};
     const stopEn=new Set('a an and are as at be been but by can could did do does for from had has have he her hers him his how i if in into is it its may me might more most my no not of on or our ours she should so some than that the their theirs them then there these they this those to too us was we were what when where which who why will with would you your yours'.split(' '));
     const stopZh=new Set(('的 了 和 是 在 我 有 就 不 人 都 一 一个 上 也 很 到 说 要 去 你 会 着 没有 看 好 自己 这 那 里 为 以 及 与 或 而 被 把 对 从 等 中 能 可以 进行 使用 需要 如果 这个 这些 我们 你们 他们 因为 所以 然后 而且 但是 还是 已经 可能 现在 之后 之前 其中 通过 对于 关于 根据 按照 什么 怎么 为什么 哪个 哪些 哪里 这里 那里 这样 那样 这么 那么 不是 不能 无法 不会 不同 一些 一种 本身 目前 当前 直接 完全 真正 真实 所有 全部 整个 完整 相关 具体 一般 通常 主要 核心 内容 问题 文章 说明 数据 文件 图片 标题 结构 技术 逻辑 工具 系统 服务 设计 代码 网站 产品 项目 章节 分类 部分 方面 东西 事情 你的 我的 他的 她的 它的 我们的 你们的 他们的 各种 某些 任何 其他 还有 因此 例如 吧 呢 啊 哦 嗯 呀 嘿 哈 哈哈 诶 哎 唉 这类 这次 这点 这个问题 这种情况 就是 那个 那些 知道 的是 存在 或者 开始 几个 这种 出来 只是 只是说 还有点 一下 一下子 一直 一定 一样 一起 一共 多个 少数 许多 多少 时候 以后 以前 现在的 之后的 起来 下来 上来 回来 过去').split(/\s+/));
@@ -102,23 +102,24 @@ function dataWorkerMain(){
     };
     for(const record of records){
       const conversation=materialize(record),messages=list(conversation.chat_messages);state.conversations++;
-      let convChars=0,convBranched=false;const childCounts={},timed=[];
+      let convChars=0,convBranched=false,convToolErrors=0;const childCounts={},timed=[];
       for(const message of messages){
         state.messages++;const sender=message?.sender||'assistant';if(sender==='human')state.human++;else if(sender==='assistant')state.assistant++;
         let characters=0,thinking=0,tools=0,textBlocks=0,imageBlocks=0,artifacts=0,webSearches=0,wordText='';
         for(const block of list(message?.content)){
           if(!block||typeof block!=='object')continue;const type=block.type||'',name=String(block.name||'');
           if(type==='text'){const text=String(block.text||'');textBlocks++;characters+=text.length;wordText+=' '+text;}
-          else if(type==='thinking'){const text=String(block.thinking||'');thinking++;characters+=text.length;wordText+=' '+text;}
+          else if(type==='thinking'){const text=String(block.thinking||'');thinking++;characters+=text.length;wordText+=' '+text;const start=Date.parse(block.start_timestamp||''),stop=Date.parse(block.stop_timestamp||'');if(Number.isFinite(start)&&Number.isFinite(stop)&&stop>=start){const duration=stop-start;if(!state.longestThinking||duration>state.longestThinking.durationMs)state.longestThinking={durationMs:duration,conversationUuid:record.meta.uuid,title:record.meta.name,messageUuid:message?.uuid||''};}}
           else if(type==='image')imageBlocks++;
-          if(type==='tool_use'||type==='server_tool_use'){tools++;if(/show_widget|visualize|imagine|artifact/i.test(name))artifacts++;if(/web_search|web_fetch/i.test(name))webSearches++;}
+          if(type==='tool_use'||type==='server_tool_use'){tools++;add(state.toolNames,name||'unknown');if(/show_widget|visualize|imagine|artifact/i.test(name))artifacts++;if(/web_search|web_fetch/i.test(name))webSearches++;}
+          if((type==='tool_result'||type==='web_search_tool_result')&&block.is_error){state.toolErrors++;convToolErrors++;}
         }
         if(!list(message?.content).length&&message?.text){wordText=String(message.text);characters=wordText.length;}
         if(sender==='human')state.humanCharacters+=characters;else if(sender==='assistant')state.assistantCharacters+=characters;
         state.characters+=characters;convChars+=characters;state.thinking+=thinking;state.tools+=tools;state.textBlocks+=textBlocks;state.imageBlocks+=imageBlocks;state.artifacts+=artifacts;state.webSearches+=webSearches;
         const attachments=list(message?.attachments).length+list(message?.files).length;state.attachments+=attachments;if(!list(message?.content).length&&!message?.text&&!attachments)state.emptyMessages++;
         const date=new Date(message?.created_at||message?.updated_at||''),timestamp=date.getTime();
-        if(!Number.isNaN(timestamp)){const dateKey=date.getFullYear()+'-'+String(date.getMonth()+1).padStart(2,'0')+'-'+String(date.getDate()).padStart(2,'0');add(state.activeDates,dateKey);add(state.months,dateKey.slice(0,7));state.weekdays[date.getDay()]++;state.hours[date.getHours()]++;timed.push({sender,uuid:message?.uuid||'',parentUuid:message?.parent_message_uuid||'',timestamp});}
+        if(!Number.isNaN(timestamp)){const dateKey=date.getFullYear()+'-'+String(date.getMonth()+1).padStart(2,'0')+'-'+String(date.getDate()).padStart(2,'0');add(state.activeDates,dateKey);add(state.months,dateKey.slice(0,7));state.weekdays[date.getDay()]++;state.hours[date.getHours()]++;if(date.getHours()<5)state.lateNightMessages++;timed.push({sender,uuid:message?.uuid||'',parentUuid:message?.parent_message_uuid||'',timestamp});}
         const model=message?.model||message?.model_slug||message?.message?.model||'';if(model)add(state.models,model);countWords(wordText);
         if(message?.parent_message_uuid)add(childCounts,message.parent_message_uuid);
       }
@@ -127,9 +128,10 @@ function dataWorkerMain(){
       const timedByUuid=Object.fromEntries(timed.filter(item=>item.uuid).map(item=>[item.uuid,item]));for(const item of timed){const parent=timedByUuid[item.parentUuid];if(item.sender==='assistant'&&parent?.sender==='human'){const latency=item.timestamp-parent.timestamp;if(latency>=0&&latency<=86400000)state.responseLatencies.push(latency);}}
       const depth=messages.length,depthKey=depth<=5?'1–5':depth<=10?'6–10':depth<=25?'11–25':depth<=50?'26–50':depth<=100?'51–100':'101+';add(state.depths,depthKey);
       state.longest.push({uuid:record.meta.uuid,title:record.meta.name,messages:depth,characters:convChars,updatedAt:record.meta.updated_at||record.meta.created_at});
+      if(convToolErrors&&(!state.mostToolErrors||convToolErrors>state.mostToolErrors.errors))state.mostToolErrors={conversationUuid:record.meta.uuid,title:record.meta.name,errors:convToolErrors};
     }
     parsedCache.clear();state.longest.sort((a,b)=>b.messages-a.messages||b.characters-a.characters);state.longest=state.longest.slice(0,10);state.wordsZh=Object.entries(state.wordsZh).sort((a,b)=>b[1]-a[1]).slice(0,40);state.wordsEn=Object.entries(state.wordsEn).sort((a,b)=>b[1]-a[1]).slice(0,40);state.responseLatencies.sort((a,b)=>a-b);state.medianResponseMs=state.responseLatencies.length?state.responseLatencies[Math.floor(state.responseLatencies.length/2)]:0;delete state.responseLatencies;
-    const dates=Object.keys(state.activeDates).sort();let streak=0,longestStreak=0,previous=NaN;for(const date of dates){const day=Date.parse(date+'T00:00:00Z')/86400000;streak=day===previous+1?streak+1:1;longestStreak=Math.max(longestStreak,streak);previous=day;}state.activeDays=dates.length;state.longestStreak=longestStreak;delete state.activeDates;
+    const dates=Object.keys(state.activeDates).sort();let streak=0,longestStreak=0,previous=NaN,streakStart='',longestStart='',longestEnd='';for(const date of dates){const day=Date.parse(date+'T00:00:00Z')/86400000;if(day===previous+1)streak++;else{streak=1;streakStart=date;}if(streak>longestStreak){longestStreak=streak;longestStart=streakStart;longestEnd=date;}previous=day;}state.activeDays=dates.length;state.longestStreak=longestStreak;state.longestStreakStart=longestStart;state.longestStreakEnd=longestEnd;state.peakHour=state.hours.indexOf(Math.max(...state.hours));state.mostUsedTool=Object.entries(state.toolNames).sort((a,b)=>b[1]-a[1])[0]||null;delete state.activeDates;
     return state;
   }
   function calculateBehavior(){

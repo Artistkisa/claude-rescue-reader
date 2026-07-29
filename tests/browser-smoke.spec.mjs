@@ -16,7 +16,10 @@ test.beforeAll(async()=>{
   await fs.writeFile(path.join(fixtureDir,'memories.json'),JSON.stringify(memories));
   await fs.writeFile(path.join(fixtureDir,'projects','synthetic-project.json'),JSON.stringify(projects[0]));
   await fs.writeFile(path.join(fixtureDir,'synthetic-design.json'),JSON.stringify(design));
+  const preview='<svg xmlns="http://www.w3.org/2000/svg" width="120" height="60"><rect width="120" height="60" fill="#6b5cff"/><text x="10" y="35" fill="white">Synthetic</text></svg>';
+  await fs.writeFile(path.join(fixtureDir,'synthetic-preview.svg'),preview);
   const zip=new JSZip();zip.file('claude-export/conversations.json',JSON.stringify(conversations));zip.file('claude-export/memories.json',JSON.stringify(memories));zip.file('claude-export/projects/synthetic-project.json',JSON.stringify(projects[0]));zip.file('claude-export/synthetic-design.json',JSON.stringify(design));
+  zip.file('claude-export/assets/synthetic-preview.svg',preview);
   zipPath=path.join(fixtureDir,'synthetic-export.zip');await fs.writeFile(zipPath,await zip.generateAsync({type:'nodebuffer'}));
 });
 test.afterAll(async()=>{if(fixtureDir)await fs.rm(fixtureDir,{recursive:true,force:true});});
@@ -36,13 +39,21 @@ test('folder import and core views',async({page})=>{
   await page.locator('#search-box').fill('worker-search-no-match');await expect(page.locator('.conv-item')).toHaveCount(0);await page.locator('#search-box').fill('');await expect(page.locator('.conv-item')).toHaveCount(1);
   await page.locator('.conv-item').first().click();await expect(page.locator('#chat-title')).toContainText('Synthetic');
   await expect(page.locator('#messages')).toContainText('synthetic widget');
+  await expect(page.locator('[data-attachment-media] img')).toBeVisible();
+  await expect(page.locator('[data-attachment-media]')).toContainText(/自动匹配|Automatically matched/);
+  const chooserPromise=page.waitForEvent('filechooser');await page.locator('[data-attachment-media] button').click();const chooser=await chooserPromise;await chooser.setFiles(path.join(fixtureDir,'synthetic-preview.svg'));
+  await expect(page.locator('[data-attachment-media]')).toContainText(/手动绑定|Manually attached/);
+  expect(await page.evaluate(async()=>{const html=await preparePdfConversation(currentConv);return /attachment-preview[\s\S]*blob:/i.test(html);})).toBe(true);
   await page.locator('#tree-mode-btn').click();await expect(page.locator('#tree-mode-btn')).toContainText(/完整|Full/);
   await page.locator('.tab-btn').nth(4).click();await page.waitForFunction(()=>document.querySelector('.word-cloud'));
+  await expect(page.locator('#messages')).toContainText(/你的 Claude 使用画像|Your Claude usage profile/);
+  await expect(page.locator('#messages')).toContainText('project_knowledge_search');
+  await expect(page.locator('#messages')).toContainText('Synthetic branching conversation');
   const custom=path.join(fixtureDir,'synthetic-stopwords.txt');await fs.writeFile(custom,'nebula\nobservatory');await page.setInputFiles('#custom-stopwords-input',custom);await page.waitForFunction(()=>analyticsCustomStopZh.length===2);
   expect(errors).toEqual([]);
 });
 
-test('ZIP import',async({page})=>{const errors=await openViewer(page);await page.setInputFiles('#zip-input',zipPath);await waitLoaded(page);expect(errors).toEqual([]);});
+test('ZIP import',async({page})=>{const errors=await openViewer(page);await page.setInputFiles('#zip-input',zipPath);await waitLoaded(page);await page.locator('.conv-item').first().click();await expect(page.locator('[data-attachment-media] img')).toBeVisible();expect(errors).toEqual([]);});
 
 test('Claude behavior lab audits tools, hidden results and thinking integrity',async({page})=>{
   const errors=await openViewer(page);await page.setInputFiles('#file-input',fixtureDir);await waitLoaded(page);
@@ -59,6 +70,7 @@ test('project association explanations, local corrections, search, stats and exp
   const errors=await openViewer(page);await page.setInputFiles('#file-input',fixtureDir);await waitLoaded(page);
   await page.locator('.tab-btn[onclick*="projects"]').click();await page.waitForFunction(()=>convProjectMapReady);
   await page.locator('.proj-card').first().click();
+  await expect(page.locator('.project-prompt')).toContainText('Always use synthetic evidence');
   await expect(page.locator('.match-panel')).toContainText(/\d+%/);
   await expect(page.locator('.match-panel')).toContainText('synthetic-blueprint.md');
   await expect(page.locator('.project-graph')).toContainText(/syntheticnebula/i);
@@ -72,6 +84,8 @@ test('project association explanations, local corrections, search, stats and exp
   await page.locator('details .project-assign').first().selectOption('00000000-0000-4000-8000-000000000301');
   await expect(page.locator('[data-project-conv]')).toHaveCount(1);
   const downloadPromise=page.waitForEvent('download');await page.locator('.project-tools button').click();const download=await downloadPromise;expect(download.suggestedFilename()).toMatch(/\.md$/);const markdown=await fs.readFile(await download.path(),'utf8');expect(markdown).toContain('Synthetic Project');expect(markdown).toContain('Synthetic branching conversation');
+  expect(await page.evaluate(()=>projectDownloadName(allProjects[0].docs[0].filename))).toBe('synthetic-blueprint.md');
+  const docDownloadPromise=page.waitForEvent('download');await page.locator('.project-doc-head button').click();const docDownload=await docDownloadPromise;expect(docDownload.suggestedFilename()).toBe('synthetic-blueprint.md');expect(await fs.readFile(await docDownload.path(),'utf8')).toContain('Widget observatory');
   expect(errors).toEqual([]);
 });
 
@@ -121,6 +135,9 @@ test('persistent data worker accepts transferable chunks and returns metadata fi
   expect(result.after.parsed).toBe(1);
   expect(result.search.uuids).toContain(conversations[0].uuid);
   expect(result.analytics).toMatchObject({conversations:1,messages:5,human:2,assistant:3});
+  expect(result.analytics.mostUsedTool[0]).toBe('project_knowledge_search');
+  expect(result.analytics.mostToolErrors).toMatchObject({errors:1,title:'Synthetic branching conversation'});
+  expect(result.analytics.longestThinking.durationMs).toBe(5000);
   expect(result.projectIndex.map[conversations[0].uuid]).toBe(projects[0].uuid);
   expect(result.projectIndex.evidence[conversations[0].uuid].method).toBe('file');
   expect(errors).toEqual([]);
