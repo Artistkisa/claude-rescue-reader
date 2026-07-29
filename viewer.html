@@ -348,6 +348,11 @@ mark.cs.active { background:var(--accent); color:#fff; }
 .welcome-note { width:520px; max-width:90vw; margin-top:10px; padding:10px 12px; border:1px solid color-mix(in srgb,var(--accent) 35%,var(--border)); border-radius:8px; color:var(--text2); font-size:12px; line-height:1.6; text-align:left; }
 .welcome-features { display:flex; flex-wrap:wrap; justify-content:center; gap:6px; width:560px; max-width:90vw; margin-top:12px; }
 .welcome-feature { padding:5px 8px; border-radius:999px; background:var(--bg3); color:var(--text3); font-size:11px; }
+.drop-overlay { position:fixed; inset:0; z-index:100; display:none; align-items:center; justify-content:center; background:rgba(20,24,32,.72); backdrop-filter:blur(3px); pointer-events:none; }
+.drop-overlay.active { display:flex; }
+.drop-card { padding:28px 34px; border:2px dashed var(--accent); border-radius:16px; background:var(--bg2); color:var(--text); text-align:center; box-shadow:0 12px 40px rgba(0,0,0,.28); }
+.drop-card b { display:block; font-size:18px; margin-bottom:7px; }
+.drop-card span { color:var(--text3); font-size:12px; }
 .tree-mode { padding:4px 8px; border:1px solid var(--border); border-radius:6px; background:var(--bg3); color:var(--text2); cursor:pointer; font-size:11px; }
 .tree-node { border-left:2px solid var(--accent); margin-left:calc(var(--tree-depth,0) * 18px); padding-left:4px; }
 @media(max-width:700px){.quality-grid{grid-template-columns:repeat(2,minmax(0,1fr));}}
@@ -355,6 +360,7 @@ mark.cs.active { background:var(--accent); color:#fff; }
 </style>
 </head>
 <body>
+<div id="drop-overlay" class="drop-overlay" aria-hidden="true"><div class="drop-card"><b data-i18n="📥 松开以导入历史">📥 松开以导入历史</b><span data-i18n="支持 ZIP 或解压后的 Claude 导出目录">支持 ZIP 或解压后的 Claude 导出目录</span></div></div>
 
 <!-- Sidebar -->
 <div id="sidebar">
@@ -473,6 +479,7 @@ let loadedSummary=null;
 let currentLang=localStorage.getItem('cv-lang')==='en'?'en':'zh';
 let currentView='convs',currentProjectUuid='';
 const EN={
+  '📥 松开以导入历史':'📥 Drop to import history','支持 ZIP 或解压后的 Claude 导出目录':'ZIP or an extracted Claude export folder',
   '🗜️ 直接打开 ZIP':'🗜️ Open ZIP directly','适合刚从 Claude 下载的原始导出包，无需解压':'Best for the original Claude export; no extraction needed',
   '📂 打开解压目录':'📂 Open extracted folder','适合已经解压或从备份目录恢复的历史文件':'Best for an extracted export or a restored backup folder',
   '账号无法访问？历史仍可恢复':'Can’t access your account? Your history may still be recoverable','只要你已有 Claude 导出的 ZIP 或目录，就能在本地查看、搜索和导出。工具不会绕过平台限制，也不会上传对话内容。':'If you have a Claude export ZIP or folder, you can view, search, and export it locally. This tool does not bypass platform restrictions or upload conversations.',
@@ -619,6 +626,35 @@ document.getElementById('zip-input').addEventListener('change',async e=>{
     await ingestData(convBuffer,projTexts,memText,designTexts,btn);
   }catch(err){btn.textContent='❌ '+t('ZIP 加载失败')+': '+errorMessage(err);console.error(err);}
 });
+
+// Drag-and-drop import: route dropped ZIPs/folders through the existing input handlers.
+const dropOverlay=document.getElementById('drop-overlay');
+let dragDepth=0;
+function setDropActive(active){if(dropOverlay){dropOverlay.classList.toggle('active',active);dropOverlay.setAttribute('aria-hidden',String(!active));}}
+async function readDropEntry(entry){
+  if(entry.isFile)return new Promise((resolve,reject)=>entry.file(resolve,reject));
+  if(!entry.isDirectory)return [];
+  const reader=entry.createReader(),files=[];
+  const readBatch=()=>new Promise((resolve,reject)=>reader.readEntries(resolve,reject));
+  for(;;){const batch=await readBatch();if(!batch.length)break;for(const child of batch){const value=await readDropEntry(child);if(Array.isArray(value))files.push(...value);else files.push(value);}}
+  return files;
+}
+async function droppedFiles(dataTransfer){
+  const items=[...(dataTransfer.items||[])].filter(i=>i.kind==='file');
+  if(!items.length)return [...(dataTransfer.files||[])];
+  const out=[];for(const item of items){const entry=item.webkitGetAsEntry?.();if(entry){const value=await readDropEntry(entry);if(Array.isArray(value))out.push(...value);else out.push(value);}else{const file=item.getAsFile?.();if(file)out.push(file);}}
+  return out;
+}
+function routeDroppedFiles(files){
+  const zip=files.find(f=>/\.zip$/i.test(f.name));
+  const input=document.getElementById(zip?'zip-input':'file-input');
+  const dt=new DataTransfer();for(const file of files)dt.items.add(file);
+  input.files=dt.files;input.dispatchEvent(new Event('change',{bubbles:true}));
+}
+window.addEventListener('dragenter',e=>{if(e.dataTransfer?.types?.includes('Files')){e.preventDefault();dragDepth++;setDropActive(true);}});
+window.addEventListener('dragover',e=>{if(e.dataTransfer?.types?.includes('Files'))e.preventDefault();});
+window.addEventListener('dragleave',e=>{if(e.dataTransfer?.types?.includes('Files')){e.preventDefault();if(--dragDepth<=0){dragDepth=0;setDropActive(false);}}});
+window.addEventListener('drop',async e=>{if(!e.dataTransfer?.types?.includes('Files'))return;e.preventDefault();dragDepth=0;setDropActive(false);try{const files=await droppedFiles(e.dataTransfer);if(files.length)routeDroppedFiles(files);}catch(err){console.error('drop import',err);}});
 
 function parseConversationsJson(text){
   const conversations=JSON.parse(text);
