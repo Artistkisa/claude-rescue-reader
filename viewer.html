@@ -2128,7 +2128,7 @@ function exportConv(mode){
   let conv=currentConv;if(mode==='safe'){const result=confirmRedaction(currentConv);if(!result)return;conv=result.conv;}
   // Build linear thread (same logic as renderMessages)
   const msgs=conv.chat_messages||[];
-  const linear=buildPath(msgs); // 跟随界面当前的分支选择
+  const linear=conversationTreeMode==='full'?buildFullTree(msgs):buildPath(msgs); // 与当前浏览模式保持一致
   const msgCount=linear.filter(m=>m&&!m._divider).length;
 
   let md='# '+((conv.name||t('对话')).replace(/[<>]/g,''))+'\n\n';
