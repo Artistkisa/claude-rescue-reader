@@ -334,6 +334,16 @@ mark.cs.active { background:var(--accent); color:#fff; }
 .quick-nav { position:fixed; right:18px; bottom:18px; z-index:20; display:none; flex-direction:column; gap:7px; }
 .quick-nav button { width:36px; height:36px; border:1px solid var(--border); border-radius:50%; background:var(--bg2); color:var(--text2); box-shadow:0 3px 14px var(--shadow); cursor:pointer; font-size:16px; }
 .quick-nav button:hover { border-color:var(--accent); color:var(--accent); }
+.quality-panel { padding:14px 18px; border-bottom:1px solid var(--border); background:var(--bg2); max-height:42vh; overflow:auto; }
+.quality-grid { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:8px; }
+.quality-card { padding:9px 10px; border:1px solid var(--border); border-radius:8px; background:var(--bg3); }
+.quality-card b { display:block; font-size:16px; color:var(--accent); }
+.quality-list { margin-top:10px; display:grid; gap:5px; font-size:12px; color:var(--text2); }
+.quality-list .warn { color:var(--orange); }
+.quality-list .bad { color:var(--red); }
+.tree-mode { padding:4px 8px; border:1px solid var(--border); border-radius:6px; background:var(--bg3); color:var(--text2); cursor:pointer; font-size:11px; }
+.tree-node { border-left:2px solid var(--accent); margin-left:calc(var(--tree-depth,0) * 18px); padding-left:4px; }
+@media(max-width:700px){.quality-grid{grid-template-columns:repeat(2,minmax(0,1fr));}}
 @media(max-width:900px){.analytics-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.chart-layout{grid-template-columns:1fr}.analytics-page{padding:18px 14px 36px}}
 </style>
 </head>
@@ -380,7 +390,9 @@ mark.cs.active { background:var(--accent); color:#fff; }
     <span id="csearch-count" style="display:none;"></span>
     <button id="cprev" onclick="cNav(-1)" data-i18n-title="上一个匹配" title="上一个匹配" style="display:none;padding:4px 7px;background:var(--bg3);border:1px solid var(--border);border-radius:6px;color:var(--text2);cursor:pointer;">↑</button>
     <button id="cnext" onclick="cNav(1)" data-i18n-title="下一个匹配" title="下一个匹配" style="display:none;padding:4px 7px;background:var(--bg3);border:1px solid var(--border);border-radius:6px;color:var(--text2);cursor:pointer;">↓</button>
-    <div class="export-wrap" id="export-wrap" style="display:none"><button id="export-btn" onclick="toggleExportMenu(event)" data-i18n-title="导出当前对话" title="导出当前对话" style="padding:5px 9px;background:var(--bg3);border:1px solid var(--border);border-radius:6px;color:var(--text2);font-size:13px;cursor:pointer;">⬇ 导出</button><div id="export-menu" class="export-menu" style="display:none"><button onclick="exportConv();closeExportMenu()">📝 <span data-i18n="导出 Markdown">导出 Markdown</span></button><button onclick="exportPDF();closeExportMenu()">🖨️ <span data-i18n="导出 PDF">导出 PDF</span></button></div></div>
+    <button id="quality-btn" onclick="toggleQualityPanel()" data-i18n-title="对话质量分析" title="对话质量分析" style="display:none;padding:5px 8px;background:var(--bg3);border:1px solid var(--border);border-radius:6px;color:var(--text2);font-size:12px;cursor:pointer;">🩺</button>
+    <button id="tree-mode-btn" onclick="toggleTreeMode()" data-i18n-title="切换分支显示模式" title="切换分支显示模式" style="display:none;padding:5px 8px;background:var(--bg3);border:1px solid var(--border);border-radius:6px;color:var(--text2);font-size:11px;cursor:pointer;">🌿 <span data-i18n="最长路径">最长路径</span></button>
+    <div class="export-wrap" id="export-wrap" style="display:none"><button id="export-btn" onclick="toggleExportMenu(event)" data-i18n-title="导出当前对话" title="导出当前对话" style="padding:5px 9px;background:var(--bg3);border:1px solid var(--border);border-radius:6px;color:var(--text2);font-size:13px;cursor:pointer;">⬇ 导出</button><div id="export-menu" class="export-menu" style="display:none"><button onclick="exportConv('normal');closeExportMenu()">📝 <span data-i18n="导出 Markdown">导出 Markdown</span></button><button onclick="exportConv('safe');closeExportMenu()">🛡️ <span data-i18n="安全导出">安全导出 Markdown</span></button><button onclick="exportPDF('normal');closeExportMenu()">🖨️ <span data-i18n="导出 PDF">导出 PDF</span></button><button onclick="exportPDF('safe');closeExportMenu()">🛡️ <span data-i18n="安全导出 PDF">安全导出 PDF</span></button></div></div>
     <button id="lang-btn" onclick="toggleLanguage()" title="Switch UI language" style="padding:5px 9px;background:var(--bg3);border:1px solid var(--border);border-radius:6px;color:var(--text2);font-size:12px;cursor:pointer;line-height:1;">🌐 EN</button>
     <button id="theme-btn" onclick="toggleTheme()" data-i18n-title="切换明暗主题" title="切换明暗主题" style="padding:5px 9px;background:var(--bg3);border:1px solid var(--border);border-radius:6px;color:var(--text2);font-size:14px;cursor:pointer;line-height:1;">🌙</button>
   </div>
@@ -427,6 +439,7 @@ mark.cs.active { background:var(--accent); color:#fff; }
     </div>
   </div>
 </div>
+<div id="quality-panel" class="quality-panel" style="display:none"></div>
 <div class="quick-nav" id="quick-nav"><button onclick="jumpMessages('top')" data-i18n-title="跳到顶部" title="跳到顶部">↑</button><button onclick="jumpMessages('bottom')" data-i18n-title="跳到底部" title="跳到底部">↓</button></div>
 
 <!-- Summary Panel -->
@@ -441,6 +454,7 @@ mark.cs.active { background:var(--accent); color:#fff; }
 <script>
 const ICON='<svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 2l4 4-4 4"/></svg>';
 let allConvs=[],allDesigns=[],allProjects=[],memoryData=null,currentConv=null,summaryVisible=false,lastConversationUuid='';
+let conversationTreeMode='longest',qualityWorker=null,qualityWorkerUrl='',qualityCache=new Map(),qualityOpen=false;
 let dataLoadGeneration=0;
 let loadedSummary=null;
 let currentLang=localStorage.getItem('cv-lang')==='en'?'en':'zh';
@@ -498,6 +512,7 @@ const EN={
   '星期活跃度':'Activity by weekday','对话深度分布':'Conversation depth','角色字符分布':'Characters by role','你的字符':'Your characters','Claude 字符':'Claude characters',
   '搜索、文件与生成内容':'Search, files & generated content','中文高频词':'Chinese frequent words','英文高频词':'English frequent words','暂无词频数据':'No word-frequency data',
   '活跃天数':'Active days','最长连续活跃':'Longest streak','中位回复延迟':'Median response time','平均对话跨度':'Avg. conversation span','含分支对话':'Branched conversations','分支点':'Branch points','重新生成/替代消息':'Regenerated / alternative messages','空消息':'Empty messages','天':' days',
+  '对话质量分析':'Conversation quality','质量':'Quality','最长路径':'Longest path','完整树':'Full tree','扫描中…':'Scanning…','健康报告':'Health report','敏感信息':'Sensitive data','未发现异常':'No anomalies found','异常消息':'anomalous messages','重复回答':'Repeated answers','疑似拒答':'Possible refusal','疑似降级回答':'Possible fallback answer','被截断回答':'Possibly truncated','仅工具无正文':'Tool-only response','时间倒序':'Reverse timestamps','孤立消息':'Orphan messages','不完整附件':'Incomplete attachments','不可解析内容块':'Unparseable blocks','回复延迟异常':'Abnormal reply latency','内部元数据':'Internal metadata','API 密钥':'API keys','Bearer 令牌':'Bearer tokens','私钥':'Private keys','邮箱':'Emails','手机号':'Phone numbers','本地路径':'Local paths','导出前脱敏':'Redact before export','安全导出':'Safe export','安全导出 PDF':'Safe PDF','脱敏预览':'Redaction preview','替换':'replacements','检测到':'detected',
   '暂无 Design 对话':'No Design conversations','条 Design 对话':' Design conversations','跳到顶部':'Jump to top','跳到底部':'Jump to bottom','正在准备 PDF…':'Preparing PDF…','打印 / 另存为 PDF':'Print / Save as PDF','弹窗被浏览器拦截，请允许弹窗后重试':'The popup was blocked. Allow popups and try again.','下载 PNG':'Download PNG','PNG 导出失败，已改为下载源码':'PNG export failed; source downloaded instead'
 };
 const ZH={'项目（单数）':'项目'};
@@ -721,6 +736,8 @@ function renderLoadedSummary(){
 
 function switchTab(tab,btn){
   currentView=tab;
+  const isConversationView=tab==='convs'||tab==='design';
+  if(!isConversationView){document.getElementById('quality-btn').style.display='none';document.getElementById('tree-mode-btn').style.display='none';document.getElementById('quality-panel').style.display='none';qualityOpen=false;}
   document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));
   btn.classList.add('active');
   if(tab==='convs')renderConvList(getSortedConvs());
@@ -887,6 +904,9 @@ function renderAnalyticsPage(){
   document.getElementById('chat-header').classList.remove('last-supper');document.getElementById('messages').classList.remove('last-supper-gallery');
   ['csearch','csearch-count','cprev','cnext'].forEach(id=>{const el=document.getElementById(id);if(el)el.style.display='none';});
   document.getElementById('export-wrap').style.display='none';
+  document.getElementById('quality-btn').style.display='none';
+  document.getElementById('tree-mode-btn').style.display='none';
+  document.getElementById('quality-panel').style.display='none';qualityOpen=false;
   document.getElementById('toggle-summary').style.display='none';
   if(!allConvs.length){document.getElementById('messages').innerHTML='<div class="analytics-progress">'+t('统计尚未生成')+'</div>';return;}
   if(!analyticsResult){
@@ -960,6 +980,39 @@ function renderDesignList(){
   el.innerHTML=allDesigns.map(c=>'<div class="conv-item'+(currentConv&&currentConv.uuid===c.uuid?' active':'')+'" data-design-uuid="'+esc(c.uuid)+'" role="button" tabindex="0"><div class="conv-title">✒️ '+esc(c.name||t('Design'))+'</div><div class="conv-meta"><span>'+fmtDate(c.updated_at)+'</span><span class="conv-count">'+(c.chat_messages||[]).length+t('条')+'</span></div></div>').join('');
   el.querySelectorAll('[data-design-uuid]').forEach(item=>item.addEventListener('click',()=>openConv(item.dataset.designUuid,'design')));
 }
+
+function messagePlainText(msg){
+  if(!msg)return '';
+  let out=String(msg.text||'');
+  for(const b of(msg.content||[])){if(!b||typeof b!=='object')continue;out+=' '+String(b.text||b.thinking||b.content||'');}
+  return out.replace(/\s+/g,' ').trim();
+}
+function qualityWorkerMain(){
+  const plain=m=>{let s=String(m?.text||'');for(const b of(m?.content||[]))if(b&&typeof b==='object')s+=' '+String(b.text||b.thinking||b.content||'');return s.replace(/\s+/g,' ').trim();};
+  const hasType=(m,re)=>((m?.content||[]).some(b=>b&&re.test(String(b.type||'')+' '+String(b.name||''))));
+  self.onmessage=e=>{const msgs=Array.isArray(e.data?.messages)?e.data.messages:[],issues=[],counts={empty:0,repeated:0,truncated:0,toolOnly:0,refusal:0,fallback:0,reverse:0,orphan:0,incompleteAttachment:0,unparseable:0,latency:0,internalMetadata:0};let prevTime=0,prevAssistant='';
+    const refusal=/\b(can't|cannot|won't|unable to|i can’t|i cannot|抱歉|无法|不能|不予回答|拒绝回答)\b/i,fallback=/\b(as an ai|language model|简短回答|无法访问|try again later|降级)\b/i,truncated=/(\.\.\.|…|回答未完|to be continued|继续$)/i;
+    for(const m of msgs){const text=plain(m),time=Date.parse(m.created_at||m.updated_at||'')||0;if(time&&prevTime&&time<prevTime){counts.reverse++;issues.push({kind:'reverse',uuid:m.uuid,label:'时间倒序'});}prevTime=time;
+      if(!text&&!hasType(m,/tool|thinking|result/i)){counts.empty++;issues.push({kind:'empty',uuid:m.uuid,label:'空消息'});}
+      if(m.parent_message_uuid&&!msgs.some(x=>x.uuid===m.parent_message_uuid)&&m.parent_message_uuid!=='00000000-0000-0000-0000-000000000000'){counts.orphan++;issues.push({kind:'orphan',uuid:m.uuid,label:'孤立消息'});}
+      if(m.sender==='assistant'){if(text&&text===prevAssistant){counts.repeated++;issues.push({kind:'repeated',uuid:m.uuid,label:'重复回答'});}if(refusal.test(text)){counts.refusal++;issues.push({kind:'refusal',uuid:m.uuid,label:'疑似拒答'});}if(fallback.test(text)){counts.fallback++;issues.push({kind:'fallback',uuid:m.uuid,label:'疑似降级回答'});}if(truncated.test(text)){counts.truncated++;issues.push({kind:'truncated',uuid:m.uuid,label:'被截断回答'});}if(!text&&hasType(m,/tool|server_tool/)){counts.toolOnly++;issues.push({kind:'toolOnly',uuid:m.uuid,label:'仅工具无正文'});}prevAssistant=text;}
+      for(const a of(m.attachments||m.files||[])){if(!a||!(a.file_name||a.name||a.file_id||a.data||a.content)){counts.incompleteAttachment++;issues.push({kind:'attachment',uuid:m.uuid,label:'不完整附件'});}}
+      if((m.content||[]).some(b=>!b||typeof b!=='object'||!b.type)){counts.unparseable++;issues.push({kind:'unparseable',uuid:m.uuid,label:'不可解析内容块'});}
+      const raw=JSON.stringify(m);if(/"(?:safety|moderation|policy|risk|flag|restriction|model_tier|stop_reason|internal_metadata)"\s*:/i.test(raw)){counts.internalMetadata++;issues.push({kind:'internalMetadata',uuid:m.uuid,label:'内部元数据'});}
+    }
+    for(let i=1;i<msgs.length;i++){const a=Date.parse(msgs[i-1].created_at||'')||0,b=Date.parse(msgs[i].created_at||'')||0;if(msgs[i-1].sender==='human'&&msgs[i].sender==='assistant'&&a&&b&&b-a>30*60*1000){counts.latency++;issues.push({kind:'latency',uuid:msgs[i].uuid,label:'回复延迟异常'});}}
+    self.postMessage({counts,issues});
+  };
+}
+function scanConversationQuality(conv){
+  if(!conv)return Promise.resolve({counts:{},issues:[]});
+  if(qualityCache.has(conv.uuid))return Promise.resolve(qualityCache.get(conv.uuid));
+  return new Promise(resolve=>{const url=URL.createObjectURL(new Blob(['('+qualityWorkerMain.toString()+')()'],{type:'text/javascript'}));const worker=new Worker(url);worker.onmessage=e=>{qualityCache.set(conv.uuid,e.data);worker.terminate();URL.revokeObjectURL(url);resolve(e.data);};worker.postMessage({messages:conv.chat_messages||[]});});
+}
+function renderQualityReport(result){const c=result.counts||{},items=result.issues||[],panel=document.getElementById('quality-panel'),sensitive=redactConversation(currentConv).stats,sensitiveTotal=Object.values(sensitive).reduce((a,b)=>a+b,0);panel.innerHTML='<b>'+t('健康报告')+'</b><div class="quality-grid">'+[['empty','空消息'],['repeated','重复回答'],['truncated','被截断回答'],['toolOnly','仅工具无正文'],['refusal','疑似拒答'],['fallback','疑似降级回答'],['reverse','时间倒序'],['orphan','孤立消息'],['incompleteAttachment','不完整附件'],['unparseable','不可解析内容块'],['latency','回复延迟异常'],['internalMetadata','内部元数据']].map(([k,l])=>'<div class="quality-card"><b>'+(c[k]||0)+'</b>'+t(l)+'</div>').join('')+'</div><div class="quality-list"><b>🔐 '+t('敏感信息')+': '+sensitiveTotal+' '+t('检测到')+'</b>'+(Object.entries(sensitive).map(([k,v])=>'<div>'+esc(k)+': '+v+'</div>').join('')||'<div>✅ '+t('未发现异常')+'</div>')+'</div>'+(items.length?'<div class="quality-list">'+items.slice(0,80).map(x=>'<div class="warn">⚠️ '+t(x.label)+' · '+esc(x.uuid||'')+'</div>').join('')+'</div>':'<div class="quality-list">✅ '+t('未发现异常')+'</div>');}
+async function toggleQualityPanel(){const panel=document.getElementById('quality-panel');qualityOpen=!qualityOpen;panel.style.display=qualityOpen?'':'none';if(qualityOpen){panel.innerHTML='⏳ '+t('扫描中…');renderQualityReport(await scanConversationQuality(currentConv));}}
+function toggleTreeMode(){conversationTreeMode=conversationTreeMode==='longest'?'full':'longest';const b=document.querySelector('#tree-mode-btn span');if(b)b.textContent=t(conversationTreeMode==='longest'?'最长路径':'完整树');if(currentConv)renderMessages(currentConv.chat_messages||[]);}
+function buildFullTree(msgs){const byParent=new Map(),byId=new Map();for(const m of msgs){if(!m||!m.uuid)continue;byId.set(m.uuid,m);const p=m.parent_message_uuid||'__root__';if(!byParent.has(p))byParent.set(p,[]);byParent.get(p).push(m);}for(const list of byParent.values())list.sort((a,b)=>(Date.parse(a.created_at||'')||0)-(Date.parse(b.created_at||'')||0));const out=[],walk=(parent,depth)=>{for(const m of(byParent.get(parent)||[])){out.push({...m,_treeDepth:depth});walk(m.uuid,depth+1);}};walk('__root__',0);for(const m of msgs)if(m&&!byId.has(m.uuid))out.push(m);return out.length?out:[...msgs];}
 
 function findLastConversationUuid(convs){
   let latestUuid='',latestTime=-Infinity;
@@ -1179,6 +1232,9 @@ function openConv(uuid,sourceView){
   document.getElementById('chat-header-meta').textContent=fmtDate(currentConv.created_at)+' · '+msgs.length+t('条消息');
   renderMessages(msgs);
   document.getElementById('export-wrap').style.display='';
+  document.getElementById('quality-btn').style.display='';
+  document.getElementById('tree-mode-btn').style.display='';
+  const modeLabel=document.querySelector('#tree-mode-btn span');if(modeLabel)modeLabel.textContent=t(conversationTreeMode==='longest'?'最长路径':'完整树');
   updateQuickNav();
   const st=document.getElementById('summary-text');
   st.innerHTML=currentConv.summary?(typeof marked!=='undefined'?marked.parse(currentConv.summary):esc(currentConv.summary)):'<span style="color:var(--text3)">'+t('无摘要')+'</span>';
@@ -1652,7 +1708,7 @@ function renderMessages(msgs,opts){
   for(const k in FILESTORE){try{URL.revokeObjectURL(FILESTORE[k].url);}catch(e){}delete FILESTORE[k];}
   for(const k in MSGTEXT)delete MSGTEXT[k];
   if(!msgs.length){container.innerHTML='<div style="display:flex;align-items:center;justify-content:center;height:100%;color:var(--text3)">'+t('此对话无消息')+'</div>';return;}
-  const linear=buildPath(msgs);
+  const linear=conversationTreeMode==='full'?buildFullTree(msgs):buildPath(msgs);
   const convUuid=currentConv&&currentConv.uuid||'';
   let start;
   if(opts&&Number.isInteger(opts.startIndex))start=Math.max(0,Math.min(opts.startIndex,linear.length));
@@ -1667,7 +1723,7 @@ function renderMessages(msgs,opts){
     if(msg._divider==='orphan'){h+='<div class="date-divider"><span>🧩 '+t('以下消息无法归入对话分支（可能是已删除分支的残留）')+' ('+msg.count+')</span></div>';lastDate='';continue;}
     const d=fmtDateOnly(msg.created_at);
     if(d!==lastDate)lastDate=d;
-    try{h+=renderMsg(msg);}
+    try{const rendered=renderMsg(msg);h+=conversationTreeMode==='full'?'<div class="tree-node" style="--tree-depth:'+(msg._treeDepth||0)+'">'+rendered+'</div>':rendered;}
     catch(e){h+='<div style="padding:8px 16px;color:var(--text3);font-size:12px;">⚠️ '+t('此消息渲染出错')+'</div>';console.warn('renderMsg error',e);}
   }
   container.innerHTML=h;
@@ -2037,16 +2093,28 @@ function renderBlock(block){
   return '<div style="font-size:11px;color:var(--text3);padding:4px 0">['+esc(blockType)+']</div>';
 }
 
-function exportConv(){
+const SENSITIVE_PATTERNS=[
+  ['API 密钥',/\b(?:sk-[A-Za-z0-9_-]{16,}|AIza[0-9A-Za-z_-]{20,}|AKIA[0-9A-Z]{16})\b/g],
+  ['Bearer 令牌',/\bBearer\s+[A-Za-z0-9._~+\/-]+=*/gi],
+  ['私钥',/-----BEGIN (?:RSA |EC |OPENSSH )?PRIVATE KEY-----[\s\S]*?-----END (?:RSA |EC |OPENSSH )?PRIVATE KEY-----/g],
+  ['邮箱',/\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/gi],
+  ['手机号',/(?<!\d)(?:\+?86[- ]?)?1[3-9]\d{9}(?!\d)/g],
+  ['本地路径',/(?:[A-Z]:\\|file:\/\/|\/Users\/|\/home\/|\/mnt\/)[^\s"'<>]+/gi]
+];
+function redactText(text,stats){let out=String(text||'');for(const [label,re] of SENSITIVE_PATTERNS){out=out.replace(re,()=>{stats[label]=(stats[label]||0)+1;return '[REDACTED:'+label+']';});}return out;}
+function redactConversation(conv){const clone=structuredClone?structuredClone(conv):JSON.parse(JSON.stringify(conv));const stats={};const walk=v=>{if(typeof v==='string')return redactText(v,stats);if(Array.isArray(v))return v.map(walk);if(v&&typeof v==='object'){for(const k of Object.keys(v)){if(k==='tool_input'||k==='input'||k==='metadata'||k==='file_path'||k==='path')v[k]='[REDACTED:metadata]';else v[k]=walk(v[k]);}}return v;};walk(clone);return{conv:clone,stats};}
+function confirmRedaction(conv){const scan=redactConversation(conv),total=Object.values(scan.stats).reduce((a,b)=>a+b,0);if(!total)return scan;if(!confirm(t('检测到')+' '+total+' '+t('敏感信息')+'。'+t('导出前脱敏')+'？'))return null;return scan;}
+function exportConv(mode){
   if(!currentConv)return;
+  let conv=currentConv;if(mode==='safe'){const result=confirmRedaction(currentConv);if(!result)return;conv=result.conv;}
   // Build linear thread (same logic as renderMessages)
-  const msgs=currentConv.chat_messages||[];
+  const msgs=conv.chat_messages||[];
   const linear=buildPath(msgs); // 跟随界面当前的分支选择
   const msgCount=linear.filter(m=>m&&!m._divider).length;
 
-  let md='# '+((currentConv.name||t('对话')).replace(/[<>]/g,''))+'\n\n';
-  md+='> '+t('创建时间')+': '+fmtDate(currentConv.created_at)+' · '+t('更新时间')+': '+fmtDate(currentConv.updated_at)+' · '+t('消息数')+': '+msgCount+'\n\n';
-  if(currentConv.summary)md+='## '+t('摘要')+'\n\n'+currentConv.summary+'\n\n---\n\n';
+  let md='# '+((conv.name||t('对话')).replace(/[<>]/g,''))+'\n\n';
+  md+='> '+t('创建时间')+': '+fmtDate(conv.created_at)+' · '+t('更新时间')+': '+fmtDate(conv.updated_at)+' · '+t('消息数')+': '+msgCount+'\n\n';
+  if(conv.summary)md+='## '+t('摘要')+'\n\n'+conv.summary+'\n\n---\n\n';
   md+='## '+t('对话内容')+'\n\n';
 
   for(const msg of linear){
@@ -2076,7 +2144,7 @@ function exportConv(){
   const blob=new Blob([md],{type:'text/markdown;charset=utf-8'});
   const a=document.createElement('a');
   a.href=URL.createObjectURL(blob);
-  a.download=(currentConv.name||'conversation').replace(/[\\/:*?"<>|]/g,'_').slice(0,80)+'.md';
+  a.download=(conv.name||'conversation').replace(/[\\/:*?"<>|]/g,'_').slice(0,80)+(mode==='safe'?'_safe':'')+'.md';
   a.click();
   URL.revokeObjectURL(a.href);
 }
@@ -2118,9 +2186,10 @@ async function preparePdfConversation(conv){
     for(const id of Object.keys(MSGTEXT))if(!messagesBefore.has(id))delete MSGTEXT[id];
   }
 }
-async function exportPDF(){
-  const conv=currentConv;
+async function exportPDF(mode){
+  let conv=currentConv;
   if(!conv)return;
+  if(mode==='safe'){const result=confirmRedaction(conv);if(!result)return;conv=result.conv;}
   const popup=window.open('','_blank');
   if(!popup){alert(t('弹窗被浏览器拦截，请允许弹窗后重试'));return;}
   popup.document.write('<!doctype html><meta charset="utf-8"><title>'+esc(conv.name||t('对话'))+'</title><body style="font-family:system-ui;padding:24px">'+t('正在准备 PDF…')+'</body>');popup.document.close();
