@@ -955,7 +955,7 @@ function startAnalytics(){
   }).catch(err=>{console.error('analytics',err);if(generation===analyticsGeneration){analyticsPromise=null;if(currentView==='analytics')renderAnalyticsError(err);}return null;});
   return analyticsPromise;
 }
-function loadCustomStopwords(input){const file=input?.files?.[0];if(!file)return;file.text().then(text=>{analyticsCustomStopZh=[...new Set(text.split(/[\\s,，、;；|]+/).map(s=>s.trim()).filter(s=>s.length>=2))];resetAnalytics();renderAnalyticsPage();}).catch(err=>console.error('custom stopwords',err));}
+function loadCustomStopwords(input){const file=input?.files?.[0];if(!file)return;file.text().then(text=>{analyticsCustomStopZh=[...new Set(text.split(/[\\s,，、;；|]+/).map(s=>s.trim()).filter(s=>s.length>=2))];const status=document.getElementById('custom-stopwords-status');if(status)status.textContent=t('已加载 {count} 个词',{count:analyticsCustomStopZh.length});resetAnalytics();renderAnalyticsPage();}).catch(err=>console.error('custom stopwords',err));}
 function renderAnalyticsSide(){
   const el=document.getElementById('conv-list');
   el.innerHTML='<div class="analytics-side">📊 <b>'+t('历史统计')+'</b><br>'+t('点击统计标签后才会启动独立 Worker')+'<br><br>🔒 '+t('在本机按需计算，不上传任何对话内容')+'</div>';
@@ -966,7 +966,7 @@ function updateAnalyticsProgress(){
 }
 function renderAnalyticsPage(){
   currentView='analytics';
-  const side=document.getElementById('conv-list');if(side&&!side.querySelector('#custom-stopwords-input'))side.insertAdjacentHTML('afterbegin','<div class="analytics-side"><b>'+t('自定义中文停用词')+'</b><br><span>'+t('加载 TXT 词表，一行一个词，也支持空格或逗号分隔')+'</span><br><input id="custom-stopwords-input" type="file" accept=".txt,text/plain" style="margin-top:6px;font-size:11px" onchange="loadCustomStopwords(this)"></div>');
+  const side=document.getElementById('conv-list');if(side&&!side.querySelector('#custom-stopwords-input'))side.insertAdjacentHTML('afterbegin','<div class="analytics-side"><b>'+t('自定义中文停用词')+'</b><br><span>'+t('加载 TXT 词表，一行一个词，也支持空格或逗号分隔')+'</span><br><button type="button" style="margin-top:7px;padding:6px 9px;border:1px solid var(--border);border-radius:6px;background:var(--bg3);color:var(--text2);cursor:pointer" onclick="document.getElementById(\'custom-stopwords-input\').click()">'+t('导入停用词 TXT')+'</button><input id="custom-stopwords-input" type="file" accept=".txt,text/plain" onchange="loadCustomStopwords(this)"><div id="custom-stopwords-status" style="margin-top:5px;color:var(--text3)">'+(analyticsCustomStopZh.length?t('已加载 {count} 个词',{count:analyticsCustomStopZh.length}):t('尚未加载自定义词表'))+'</div></div>');
   document.getElementById('chat-title').textContent='📊 '+t('历史统计');document.getElementById('chat-title').style.color='';
   document.getElementById('chat-header-meta').textContent=t('在本机按需计算，不上传任何对话内容');
   document.getElementById('chat-header').classList.remove('last-supper');document.getElementById('messages').classList.remove('last-supper-gallery');
