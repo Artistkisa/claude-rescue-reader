@@ -1,0 +1,17 @@
+{
+  "name": "claude-rescue-reader-ci",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "validate": "node scripts/validate-viewer.mjs",
+    "privacy": "node scripts/privacy-guard.mjs",
+    "policy": "node scripts/pr-policy.mjs",
+    "docs": "node scripts/check-docs.mjs",
+    "test:smoke": "playwright test"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.62.0",
+    "jszip": "3.10.1"
+  }
+}

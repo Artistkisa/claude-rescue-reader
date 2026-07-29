@@ -1,7 +1,7 @@
 $ErrorActionPreference = 'Stop'
 $repoRoot = Split-Path -Parent $PSScriptRoot
 $viewerPath = Join-Path $repoRoot 'viewer.html'
-$workerPath = Join-Path $repoRoot 'src\analytics-worker.js'
+$workerPath = Join-Path (Join-Path $repoRoot 'src') 'analytics-worker.js'
 $viewer = Get-Content -LiteralPath $viewerPath -Raw -Encoding UTF8
 $worker = (Get-Content -LiteralPath $workerPath -Raw -Encoding UTF8).Trim()
 if ($worker -match '// BEGIN GENERATED ANALYTICS WORKER|// END GENERATED ANALYTICS WORKER') {

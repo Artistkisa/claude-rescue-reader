@@ -1,0 +1,42 @@
+name: Viewer Validation
+on:
+  pull_request:
+  push:
+    branches: [main]
+permissions:
+  contents: read
+concurrency:
+  group: viewer-validation-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+jobs:
+  build:
+    name: build (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Validate viewer
+        run: npm run validate
+      - name: Rebuild embedded worker
+        shell: pwsh
+        run: ./scripts/build-single-file.ps1
+      - name: Verify generated file is committed
+        shell: bash
+        run: git diff --exit-code -- viewer.html
+  validate:
+    name: validate
+    if: always()
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - run: test '${{ needs.build.result }}' = success

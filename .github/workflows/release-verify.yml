@@ -1,0 +1,42 @@
+name: Release Verify
+on:
+  workflow_dispatch:
+  push:
+    tags: ['v*']
+permissions:
+  contents: read
+jobs:
+  artifact:
+    name: artifact
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - shell: pwsh
+        run: ./scripts/build-single-file.ps1
+      - run: npm run validate
+      - run: npm run test:smoke
+      - name: Build release artifacts
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force dist | Out-Null
+          Copy-Item viewer.html dist/viewer.html
+          Compress-Archive -Path dist/viewer.html -DestinationPath dist/claude-rescue-reader.zip
+          (Get-FileHash dist/viewer.html -Algorithm SHA256).Hash.ToLower() + '  viewer.html' | Set-Content dist/SHA256SUMS.txt
+      - name: Verify package contents
+        shell: pwsh
+        run: |
+          $files = Get-ChildItem dist -File | Select-Object -ExpandProperty Name
+          if (Compare-Object @('SHA256SUMS.txt','claude-rescue-reader.zip','viewer.html') $files) { throw 'Unexpected release files' }
+          if (Select-String -Path dist/viewer.html -Pattern '<<<<<<<|>>>>>>>|D:\\others\\|restrict-account-claude-history' -Quiet) { throw 'Conflict marker or private test path found in artifact' }
+      - uses: actions/upload-artifact@v4
+        with:
+          name: claude-rescue-reader-${{ github.ref_name }}
+          path: dist/
+          retention-days: 30
