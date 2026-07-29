@@ -1539,11 +1539,11 @@ async function buildConvProjectMap(generation=projectMapGeneration){
     if(ci%PROJECT_INDEX_BATCH_SIZE===PROJECT_INDEX_BATCH_SIZE-1){await yieldProjectIndex();if(generation!==projectMapGeneration)return{map,evidence};}
     const c=allConvs[ci];
     if(map[c.uuid]) continue;
+    const title=(c.name||'').toLowerCase(),summary=(c.summary||'').toLowerCase();
     const ranked=[];
     for(const p of allProjects){
       const kws=projectKeywords.get(p.uuid)||[];
       if(!kws.length) continue;
-      const title=(c.name||'').toLowerCase(),summary=(c.summary||'').toLowerCase();
       let score=0;
       for(const kw of kws){
         if(keywordOwners.get(kw)?.size!==1)continue;
