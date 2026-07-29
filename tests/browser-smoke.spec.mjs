@@ -30,6 +30,10 @@ async function waitLoaded(page){await page.waitForFunction(()=>allConvs.length==
 
 test('folder import and core views',async({page})=>{
   const errors=await openViewer(page);await page.setInputFiles('#file-input',fixtureDir);await waitLoaded(page);
+  const lazyBefore=await page.evaluate(async()=>({metadataOnly:allConvs.every(c=>c._workerBacked&&!Object.prototype.hasOwnProperty.call(c,'chat_messages')),worker:await dataWorkerRequest('debugState')}));
+  expect(lazyBefore.metadataOnly).toBe(true);expect(lazyBefore.worker.parsed).toBe(0);
+  await page.locator('#search-fulltext').check();await page.locator('#search-box').fill('alternative synthetic answer');await expect(page.locator('.conv-item')).toHaveCount(1);
+  await page.locator('#search-box').fill('worker-search-no-match');await expect(page.locator('.conv-item')).toHaveCount(0);await page.locator('#search-box').fill('');await expect(page.locator('.conv-item')).toHaveCount(1);
   await page.locator('.conv-item').first().click();await expect(page.locator('#chat-title')).toContainText('Synthetic');
   await expect(page.locator('#messages')).toContainText('synthetic widget');
   await page.locator('#tree-mode-btn').click();await expect(page.locator('#tree-mode-btn')).toContainText(/完整|Full/);
@@ -60,6 +64,18 @@ test('project association explanations, local corrections, search, stats and exp
   expect(errors).toEqual([]);
 });
 
+test('optional libraries stay off the initial path and load by feature',async({page})=>{
+  const errors=await openViewer(page);
+  expect(await page.evaluate(()=>performance.getEntriesByType('resource').filter(entry=>/marked|highlight|jszip|mermaid/i.test(entry.name)).map(entry=>entry.name))).toEqual([]);
+  await page.setInputFiles('#file-input',fixtureDir);await waitLoaded(page);
+  expect(await page.evaluate(()=>performance.getEntriesByType('resource').some(entry=>/jszip/i.test(entry.name)))).toBe(false);
+  await page.locator('.conv-item').first().click();await expect(page.locator('#messages')).toContainText('synthetic widget');
+  expect(await page.evaluate(()=>typeof marked!=='undefined')).toBe(true);
+  await page.waitForFunction(()=>typeof hljs!=='undefined'&&typeof mermaid!=='undefined');
+  await page.waitForFunction(()=>document.querySelector('.mermaid svg'));
+  expect(errors).toEqual([]);
+});
+
 test('keyword-only project inference keeps evidence generation in scope',async({page})=>{
   const errors=await openViewer(page);await page.setInputFiles('#file-input',fixtureDir);await waitLoaded(page);
   const result=await page.evaluate(async()=>{
@@ -70,6 +86,46 @@ test('keyword-only project inference keeps evidence generation in scope',async({
   expect(result.map['00000000-0000-4000-8000-000000000199']).toBe('00000000-0000-4000-8000-000000000301');
   expect(result.evidence['00000000-0000-4000-8000-000000000199'].method).toBe('keyword');
   expect(errors).toEqual([]);
+});
+
+test('persistent data worker accepts transferable chunks and returns metadata first',async({page})=>{
+  const errors=await openViewer(page);
+  const payload=JSON.stringify(conversations);
+  const result=await page.evaluate(async({text,projectData,memoryData})=>{
+    const generation=nextDataWorkerGeneration();
+    const file=new File([text],'conversations.json',{type:'application/json'});
+    const metadata=await streamConversationFileToWorker(file,generation,37);
+    const before=await dataWorkerRequest('debugState',null,[],generation);
+    const full=await dataWorkerRequest('getConversation',{uuid:metadata.conversations[0].uuid},[],generation);
+    const after=await dataWorkerRequest('debugState',null,[],generation);
+    const search=await dataWorkerRequest('search',{query:'synthetic widget'},[],generation);
+    const analytics=await dataWorkerRequest('analytics',{customStopZh:[]},[],generation);
+    const projectIndex=await dataWorkerRequest('projectIndex',{projects:projectData,memoryData},[],generation);
+    return{metadata:metadata.conversations[0],fullMessages:full.chat_messages.length,search,before,after,analytics,projectIndex};
+  },{text:payload,projectData:projects,memoryData:memories});
+  expect(result.metadata._workerBacked).toBe(true);
+  expect(result.metadata).not.toHaveProperty('chat_messages');
+  expect(result.before).toMatchObject({records:1,parsed:0,lazy:true});
+  expect(result.fullMessages).toBeGreaterThan(0);
+  expect(result.after.parsed).toBe(1);
+  expect(result.search.uuids).toContain(conversations[0].uuid);
+  expect(result.analytics).toMatchObject({conversations:1,messages:5,human:2,assistant:3});
+  expect(result.projectIndex.map[conversations[0].uuid]).toBe(projects[0].uuid);
+  expect(result.projectIndex.evidence[conversations[0].uuid].method).toBe('file');
+  expect(errors).toEqual([]);
+});
+
+test('IndexedDB parse cache hits only for the same source fingerprint',async({page})=>{
+  const errors=await openViewer(page),payload=JSON.stringify(conversations);
+  await expect(page.locator('#clear-cache-btn')).toBeVisible();await page.locator('#clear-cache-btn').click();await expect(page.locator('#clear-cache-btn')).toContainText(/已清除|cleared/i);
+  const result=await page.evaluate(async text=>{
+    const firstGeneration=nextDataWorkerGeneration();await dataWorkerRequest('cacheClear',null,[],firstGeneration).catch(()=>null);
+    const first=await loadConversationSourceToWorker(new File([text],'conversations.json',{lastModified:1000}),firstGeneration);await dataWorkerCachePromise;
+    const secondGeneration=nextDataWorkerGeneration();const second=await loadConversationSourceToWorker(new File([text],'conversations.json',{lastModified:1000}),secondGeneration);
+    const thirdGeneration=nextDataWorkerGeneration();const third=await loadConversationSourceToWorker(new File([text],'conversations.json',{lastModified:2000}),thirdGeneration);
+    return{first:first.cacheHit||false,second:second.cacheHit||false,third:third.cacheHit||false};
+  },payload);
+  expect(result).toEqual({first:false,second:true,third:false});expect(errors).toEqual([]);
 });
 
 test('drag import and safe exports',async({page})=>{

@@ -2,11 +2,15 @@ import fs from 'node:fs';
 
 const html=fs.readFileSync('viewer.html','utf8');
 const worker=fs.readFileSync('src/analytics-worker.js','utf8').trim();
+const dataWorker=fs.readFileSync('src/data-worker.js','utf8').trim();
 const failures=[];
 const fail=m=>failures.push(m);
 
 if(/^(?:<<<<<<<[^\r\n]*|=======|>>>>>>>[^\r\n]*)\r?$/m.test(html))fail('Git conflict marker found in viewer.html');
-for(const marker of['// BEGIN GENERATED ANALYTICS WORKER','// END GENERATED ANALYTICS WORKER'])if(!html.includes(marker))fail(`Missing generated marker: ${marker}`);
+for(const marker of['// BEGIN GENERATED DATA WORKER','// END GENERATED DATA WORKER','// BEGIN GENERATED ANALYTICS WORKER','// END GENERATED ANALYTICS WORKER'])if(!html.includes(marker))fail(`Missing generated marker: ${marker}`);
+const generatedData=html.match(/\/\/ BEGIN GENERATED DATA WORKER[^\r\n]*\r?\n([\s\S]*?)\r?\n\/\/ END GENERATED DATA WORKER/);
+if(!generatedData)fail('Embedded data worker section was not found');
+else if(generatedData[1].trim().replace(/\r\n/g,'\n')!==dataWorker.replace(/\r\n/g,'\n'))fail('viewer.html embedded data worker differs from src/data-worker.js');
 const generated=html.match(/\/\/ BEGIN GENERATED ANALYTICS WORKER[^\r\n]*\r?\n([\s\S]*?)\r?\n\/\/ END GENERATED ANALYTICS WORKER/);
 if(!generated)fail('Embedded analytics worker section was not found');
 else if(generated[1].trim().replace(/\r\n/g,'\n')!==worker.replace(/\r\n/g,'\n'))fail('viewer.html embedded worker differs from src/analytics-worker.js');

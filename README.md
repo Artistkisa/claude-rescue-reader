@@ -136,12 +136,19 @@ claude-export/
 - 各项目记忆按 6 个标准分区展示，可折叠
 
 ### 统计
-- 打开「统计」Tab 后才启动独立 Web Worker，普通阅读不会预先扫描统计数据
+- 打开「统计」Tab 后才在持久 Data Worker 中计算，普通阅读不会预先扫描统计数据
 - 展示对话、消息、角色、字符、Thinking、工具、附件与网页搜索总量
 - 展示月度/星期/小时活跃度、对话深度、角色消息与字符分布、内容块构成、模型信息（导出包含时）与最长对话
 - 在 Worker 内生成中英文高频词云，并汇总搜索、文件、Artifact 与 Thinking 数量
 - 额外分析活跃天数/连续活跃、回复延迟、对话跨度、分支与替代消息、空消息等历史健康指标
-- 主线程将精简后的数据分批发送给 Worker，统计结果仅保存在当前页面，不上传任何内容
+- 统计、词频、全文索引和项目匹配直接复用 Worker 内的原始记录，不再由主线程重复序列化全部消息；任何内容都不会上传
+
+### 大型导出性能
+- `conversations.json` 以 4 MiB 分块读取，并通过 Transferable `ArrayBuffer` 交给持久 Data Worker
+- 初次导入只扫描顶层数组并返回标题、时间、摘要和消息数；打开某条对话时才解析该对话的完整消息
+- 解析记录以文件大小、修改时间和首尾内容指纹隔离后缓存在本机 IndexedDB；来源变化时不会复用旧缓存
+- 缓存始终留在当前浏览器，可通过侧栏的「清除本地解析缓存」随时删除
+- 代码高亮、Mermaid、Artifact iframe 和 ZIP 解析按实际功能/视口加载，不阻塞初始对话列表
 
 ### 其他
 - 🌙 / ☀️ 明暗主题切换，偏好自动保存
@@ -206,7 +213,7 @@ github-dark.min.css    ← https://cdn.jsdelivr.net/npm/highlight.js@11.9.0/styl
 - [highlight.js](https://highlightjs.org/) — 代码语法高亮
 - [JSZip](https://stuk.github.io/jszip/) — ZIP 压缩包直读（免解压）
 
-统计 Worker 的可维护源码位于 `src/analytics-worker.js`。修改后运行 `scripts/build-single-file.ps1`，即可重新内联到 `viewer.html`；普通用户不需要运行构建脚本。
+持久数据管线与兼容性统计 Worker 的可维护源码分别位于 `src/data-worker.js` 和 `src/analytics-worker.js`。修改后运行 `scripts/build-single-file.ps1`，即可重新内联到 `viewer.html`；普通用户不需要运行构建脚本。
 
 ## Changelog
 

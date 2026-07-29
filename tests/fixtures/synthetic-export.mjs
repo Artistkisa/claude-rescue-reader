@@ -4,7 +4,7 @@ export const conversations=[{
     {uuid:'00000000-0000-4000-8000-000000000202',sender:'assistant',created_at:'2026-01-01T00:01:00Z',parent_message_uuid:'00000000-0000-4000-8000-000000000201',content:[{type:'thinking',thinking:'Synthetic reasoning.'},{type:'text',text:'The synthetic widget is safe to test.'},{type:'local_resource',file_path:'/mnt/project/synthetic-blueprint.md'},{type:'tool_use',name:'project_knowledge_search',input:{query:'synthetic blueprint widget'}},{type:'tool_use',name:'show_widget',input:{code:'<div id="synthetic-artifact">Synthetic artifact</div>'}}]},
     {uuid:'00000000-0000-4000-8000-000000000203',sender:'assistant',created_at:'2026-01-01T00:02:00Z',parent_message_uuid:'00000000-0000-4000-8000-000000000201',content:[{type:'text',text:'Alternative synthetic answer.'}]},
     {uuid:'00000000-0000-4000-8000-000000000204',sender:'human',created_at:'2026-01-01T00:03:00Z',parent_message_uuid:'00000000-0000-4000-8000-000000000202',content:[{type:'text',text:'Continue with statistics and files.'}],attachments:[{file_name:'synthetic-note.txt',file_size:12}]},
-    {uuid:'00000000-0000-4000-8000-000000000205',sender:'assistant',created_at:'2026-01-01T00:04:00Z',parent_message_uuid:'00000000-0000-4000-8000-000000000204',content:[{type:'text',text:'Synthetic analytics vocabulary: nebula nebula observatory.'}]}
+    {uuid:'00000000-0000-4000-8000-000000000205',sender:'assistant',created_at:'2026-01-01T00:04:00Z',parent_message_uuid:'00000000-0000-4000-8000-000000000204',content:[{type:'text',text:'Synthetic analytics vocabulary: nebula nebula observatory.\n\n```js\nconst synthetic = true;\n```\n\n```mermaid\ngraph TD\nA[Synthetic] --> B[Fixture]\n```'}]}
   ]
 }];
 
