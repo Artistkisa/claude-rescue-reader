@@ -121,10 +121,12 @@ claude-export/
 - ⚙ **Tool calls** and results collapsible
 - Switch between conversation branches created by edits or regenerated responses
 - Render rich content including artifacts, Mermaid diagrams, generated files, web search panels, attachments, and citations
+- Reattach images automatically from an imported folder or ZIP when the export only retains filenames, with manual local-image binding and PDF inclusion
 - Copy an individual message as plain text
 
 ### Projects
 - View project documents (Markdown rendered, collapsible)
+- Show and copy project custom instructions, and download individual project knowledge files in their original form
 - High-confidence conversation association: unique file evidence → project knowledge search → project-unique keywords
 - Project-match explanations show matched memories, files, keywords, and confidence
 - Manually correct project assignments; confirmations stay only in local browser storage and never modify the source export
@@ -141,6 +143,7 @@ claude-export/
 - Shows monthly/weekday/hourly activity, conversation depth, message and character distribution by role, content-block composition, model information (when present in the export), and longest conversations
 - Builds Chinese/English frequent-word clouds inside the Worker and summarizes searches, files, artifacts, and thinking blocks
 - Adds history-health metrics for active-day streaks, response latency, conversation span, branches/alternatives, and empty messages
+- Adds a local usage profile and record insights for peak hour, late-night activity, streak range, most-used tool, longest Thinking block, and conversations with the most tool failures
 - Analytics, word frequency, full-text indexing, and project matching reuse the raw records already owned by the Worker; the main thread no longer reserializes every message, and no content is uploaded
 
 ### Large-export performance

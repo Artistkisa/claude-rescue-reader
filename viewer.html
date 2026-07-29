@@ -173,6 +173,10 @@ body { background: var(--bg); color: var(--text); font-family: -apple-system,Bli
 .img-placeholder { padding: 10px 14px; background: var(--bg3); border: 1px dashed var(--border); border-radius: 8px; font-size: 12px; color: var(--text3); display: flex; align-items: center; gap: 8px; }
 .attachment-block { display: flex; align-items: center; gap: 8px; padding: 8px 12px; background: var(--bg3); border: 1px solid var(--border); border-radius: 8px; margin: 4px 0; font-size: 12px; }
 .attachment-block .file-icon { color: var(--orange); }
+.attachment-preview { align-items:flex-start; flex-wrap:wrap; }
+.attachment-preview img { width:min(280px,100%); max-height:220px; object-fit:contain; border:1px solid var(--border); border-radius:8px; background:var(--bg2); }
+.attachment-info { flex:1; min-width:160px; display:grid; gap:6px; }
+.attachment-actions { display:flex; flex-wrap:wrap; gap:6px; }
 .date-divider { text-align: center; margin: 16px 0 8px; }
 .date-divider span { background: var(--bg3); color: var(--text3); font-size: 11px; padding: 3px 10px; border-radius: 10px; }
 
@@ -196,6 +200,9 @@ body { background: var(--bg); color: var(--text); font-family: -apple-system,Bli
 .project-tools input { flex:1; min-width:180px; padding:7px 10px; border:1px solid var(--border); border-radius:7px; background:var(--bg2); color:var(--text); }
 .project-tools button,.project-assign { padding:6px 10px; border:1px solid var(--border); border-radius:7px; background:var(--bg3); color:var(--text2); cursor:pointer; }
 .project-tools button:hover,.project-assign:hover { border-color:var(--accent); color:var(--text); }
+.project-prompt { margin:0 0 18px; padding:14px 16px; border:1px solid var(--border); border-radius:10px; background:var(--bg2); }
+.project-prompt-head,.project-doc-head { display:flex; align-items:center; gap:8px; justify-content:space-between; }
+.project-prompt pre { max-height:320px; overflow:auto; margin:10px 0 0; white-space:pre-wrap; color:var(--text2); font:12px/1.6 ui-monospace,SFMono-Regular,Consolas,monospace; }
 .project-stat-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(120px,1fr)); gap:8px; margin-bottom:18px; }
 .project-stat { padding:10px 12px; border:1px solid var(--border); border-radius:9px; background:var(--bg3); font-size:11px; color:var(--text3); }
 .project-stat b { display:block; color:var(--text); font-size:17px; margin-bottom:2px; }
@@ -333,6 +340,10 @@ mark.cs.active { background:var(--accent); color:#fff; }
 .analytics-progress-track { height:8px; margin:14px 0 8px; overflow:hidden; border-radius:99px; background:var(--bg3); }
 .analytics-progress-fill { height:100%; width:0; border-radius:99px; background:linear-gradient(90deg,var(--accent),var(--blue)); transition:width .18s ease; }
 .analytics-note { margin-top:12px; color:var(--text3); font-size:11px; line-height:1.5; }
+.insight-grid { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:10px; margin-bottom:12px; }
+.insight-card { padding:14px 15px; border:1px solid var(--border); border-radius:12px; background:linear-gradient(145deg,var(--bg2),var(--bg3)); }
+.insight-card b { display:block; margin:5px 0; color:var(--text); font-size:15px; }
+.insight-card span { color:var(--text3); font-size:11px; line-height:1.5; }
 .analytics-side { padding:14px 12px; color:var(--text3); font-size:11.5px; line-height:1.7; }
 .analytics-side b { color:var(--text2); }
 .word-cloud { display:flex; flex-wrap:wrap; align-items:center; justify-content:center; gap:7px 11px; min-height:150px; padding:8px; }
@@ -368,6 +379,7 @@ mark.cs.active { background:var(--accent); color:#fff; }
 .tree-node { border-left:2px solid var(--accent); margin-left:calc(var(--tree-depth,0) * 18px); padding-left:4px; }
 @media(max-width:700px){.quality-grid{grid-template-columns:repeat(2,minmax(0,1fr));}}
 @media(max-width:900px){.analytics-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.chart-layout{grid-template-columns:1fr}.analytics-page{padding:18px 14px 36px}}
+@media(max-width:900px){.insight-grid{grid-template-columns:1fr}}
 </style>
 </head>
 <body>
@@ -486,6 +498,7 @@ mark.cs.active { background:var(--accent); color:#fff; }
 <script>
 const ICON='<svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 2l4 4-4 4"/></svg>';
 let allConvs=[],allDesigns=[],allProjects=[],memoryData=null,currentConv=null,summaryVisible=false,lastConversationUuid='';
+const LOCAL_MEDIA=new Map(),ATTACHMENT_MEDIA=new Map(),PROJECT_TEXT_STORE=new Map();
 let conversationTreeMode='longest',qualityWorker=null,qualityWorkerUrl='',qualityCache=new Map(),qualityPending=new Map(),qualityRequestId=0,qualityOpen=false;
 let dataLoadGeneration=0;
 let loadedSummary=null;
@@ -519,6 +532,7 @@ const EN={
   '正在分析关联对话…':'Analyzing related conversations…','正在建立项目关联索引…':'Building project relationship index…',
   '关联索引失败':'Relationship index failed','项目关联索引失败，请重新选择项目重试。':'Project relationship indexing failed. Select the project again to retry.',
   '项目文档':'Project documents','未命名':'Untitled','无内容':'No content','关联对话':'Related conversations',
+  '项目自定义指令':'Project custom instructions','复制指令':'Copy instructions','下载原始文件':'Download original file','下载全部项目文件':'Download all project files',
   '搜索当前项目对话':'Search this project','导出项目':'Export project','项目统计':'Project statistics','时间范围':'Date range','项目记忆与对话引用关系图':'Memory-to-conversation reference graph',
   '手动修正项目归属':'Correct project assignment','使用自动推断':'Use automatic inference','保持未归属':'Keep unassigned','人工确认结果只保存在当前浏览器本地':'Confirmed assignments are stored only in this browser.',
   '匹配方式':'Match method','用户手动确认':'User confirmed','唯一项目文件':'Unique project file','项目知识搜索':'Project knowledge search','项目记忆关键词':'Project-memory keywords','无自动证据':'No automatic evidence',
@@ -529,6 +543,7 @@ const EN={
   '以下消息无法归入对话分支（可能是已删除分支的残留）':'The following messages could not be attached to a branch (possibly remnants of a deleted branch).',
   '此消息渲染出错':'This message could not be rendered','流程图':'Diagram','图表':'Chart','交互预览':'Interactive preview',
   '下载':'Download','查看源码':'View source','内容未包含在导出中':'Content not included in export','打开':'Open','此回复生成的文件':'Files generated by this response',
+  '选择本地图片':'Choose local image','更换图片':'Replace image','自动匹配':'Automatically matched','手动绑定':'Manually attached','图片未包含在导出中，可按文件名自动匹配或手动选择。':'The image is absent from the export. It can be matched by filename or selected manually.',
   '文件':'File','附件':'Attachment','搜索了网页':'Searched the web','空消息':'Empty message',
   '此处有多个版本（编辑或重新生成），切换后后续对话随之改变':'Multiple versions exist here (edited or regenerated); switching also changes subsequent messages.',
   '复制这条消息':'Copy this message','你':'You','思考过程':'Thinking','工具':'Tool','结果':'Result','图片':'Image','知识引用':'Knowledge reference','搜索引用':'Search citation',
@@ -555,6 +570,7 @@ const EN={
   '星期活跃度':'Activity by weekday','对话深度分布':'Conversation depth','角色字符分布':'Characters by role','你的字符':'Your characters','Claude 字符':'Claude characters',
   '搜索、文件与生成内容':'Search, files & generated content','中文高频词':'Chinese frequent words','英文高频词':'English frequent words','暂无词频数据':'No word-frequency data',
   '活跃天数':'Active days','最长连续活跃':'Longest streak','中位回复延迟':'Median response time','平均对话跨度':'Avg. conversation span','含分支对话':'Branched conversations','分支点':'Branch points','重新生成/替代消息':'Regenerated / alternative messages','空消息':'Empty messages','天':' days',
+  '你的 Claude 使用画像':'Your Claude usage profile','深夜消息':'Late-night messages','最活跃时段':'Peak activity hour','最依赖的工具':'Most-used tool','Thinking 最长回答':'Longest Thinking response','工具失败最多的对话':'Conversation with most tool failures','连续活跃区间':'Longest active streak','暂无可用记录':'No matching record','夜间探索型':'Night explorer','日间专注型':'Daytime focus','工具驱动型':'Tool-driven','深度对话型':'Deep-conversation user','均衡使用型':'Balanced user',
   '对话质量分析':'Conversation quality','质量':'Quality','最长路径':'Longest path','完整树':'Full tree','扫描中…':'Scanning…','健康报告':'Health report','敏感信息':'Sensitive data','未发现异常':'No anomalies found','异常消息':'anomalous messages','重复回答':'Repeated answers','疑似拒答':'Possible refusal','拒答并给出替代方案':'Refusal with safe alternative','疑似降级回答':'Possible fallback answer','被截断回答':'Possibly truncated','仅工具无正文':'Tool-only response','时间倒序':'Reverse timestamps','孤立消息':'Orphan messages','不完整附件':'Incomplete attachments','不可解析内容块':'Unparseable blocks','回复延迟异常':'Abnormal reply latency','内部元数据':'Internal metadata','API 密钥':'API keys','Bearer 令牌':'Bearer tokens','私钥':'Private keys','邮箱':'Emails','手机号':'Phone numbers','本地路径':'Local paths','导出前脱敏':'Redact before export','安全导出':'Safe export','安全导出 PDF':'Safe PDF','脱敏预览':'Redaction preview','替换':'replacements','检测到':'detected',
   '暂无 Design 对话':'No Design conversations','条 Design 对话':' Design conversations','跳到顶部':'Jump to top','跳到底部':'Jump to bottom','正在准备 PDF…':'Preparing PDF…','打印 / 另存为 PDF':'Print / Save as PDF','弹窗被浏览器拦截，请允许弹窗后重试':'The popup was blocked. Allow popups and try again.','下载 PNG':'Download PNG','PNG 导出失败，已改为下载源码':'PNG export failed; source downloaded instead'
 };
@@ -611,6 +627,19 @@ function ensureMermaid(){return loadOptionalScript('Mermaid',['https://cdn.jsdel
 function ensureHighlightTheme(){let link=document.getElementById('hljs-theme');if(!link){link=document.createElement('link');link.id='hljs-theme';link.rel='stylesheet';document.head.appendChild(link);}const dark=document.documentElement.getAttribute('data-theme')==='dark';link.href='https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.11.1/styles/'+(dark?'github-dark':'github')+'.min.css';}
 function warmMarkdownAfterList(){const run=()=>void ensureMarked();if(typeof requestIdleCallback==='function')requestIdleCallback(run,{timeout:1500});else setTimeout(run,250);}
 
+function mediaKey(name){return String(name||'').replace(/\\/g,'/').split('/').pop().normalize('NFKC').toLowerCase();}
+function isImageFileName(name,type=''){return /^image\//i.test(type)||/\.(?:png|jpe?g|gif|webp|bmp|svg|avif|heic|tiff?)$/i.test(String(name||''));}
+function clearLocalMedia(){const urls=new Set([...LOCAL_MEDIA.values(),...ATTACHMENT_MEDIA.values()].map(item=>item?.url).filter(Boolean));for(const url of urls)try{URL.revokeObjectURL(url);}catch(e){}LOCAL_MEDIA.clear();ATTACHMENT_MEDIA.clear();}
+function addLocalMedia(blob,name,source='auto'){
+  if(!blob||!isImageFileName(name,blob.type))return null;
+  const key=mediaKey(name);if(!key)return null;
+  const previous=LOCAL_MEDIA.get(key);if(previous?.url)try{URL.revokeObjectURL(previous.url);}catch(e){}
+  const item={name:String(name||'image'),url:URL.createObjectURL(blob),type:blob.type||'',source};LOCAL_MEDIA.set(key,item);return item;
+}
+function registerFolderMedia(files){clearLocalMedia();for(const file of files||[])if(isImageFileName(file.name,file.type))addLocalMedia(file,file.webkitRelativePath||file.name,'auto');}
+function attachmentMedia(att,key){return ATTACHMENT_MEDIA.get(key)||LOCAL_MEDIA.get(mediaKey(att.file_name||att.filename||att.name||''))||null;}
+function chooseAttachmentMedia(key){const input=document.createElement('input');input.type='file';input.accept='image/*';input.onchange=()=>{const file=input.files?.[0];if(!file)return;const item={name:file.name,url:URL.createObjectURL(file),type:file.type||'',source:'manual'};const old=ATTACHMENT_MEDIA.get(key);if(old?.source==='manual'&&old.url)try{URL.revokeObjectURL(old.url);}catch(e){}ATTACHMENT_MEDIA.set(key,item);if(currentConv)renderMessages(currentConv.chat_messages||[]);};input.click();}
+
 document.getElementById('file-input').addEventListener('change',async e=>{
   const files=[...e.target.files];
   e.target.value=''; // 允许重选同一个文件夹（与 ZIP 入口行为一致）
@@ -623,6 +652,7 @@ document.getElementById('file-input').addEventListener('change',async e=>{
     const known=new Set([cf,mf,...pf].filter(Boolean));
     const designTexts=await Promise.all(files.filter(f=>f.name.endsWith('.json')&&!known.has(f)).map(f=>f.text()));
     if(!cf&&!designTexts.some(isDesignExportText)){btn.textContent='⚠️ '+t('未找到 conversations.json');return;}
+    registerFolderMedia(files);
     await ingestData(cf||null,await Promise.all(pf.map(p=>p.text())),mf?await mf.text():null,designTexts,btn);
   }catch(err){btn.textContent='❌ '+t('加载失败')+': '+errorMessage(err);console.error(err);}
 });
@@ -653,6 +683,9 @@ document.getElementById('zip-input').addEventListener('change',async e=>{
     ]);
     const projTexts=await Promise.all(projNames.map(n=>zip.files[n].async('text')));
     const designTexts=await Promise.all(designNames.map(n=>zip.files[n].async('text')));
+    clearLocalMedia();
+    const imageNames=entries.filter(n=>isImageFileName(n));
+    for(const name of imageNames){const blob=await zip.files[name].async('blob');addLocalMedia(blob,name,'auto');}
     if(!convName&&!designTexts.some(isDesignExportText)){btn.textContent='⚠️ '+t('ZIP 中未找到 conversations.json');return;}
     const convBuffer=!convBytes?null:convBytes.byteOffset===0&&convBytes.byteLength===convBytes.buffer.byteLength
       ?convBytes.buffer:convBytes.buffer.slice(convBytes.byteOffset,convBytes.byteOffset+convBytes.byteLength);
@@ -940,7 +973,7 @@ function dataWorkerMain(){
     return searchIndex;
   }
   function calculateAnalytics(customStopZh=[]){
-    const state={conversations:0,messages:0,human:0,assistant:0,humanCharacters:0,assistantCharacters:0,characters:0,thinking:0,tools:0,attachments:0,textBlocks:0,imageBlocks:0,artifacts:0,webSearches:0,emptyMessages:0,branchPoints:0,alternativeMessages:0,branchedConversations:0,conversationDurationMs:0,months:{},activeDates:{},weekdays:Array(7).fill(0),hours:Array(24).fill(0),models:{},depths:{},wordsZh:{},wordsEn:{},responseLatencies:[],longest:[]};
+    const state={conversations:0,messages:0,human:0,assistant:0,humanCharacters:0,assistantCharacters:0,characters:0,thinking:0,tools:0,toolErrors:0,attachments:0,textBlocks:0,imageBlocks:0,artifacts:0,webSearches:0,emptyMessages:0,branchPoints:0,alternativeMessages:0,branchedConversations:0,conversationDurationMs:0,months:{},activeDates:{},weekdays:Array(7).fill(0),hours:Array(24).fill(0),models:{},toolNames:{},depths:{},wordsZh:{},wordsEn:{},responseLatencies:[],longest:[],lateNightMessages:0,longestThinking:null,mostToolErrors:null};
     const add=(object,key,n=1)=>{object[key]=(object[key]||0)+n;};
     const stopEn=new Set('a an and are as at be been but by can could did do does for from had has have he her hers him his how i if in into is it its may me might more most my no not of on or our ours she should so some than that the their theirs them then there these they this those to too us was we were what when where which who why will with would you your yours'.split(' '));
     const stopZh=new Set(('的 了 和 是 在 我 有 就 不 人 都 一 一个 上 也 很 到 说 要 去 你 会 着 没有 看 好 自己 这 那 里 为 以 及 与 或 而 被 把 对 从 等 中 能 可以 进行 使用 需要 如果 这个 这些 我们 你们 他们 因为 所以 然后 而且 但是 还是 已经 可能 现在 之后 之前 其中 通过 对于 关于 根据 按照 什么 怎么 为什么 哪个 哪些 哪里 这里 那里 这样 那样 这么 那么 不是 不能 无法 不会 不同 一些 一种 本身 目前 当前 直接 完全 真正 真实 所有 全部 整个 完整 相关 具体 一般 通常 主要 核心 内容 问题 文章 说明 数据 文件 图片 标题 结构 技术 逻辑 工具 系统 服务 设计 代码 网站 产品 项目 章节 分类 部分 方面 东西 事情 你的 我的 他的 她的 它的 我们的 你们的 他们的 各种 某些 任何 其他 还有 因此 例如 吧 呢 啊 哦 嗯 呀 嘿 哈 哈哈 诶 哎 唉 这类 这次 这点 这个问题 这种情况 就是 那个 那些 知道 的是 存在 或者 开始 几个 这种 出来 只是 只是说 还有点 一下 一下子 一直 一定 一样 一起 一共 多个 少数 许多 多少 时候 以后 以前 现在的 之后的 起来 下来 上来 回来 过去').split(/\s+/));
@@ -955,23 +988,24 @@ function dataWorkerMain(){
     };
     for(const record of records){
       const conversation=materialize(record),messages=list(conversation.chat_messages);state.conversations++;
-      let convChars=0,convBranched=false;const childCounts={},timed=[];
+      let convChars=0,convBranched=false,convToolErrors=0;const childCounts={},timed=[];
       for(const message of messages){
         state.messages++;const sender=message?.sender||'assistant';if(sender==='human')state.human++;else if(sender==='assistant')state.assistant++;
         let characters=0,thinking=0,tools=0,textBlocks=0,imageBlocks=0,artifacts=0,webSearches=0,wordText='';
         for(const block of list(message?.content)){
           if(!block||typeof block!=='object')continue;const type=block.type||'',name=String(block.name||'');
           if(type==='text'){const text=String(block.text||'');textBlocks++;characters+=text.length;wordText+=' '+text;}
-          else if(type==='thinking'){const text=String(block.thinking||'');thinking++;characters+=text.length;wordText+=' '+text;}
+          else if(type==='thinking'){const text=String(block.thinking||'');thinking++;characters+=text.length;wordText+=' '+text;const start=Date.parse(block.start_timestamp||''),stop=Date.parse(block.stop_timestamp||'');if(Number.isFinite(start)&&Number.isFinite(stop)&&stop>=start){const duration=stop-start;if(!state.longestThinking||duration>state.longestThinking.durationMs)state.longestThinking={durationMs:duration,conversationUuid:record.meta.uuid,title:record.meta.name,messageUuid:message?.uuid||''};}}
           else if(type==='image')imageBlocks++;
-          if(type==='tool_use'||type==='server_tool_use'){tools++;if(/show_widget|visualize|imagine|artifact/i.test(name))artifacts++;if(/web_search|web_fetch/i.test(name))webSearches++;}
+          if(type==='tool_use'||type==='server_tool_use'){tools++;add(state.toolNames,name||'unknown');if(/show_widget|visualize|imagine|artifact/i.test(name))artifacts++;if(/web_search|web_fetch/i.test(name))webSearches++;}
+          if((type==='tool_result'||type==='web_search_tool_result')&&block.is_error){state.toolErrors++;convToolErrors++;}
         }
         if(!list(message?.content).length&&message?.text){wordText=String(message.text);characters=wordText.length;}
         if(sender==='human')state.humanCharacters+=characters;else if(sender==='assistant')state.assistantCharacters+=characters;
         state.characters+=characters;convChars+=characters;state.thinking+=thinking;state.tools+=tools;state.textBlocks+=textBlocks;state.imageBlocks+=imageBlocks;state.artifacts+=artifacts;state.webSearches+=webSearches;
         const attachments=list(message?.attachments).length+list(message?.files).length;state.attachments+=attachments;if(!list(message?.content).length&&!message?.text&&!attachments)state.emptyMessages++;
         const date=new Date(message?.created_at||message?.updated_at||''),timestamp=date.getTime();
-        if(!Number.isNaN(timestamp)){const dateKey=date.getFullYear()+'-'+String(date.getMonth()+1).padStart(2,'0')+'-'+String(date.getDate()).padStart(2,'0');add(state.activeDates,dateKey);add(state.months,dateKey.slice(0,7));state.weekdays[date.getDay()]++;state.hours[date.getHours()]++;timed.push({sender,uuid:message?.uuid||'',parentUuid:message?.parent_message_uuid||'',timestamp});}
+        if(!Number.isNaN(timestamp)){const dateKey=date.getFullYear()+'-'+String(date.getMonth()+1).padStart(2,'0')+'-'+String(date.getDate()).padStart(2,'0');add(state.activeDates,dateKey);add(state.months,dateKey.slice(0,7));state.weekdays[date.getDay()]++;state.hours[date.getHours()]++;if(date.getHours()<5)state.lateNightMessages++;timed.push({sender,uuid:message?.uuid||'',parentUuid:message?.parent_message_uuid||'',timestamp});}
         const model=message?.model||message?.model_slug||message?.message?.model||'';if(model)add(state.models,model);countWords(wordText);
         if(message?.parent_message_uuid)add(childCounts,message.parent_message_uuid);
       }
@@ -980,9 +1014,10 @@ function dataWorkerMain(){
       const timedByUuid=Object.fromEntries(timed.filter(item=>item.uuid).map(item=>[item.uuid,item]));for(const item of timed){const parent=timedByUuid[item.parentUuid];if(item.sender==='assistant'&&parent?.sender==='human'){const latency=item.timestamp-parent.timestamp;if(latency>=0&&latency<=86400000)state.responseLatencies.push(latency);}}
       const depth=messages.length,depthKey=depth<=5?'1–5':depth<=10?'6–10':depth<=25?'11–25':depth<=50?'26–50':depth<=100?'51–100':'101+';add(state.depths,depthKey);
       state.longest.push({uuid:record.meta.uuid,title:record.meta.name,messages:depth,characters:convChars,updatedAt:record.meta.updated_at||record.meta.created_at});
+      if(convToolErrors&&(!state.mostToolErrors||convToolErrors>state.mostToolErrors.errors))state.mostToolErrors={conversationUuid:record.meta.uuid,title:record.meta.name,errors:convToolErrors};
     }
     parsedCache.clear();state.longest.sort((a,b)=>b.messages-a.messages||b.characters-a.characters);state.longest=state.longest.slice(0,10);state.wordsZh=Object.entries(state.wordsZh).sort((a,b)=>b[1]-a[1]).slice(0,40);state.wordsEn=Object.entries(state.wordsEn).sort((a,b)=>b[1]-a[1]).slice(0,40);state.responseLatencies.sort((a,b)=>a-b);state.medianResponseMs=state.responseLatencies.length?state.responseLatencies[Math.floor(state.responseLatencies.length/2)]:0;delete state.responseLatencies;
-    const dates=Object.keys(state.activeDates).sort();let streak=0,longestStreak=0,previous=NaN;for(const date of dates){const day=Date.parse(date+'T00:00:00Z')/86400000;streak=day===previous+1?streak+1:1;longestStreak=Math.max(longestStreak,streak);previous=day;}state.activeDays=dates.length;state.longestStreak=longestStreak;delete state.activeDates;
+    const dates=Object.keys(state.activeDates).sort();let streak=0,longestStreak=0,previous=NaN,streakStart='',longestStart='',longestEnd='';for(const date of dates){const day=Date.parse(date+'T00:00:00Z')/86400000;if(day===previous+1)streak++;else{streak=1;streakStart=date;}if(streak>longestStreak){longestStreak=streak;longestStart=streakStart;longestEnd=date;}previous=day;}state.activeDays=dates.length;state.longestStreak=longestStreak;state.longestStreakStart=longestStart;state.longestStreakEnd=longestEnd;state.peakHour=state.hours.indexOf(Math.max(...state.hours));state.mostUsedTool=Object.entries(state.toolNames).sort((a,b)=>b[1]-a[1])[0]||null;delete state.activeDates;
     return state;
   }
   function calculateBehavior(){
@@ -1365,10 +1400,21 @@ function renderAnalyticsDashboard(s){
   const blocks=[[t('文本块'),s.textBlocks],[t('思考块'),s.thinking],[t('工具调用'),s.tools],[t('图片块'),s.imageBlocks],[t('Artifact'),s.artifacts],[t('网页搜索'),s.webSearches]].sort((a,b)=>b[1]-a[1]);
   const avg=s.conversations?(s.messages/s.conversations).toFixed(1):'0';
   const topMonth=Object.entries(s.months).sort((a,b)=>b[1]-a[1])[0]?.[0]||'—',topModel=models[0]?.[0]||t('导出未提供');
+  const peakHour=Number.isFinite(s.peakHour)?String(s.peakHour).padStart(2,'0')+':00':'—',tool=s.mostUsedTool||null;
+  const profile=s.lateNightMessages>Math.max(10,s.messages*.18)?t('夜间探索型'):s.tools>Math.max(10,s.assistant*.35)?t('工具驱动型'):(Number(avg)>35?t('深度对话型'):(s.peakHour>=8&&s.peakHour<19?t('日间专注型'):t('均衡使用型')));
+  const streakRange=s.longestStreakStart?(fmtDateOnly(s.longestStreakStart)+(s.longestStreakEnd!==s.longestStreakStart?' — '+fmtDateOnly(s.longestStreakEnd):'')):t('暂无可用记录');
+  const insight=(icon,label,value,note)=>'<article class="insight-card"><span>'+icon+' '+t(label)+'</span><b>'+esc(String(value||t('暂无可用记录')))+'</b><span>'+esc(String(note||''))+'</span></article>';
   let h='<div class="analytics-page"><div class="analytics-hero"><div><div class="analytics-kicker">Claude Rescue Reader</div><h2 class="analytics-heading">'+t('历史统计')+'</h2><div class="analytics-sub">'+t('在本机按需计算，不上传任何对话内容')+'</div></div></div>';
   h+='<div class="analytics-grid">'+analyticsMetric('💬',nf(s.conversations),'对话总数')+analyticsMetric('✦',nf(s.messages),'消息总数')+analyticsMetric('🧑',nf(s.human),'你的消息')+analyticsMetric('🤖',nf(s.assistant),'Claude 消息')+analyticsMetric('✍️',nf(s.characters),'总字符数')+analyticsMetric('💭',nf(s.thinking),'思考块')+analyticsMetric('⚙️',nf(s.tools),'工具调用')+analyticsMetric('📎',nf(s.attachments),'附件')+'</div>';
   h+='<div class="analytics-grid">'+analyticsMetric('∅',avg,'对话平均消息数')+analyticsMetric('📅',topMonth,'最活跃月份')+analyticsMetric('🧠',topModel,'最常用模型')+analyticsMetric('🔍',nf(s.webSearches),'网页搜索')+'</div>';
   h+='<div class="analytics-grid">'+analyticsMetric('🗓️',nf(s.activeDays),'活跃天数')+analyticsMetric('🔥',nf(s.longestStreak)+t('天'),'最长连续活跃')+analyticsMetric('⏱️',analyticsDuration(s.medianResponseMs),'中位回复延迟')+analyticsMetric('↔️',analyticsDuration(s.conversations?s.conversationDurationMs/s.conversations:0),'平均对话跨度')+analyticsMetric('🌿',nf(s.branchedConversations),'含分支对话')+analyticsMetric('⑂',nf(s.branchPoints),'分支点')+analyticsMetric('🔀',nf(s.alternativeMessages),'重新生成/替代消息')+analyticsMetric('∅',nf(s.emptyMessages),'空消息')+'</div>';
+  h+='<div class="chart-card" style="margin-bottom:12px"><div class="chart-title">🪞 '+t('你的 Claude 使用画像')+'</div><div class="insight-grid">'
+    +insight('✨','你的 Claude 使用画像',profile,nf(s.messages)+' '+t('条消息'))
+    +insight('🌙','深夜消息',nf(s.lateNightMessages),t('最活跃时段')+' '+peakHour)
+    +insight('🔥','连续活跃区间',streakRange,nf(s.longestStreak)+t('天'))
+    +insight('⚙️','最依赖的工具',tool?tool[0]:t('暂无可用记录'),tool?nf(tool[1])+' '+t('工具调用'):'')
+    +insight('🧠','Thinking 最长回答',s.longestThinking?.title||t('暂无可用记录'),s.longestThinking?analyticsDuration(s.longestThinking.durationMs):'')
+    +insight('🧯','工具失败最多的对话',s.mostToolErrors?.title||t('暂无可用记录'),s.mostToolErrors?nf(s.mostToolErrors.errors)+' errors':'')+'</div></div>';
   h+='<div class="chart-layout"><div class="chart-card"><div class="chart-title">📅 '+t('每月活跃度')+'</div>'+analyticsBars(months,k=>k)+'</div><div class="chart-card"><div class="chart-title">🕐 '+t('一天中的活跃时间')+'</div>'+analyticsBars(hours,k=>k,24)+'</div></div>';
   h+='<div class="chart-layout"><div class="chart-card"><div class="chart-title">🗓️ '+t('星期活跃度')+'</div>'+analyticsBars(weekdays,k=>k,7)+'</div><div class="chart-card"><div class="chart-title">🌊 '+t('对话深度分布')+'</div>'+analyticsBars(depths,k=>k,6)+'</div></div>';
   h+='<div class="chart-layout"><div class="chart-card"><div class="chart-title">'+(models.length?'🧠 '+t('模型使用'):'👥 '+t('角色消息分布'))+'</div>'+analyticsBars(models.length?models:roles,k=>k,10)+'</div><div class="chart-card"><div class="chart-title">🧱 '+t('内容块构成')+'</div>'+analyticsBars(blocks,k=>k,10)+'</div></div>';
@@ -1949,10 +1995,16 @@ function projectStats(convs,projectUuid){
   for(const c of convs){for(const m of(c.chat_messages||[])){messages++;chars+=(m.content||[]).reduce((sum,b)=>sum+(typeof b?.text==='string'?b.text.length:0)+(typeof b?.thinking==='string'?b.thinking.length:0),typeof m.text==='string'?m.text.length:0);const time=Date.parse(m.created_at||'');if(Number.isFinite(time)){min=Math.min(min,time);max=Math.max(max,time);}}}
   return{conversations:convs.length,messages,chars,range:Number.isFinite(min)?fmtDateOnly(new Date(min).toISOString())+' — '+fmtDateOnly(new Date(max).toISOString()):'—'};
 }
+function projectPrompt(p){for(const key of['prompt_template','promptTemplate','custom_instructions','customInstructions','instructions']){const value=p?.[key];if(typeof value==='string'&&value.trim())return value.trim();}return'';}
+function projectDownloadName(name,fallback='file.txt'){return String(name||fallback).replace(/[\\/:*?"<>|]/g,'_').slice(0,120)||fallback;}
+function downloadProjectDoc(projectUuid,docUuid){const p=allProjects.find(x=>x.uuid===projectUuid),doc=(p?.docs||[]).find(x=>String(x.uuid)===String(docUuid));if(!doc)return;const name=projectDownloadName(doc.filename||'project-document.md'),file=new File([String(doc.content||'')],name,{type:'application/octet-stream'}),url=URL.createObjectURL(file),a=document.createElement('a');a.href=url;a.download=name;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),4000);}
+function copyProjectText(key,button){const value=PROJECT_TEXT_STORE.get(key)||'',done=()=>{if(button){const old=button.textContent;button.textContent='✓ '+t('已复制');setTimeout(()=>button.textContent=old,1200);}};if(navigator.clipboard?.writeText)navigator.clipboard.writeText(value).then(done).catch(()=>{});}
 async function exportProject(projectUuid){
   const p=allProjects.find(x=>x.uuid===projectUuid);if(!p)return;const convMetas=findProjectConvs(p),stats=projectStats(convMetas,projectUuid),convs=[];
   for(const meta of convMetas)convs.push(meta._workerBacked?await dataWorkerRequest('getConversation',{uuid:meta.uuid}):meta);
-  let md='# '+(p.name||t('项目（单数）'))+'\n\n'+(p.description||'')+'\n\n## '+t('项目统计')+'\n\n- '+t('关联对话')+': '+stats.conversations+'\n- '+t('条消息')+': '+stats.messages+'\n- '+t('字')+': '+stats.chars+'\n- '+t('时间范围')+': '+stats.range+'\n\n## '+t('项目文档')+'\n\n';
+  let md='# '+(p.name||t('项目（单数）'))+'\n\n'+(p.description||'')+'\n\n## '+t('项目统计')+'\n\n- '+t('关联对话')+': '+stats.conversations+'\n- '+t('条消息')+': '+stats.messages+'\n- '+t('字')+': '+stats.chars+'\n- '+t('时间范围')+': '+stats.range+'\n\n';
+  const prompt=projectPrompt(p);if(prompt)md+='## '+t('项目自定义指令')+'\n\n```text\n'+prompt.replace(/```/g,'``\\`')+'\n```\n\n';
+  md+='## '+t('项目文档')+'\n\n';
   for(const d of(p.docs||[]))md+='### '+(d.filename||t('未命名'))+'\n\n'+(d.content||'')+'\n\n';
   md+='## '+t('关联对话')+'\n\n';for(const c of convs){md+='### '+(c.name||t('无标题'))+'\n\n> UUID: '+(c.uuid||'')+'\n\n';for(const m of buildPath(c.chat_messages||[])){if(!m||m._divider)continue;md+='**'+(m.sender==='human'?t('你'):'Claude')+'** · '+fmtTime(m.created_at)+'\n\n';for(const b of(m.content||[])){if(b?.type==='text')md+=(b.text||'')+'\n\n';else if(b?.type==='thinking')md+='<details><summary>'+t('思考过程')+'</summary>\n\n'+(b.thinking||'')+'\n\n</details>\n\n';else if(b?.type==='tool_use')md+='> '+t('工具调用')+': `'+(b.name||'')+'`\n\n';}md+='---\n\n';}}
   downloadBlob(new Blob([md],{type:'text/markdown;charset=utf-8'}),(p.name||'project').replace(/[\\/:*?"<>|]/g,'_').slice(0,80)+'.md');
@@ -2008,6 +2060,8 @@ async function openProject(uuid){
   if(p.description){
     h+='<div style="background:var(--bg3);border:1px solid var(--border);border-radius:10px;padding:14px 18px;margin-bottom:20px;font-size:14px;color:var(--text2);line-height:1.6;">'+esc(p.description)+'</div>';
   }
+  const prompt=projectPrompt(p);
+  if(prompt){const promptKey='prompt-'+p.uuid;PROJECT_TEXT_STORE.set(promptKey,prompt);h+='<section class="project-prompt"><div class="project-prompt-head"><b>🧭 '+t('项目自定义指令')+'</b><button class="fbtn primary" type="button" onclick="copyProjectText(\''+esc(promptKey)+'\',this)">📋 '+t('复制指令')+'</button></div><pre>'+esc(prompt)+'</pre></section>';}
 
   // Docs section
   if((p.docs||[]).length){
@@ -2015,9 +2069,10 @@ async function openProject(uuid){
     for(const doc of p.docs){
       const id='doc_'+doc.uuid;
       h+='<div style="border:1px solid var(--border);border-radius:10px;margin-bottom:10px;overflow:hidden;">'
-        +'<div style="padding:10px 16px;background:var(--bg3);cursor:pointer;display:flex;align-items:center;justify-content:space-between;" onclick="toggleDoc(this)">'
-        +'<span style="font-size:13px;font-weight:600;">📄 '+esc(doc.filename||t('未命名'))+'</span>'
-        +'<span style="font-size:11px;color:var(--text3);">'+((doc.content||'').length)+t('字')+' '+ICON+'</span>'
+        +'<div class="project-doc-head" style="padding:10px 16px;background:var(--bg3);">'
+        +'<span style="font-size:13px;font-weight:600;cursor:pointer;flex:1" onclick="toggleDoc(this.parentElement)">📄 '+esc(doc.filename||t('未命名'))+'</span>'
+        +'<span style="font-size:11px;color:var(--text3);">'+((doc.content||'').length)+t('字')+'</span>'
+        +'<button class="fbtn" type="button" onclick="downloadProjectDoc(\''+esc(p.uuid)+'\',\''+esc(doc.uuid)+'\')">⬇ '+t('下载原始文件')+'</button><span style="cursor:pointer" onclick="toggleDoc(this.parentElement)">'+ICON+'</span>'
         +'</div>'
         +'<div id="'+id+'" style="display:none;padding:16px 18px;font-size:13.5px;line-height:1.7;color:var(--text);">'
         +(doc.content?(typeof marked!=='undefined'?marked.parse(doc.content):esc(doc.content)):'<span style="color:var(--text3)">'+t('无内容')+'</span>')
@@ -2514,11 +2569,19 @@ function renderMsg(msg){
   // Collect attachments: both structured attachment objects and raw file objects
   const atts=[...(msg.attachments||[]),...(msg.files||[])];
   let inner='';
-  for(const att of atts){
+  for(let attIndex=0;attIndex<atts.length;attIndex++){
+    const att=atts[attIndex]||{};
     const name=att.file_name||att.filename||att.name||'';
     const type=att.file_type||att.media_type||'';
     const label=name||type||(att.file_uuid?t('文件')+' ('+att.file_uuid.slice(0,8)+'…)':t('附件'));
-    inner+='<div class="attachment-block"><span class="file-icon">📎</span>'+esc(label)+'</div>';
+    const mediaId='media-'+(msg.uuid||'message')+'-'+attIndex,media=isImageFileName(name,type)?attachmentMedia(att,mediaId):null;
+    if(isImageFileName(name,type)){
+      inner+='<div class="attachment-block attachment-preview" data-attachment-media="'+esc(mediaId)+'">'
+        +(media?'<img src="'+esc(media.url)+'" alt="'+esc(label)+'">':'<span class="file-icon" style="font-size:28px">🖼️</span>')
+        +'<div class="attachment-info"><b>'+esc(label)+'</b><span style="color:var(--text3)">'+(media?t(media.source==='manual'?'手动绑定':'自动匹配'):t('图片未包含在导出中，可按文件名自动匹配或手动选择。'))+'</span>'
+        +'<div class="attachment-actions">'+(media?'<a class="fbtn" href="'+esc(media.url)+'" target="_blank" rel="noopener">'+t('打开')+'</a>':'')
+        +'<button class="fbtn primary" type="button" onclick="chooseAttachmentMedia(\''+esc(mediaId)+'\')">'+t(media?'更换图片':'选择本地图片')+'</button></div></div></div>';
+    }else inner+='<div class="attachment-block"><span class="file-icon">📎</span>'+esc(label)+'</div>';
   }
   // 搜索面板（折叠展示查询与来源）
   if(searchQueries.length||searchResults.length){
