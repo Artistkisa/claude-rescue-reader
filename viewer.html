@@ -445,6 +445,10 @@ function t(key,vars){
   if(vars)for(const[k,v]of Object.entries(vars))value=value.replaceAll('{'+k+'}',v);
   return value;
 }
+function errorMessage(err){
+  const message=err&&err.message?err.message:String(err);
+  return message==='conversations.json 格式不正确'?t(message):message;
+}
 function applyLanguage(lang){
   currentLang=lang==='en'?'en':'zh';
   document.documentElement.lang=currentLang==='en'?'en':'zh-CN';
@@ -482,7 +486,7 @@ document.getElementById('file-input').addEventListener('change',async e=>{
     const mf=files.find(f=>f.name==='memories.json');
     if(!cf){btn.textContent='⚠️ '+t('未找到 conversations.json');return;}
     await ingestData(await cf.arrayBuffer(),await Promise.all(pf.map(p=>p.text())),mf?await mf.text():null,btn);
-  }catch(err){btn.textContent='❌ '+t('加载失败')+': '+t(err.message);console.error(err);}
+  }catch(err){btn.textContent='❌ '+t('加载失败')+': '+errorMessage(err);console.error(err);}
 });
 
 // ZIP 直读：免去手动解压一步（封号抢救场景下少一个操作环节）
@@ -512,7 +516,7 @@ document.getElementById('zip-input').addEventListener('change',async e=>{
     const convBuffer=convBytes.byteOffset===0&&convBytes.byteLength===convBytes.buffer.byteLength
       ?convBytes.buffer:convBytes.buffer.slice(convBytes.byteOffset,convBytes.byteOffset+convBytes.byteLength);
     await ingestData(convBuffer,projTexts,memText,btn);
-  }catch(err){btn.textContent='❌ '+t('ZIP 加载失败')+': '+t(err.message);console.error(err);}
+  }catch(err){btn.textContent='❌ '+t('ZIP 加载失败')+': '+errorMessage(err);console.error(err);}
 });
 
 function parseConversationsJson(text){
