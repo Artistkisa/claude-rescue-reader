@@ -351,6 +351,7 @@ mark.cs.active { background:var(--accent); color:#fff; }
 .quality-list { margin-top:10px; display:grid; gap:5px; font-size:12px; color:var(--text2); }
 .quality-list .warn { color:var(--orange); }
 .quality-list .bad { color:var(--red); }
+.behavior-page{max-width:1180px;margin:0 auto;padding:24px 28px 48px}.behavior-hero{display:flex;justify-content:space-between;gap:18px;align-items:flex-end;margin-bottom:18px}.behavior-heading{margin:4px 0;font-size:24px}.behavior-sub{color:var(--text3);font-size:12px;line-height:1.6}.behavior-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin-bottom:12px}.behavior-card{background:var(--bg2);border:1px solid var(--border);border-radius:12px;padding:15px}.behavior-card h3{font-size:13px;margin-bottom:7px;color:var(--text)}.behavior-card p{color:var(--text3);font-size:11.5px;line-height:1.6}.behavior-value{color:var(--accent);font-size:25px;font-weight:750;margin:3px 0 5px}.behavior-list{display:grid;gap:6px;margin-top:10px}.behavior-row{display:flex;justify-content:space-between;gap:10px;padding:8px 9px;background:var(--bg3);border-radius:7px;font-size:11.5px}.behavior-row span:last-child{color:var(--text3);text-align:right}.behavior-note{padding:10px 12px;border:1px solid var(--border);border-radius:9px;color:var(--text3);font-size:11px;line-height:1.6;margin-top:12px}@media(max-width:900px){.behavior-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.behavior-page{padding:18px 14px 36px}}
 .welcome-actions { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:8px; width:520px; max-width:90vw; margin-top:16px; }
 .welcome-action { padding:12px 14px; border:1px solid var(--border); border-radius:10px; background:var(--bg2); text-align:left; }
 .welcome-action b { display:block; color:var(--text); font-size:13px; margin-bottom:4px; }
@@ -399,6 +400,7 @@ mark.cs.active { background:var(--accent); color:#fff; }
     <button class="tab-btn" data-i18n="记忆" onclick="switchTab('memory',this)">记忆</button>
     <button class="tab-btn" data-i18n="Design" onclick="switchTab('design',this)" style="display:none">Design</button>
     <button class="tab-btn" data-i18n="统计" onclick="switchTab('analytics',this)">统计</button>
+    <button class="tab-btn" data-i18n="Claude 行为实验室" onclick="switchTab('behavior',this)">🧪 行为实验室</button>
   </div>
   <div id="conv-list"></div>
 </div>
@@ -489,6 +491,7 @@ let dataLoadGeneration=0;
 let loadedSummary=null;
 let currentLang=localStorage.getItem('cv-lang')==='en'?'en':'zh';
 let currentView='convs',currentProjectUuid='';
+let behaviorResult=null,behaviorPromise=null;
 const EN={
   '📥 松开以导入历史':'📥 Drop to import history','支持 ZIP 或解压后的 Claude 导出目录':'ZIP or an extracted Claude export folder',
   '🗜️ 直接打开 ZIP':'🗜️ Open ZIP directly','适合刚从 Claude 下载的原始导出包，无需解压':'Best for the original Claude export; no extraction needed',
@@ -584,6 +587,7 @@ function toggleLanguage(){
   else if(currentView==='memory')renderMemoryTab();
   else if(currentView==='design'){renderDesignList();if(currentConv&&currentConv._design)openConv(currentConv.uuid,'design');}
   else if(currentView==='analytics'){renderAnalyticsSide();renderAnalyticsPage();}
+  else if(currentView==='behavior'){renderBehaviorSide();renderBehaviorPage();}
   else {renderConvList(getSortedConvs());if(currentConv)openConv(currentConv.uuid);}
 }
 const MESSAGE_BATCH_SIZE=100;
@@ -839,6 +843,7 @@ function switchTab(tab,btn){
   else if(tab==='projects'){renderProjectList();void ensureConvProjectMap().catch(e=>console.warn('项目关联索引失败',e));}
   else if(tab==='memory')renderMemoryTab();
   else if(tab==='design')renderDesignList();
+  else if(tab==='behavior'){renderBehaviorSide();renderBehaviorPage();}
   else {renderAnalyticsSide();renderAnalyticsPage();}
   updateQuickNav();
 }
@@ -980,6 +985,15 @@ function dataWorkerMain(){
     const dates=Object.keys(state.activeDates).sort();let streak=0,longestStreak=0,previous=NaN;for(const date of dates){const day=Date.parse(date+'T00:00:00Z')/86400000;streak=day===previous+1?streak+1:1;longestStreak=Math.max(longestStreak,streak);previous=day;}state.activeDays=dates.length;state.longestStreak=longestStreak;delete state.activeDates;
     return state;
   }
+  function calculateBehavior(){
+    const out={conversations:records.length,messages:0,tools:0,toolResults:0,paired:0,unpairedUse:0,unpairedResult:0,errors:0,approvals:0,mcp:0,structured:0,hiddenResults:0,thinking:0,thinkingHidden:0,thinkingTruncated:0,thinkingCutoff:0,thinkingSummary:0,thinkingSigned:0,thinkingDurationMs:0,quality:{refusal:0,fallback:0,latency:0,empty:0,truncated:0},examples:[]};
+    const stable=value=>{if(Array.isArray(value))return value.map(stable);if(value&&typeof value==='object'){const result={};for(const key of Object.keys(value).sort())result[key]=stable(value[key]);return result;}return value;},different=(a,b)=>JSON.stringify(stable(a))!==JSON.stringify(stable(b));
+    const uses=new Map(),results=new Map(),refusal=/(?:我(?:不能|无法|不可以|不会)(?:帮助|协助|提供|执行|生成|完成)|抱歉[^。！？\n]{0,40}(?:不能|无法)|\b(?:can't|cannot|won't|unable to)\s+(?:help|assist|provide|comply|create|generate|do that)\b)/iu,fallback=/(?:当前模型|这个模型|能力受限|降级模式|只能提供[^。！？\n]{0,18}(?:概括|一般性信息|高层次建议))|\b(?:as an ai|language model|model limitation|not available in this mode)\b/iu;
+    for(const record of records){const conversation=materialize(record),messages=list(conversation.chat_messages);out.messages+=messages.length;let previous=null;for(const message of messages){const text=messageText(message).trim(),time=Date.parse(message.created_at||message.updated_at||'')||0;if(!text&&!list(message.content).some(block=>/tool|thinking|result/i.test(String(block?.type||''))))out.quality.empty++;if(message.sender==='assistant'){if(refusal.test(text))out.quality.refusal++;if(fallback.test(text))out.quality.fallback++;if(/(?:\.\.\.|…|回答未完|to be continued)$/i.test(text))out.quality.truncated++;if(previous?.sender==='human'&&previous.time&&time&&time-previous.time>30*60*1000)out.quality.latency++;}previous={sender:message.sender,time};
+        for(const block of list(message.content)){if(!block||typeof block!=='object')continue;const type=String(block.type||'');if(type==='tool_use'||type==='server_tool_use'){out.tools++;const id=block.id||block.tool_use_id;if(id)uses.set(id,block);if(block.approval_key||block.approval_key_legacy||block.approval_options)out.approvals++;if(block.is_mcp_app||block.mcp_server_url||block.integration_name)out.mcp++;if(out.examples.length<8)out.examples.push({name:block.name||block.tool_identifier||'unknown',status:'调用'});}else if(type==='tool_result'||type==='web_search_tool_result'||type==='web_search_result'){out.toolResults++;const id=block.tool_use_id||block.id;if(id)results.set(id,block);if(block.is_error)out.errors++;if(block.structured_content||block.meta)out.structured++;const hasDisplay=block.display_content!==undefined&&block.display_content!==null,hasContent=block.content!==undefined&&block.content!==null;if((hasDisplay&&hasContent&&different(block.display_content,block.content))||(!hasDisplay&&(block.structured_content||block.meta)))out.hiddenResults++;}else if(type==='thinking'){out.thinking++;if(block.hidden||block.thinking_hidden)out.thinkingHidden++;if(block.truncated||block.cut_off)out.thinkingTruncated++;if(block.cut_off)out.thinkingCutoff++;if(block.summaries||block.alternative_display_type)out.thinkingSummary++;if(block.signature)out.thinkingSigned++;const start=Date.parse(block.start_timestamp),stop=Date.parse(block.stop_timestamp);if(start&&stop&&stop>=start)out.thinkingDurationMs+=stop-start;}}
+      }}
+    for(const id of uses.keys())if(results.has(id))out.paired++;else out.unpairedUse++;for(const id of results.keys())if(!uses.has(id))out.unpairedResult++;return out;
+  }
   function calculateProjectIndex(projects,memoryData){
     projects=list(projects);const map={},evidence={},stats={};
     const normalize=value=>String(value||'').trim().replace(/^\/mnt\/project\//,'').toLowerCase().replace(/[?#].*/,''),projectList=value=>Array.isArray(value)?value:(value&&typeof value==='object'?Object.values(value):[]);
@@ -1058,6 +1072,7 @@ function dataWorkerMain(){
         reply(request,{uuids:matches,indexed:searchIndex.size});return;
       }
       if(request.type==='analytics'){reply(request,calculateAnalytics(request.payload?.customStopZh||[]));return;}
+      if(request.type==='behavior'){reply(request,calculateBehavior());return;}
       if(request.type==='projectIndex'){reply(request,calculateProjectIndex(request.payload?.projects||[],request.payload?.memoryData||null));return;}
       if(request.type==='debugState'){reply(request,{records:records.length,parsed:parsedCache.size,indexed:searchIndex?.size||0,lazy:true});return;}
       throw new Error('unknown data worker request: '+request.type);
@@ -1209,6 +1224,7 @@ function analyticsWorkerMain(){
 function resetAnalytics(){
   analyticsGeneration++;analyticsResult=null;analyticsPromise=null;analyticsProgress=0;
   cleanupAnalyticsWorker();
+  behaviorResult=null;behaviorPromise=null;
 }
 function cleanupAnalyticsWorker(worker=analyticsWorker,workerUrl=analyticsWorkerUrl){
   if(worker)worker.terminate();
@@ -1366,6 +1382,16 @@ function renderAnalyticsDashboard(s){
 function renderAnalyticsError(err){
   document.getElementById('messages').innerHTML='<div class="analytics-progress">❌ '+t('统计计算失败')+'<div class="analytics-note">'+esc(errorMessage(err))+'</div><button style="margin-top:12px" onclick="resetAnalytics();renderAnalyticsPage()">'+t('重新计算')+'</button></div>';
 }
+function renderBehaviorSide(){document.getElementById('conv-list').innerHTML='<div class="analytics-side">🧪 <b>Claude 行为实验室</b><br>按需在本地分析工具、Thinking 和回答证据链。<br><br>🔒 不上传对话内容</div>';}
+async function startBehaviorLab(){
+  if(behaviorResult)return behaviorResult;if(behaviorPromise)return behaviorPromise;
+  behaviorPromise=dataWorkerRequest('behavior');
+  behaviorPromise=behaviorPromise.then(r=>{behaviorResult=r;behaviorPromise=null;return r;}).catch(e=>{behaviorPromise=null;throw e;});return behaviorPromise;
+}
+function behaviorMetric(icon,value,label){if(label==='Tool 配对率'&&!behaviorResult?.tools)value='—';return '<div class="metric-card"><div class="metric-icon">'+icon+'</div><div class="metric-value">'+esc(String(value))+'</div><div class="metric-label">'+label+'</div></div>';}
+function renderBehaviorPage(){currentView='behavior';document.getElementById('chat-title').textContent='🧪 Claude 行为实验室';document.getElementById('chat-title').style.color='';document.getElementById('chat-header-meta').textContent='本地按需分析';document.getElementById('toggle-summary').style.display='none';document.getElementById('export-wrap').style.display='none';['csearch','csearch-count','cprev','cnext','quality-btn','tree-mode-btn'].forEach(id=>{const e=document.getElementById(id);if(e)e.style.display='none';});if(!allConvs.length){document.getElementById('messages').innerHTML='<div class="analytics-progress">请先加载 Claude 导出</div>';return;}if(!behaviorResult){document.getElementById('messages').innerHTML='<div class="analytics-progress"><div style="font-size:22px">🧪</div><b>正在分析工具、Thinking 与回答证据链…</b><div class="analytics-note">分析在本机执行，不会上传内容。</div></div>';void startBehaviorLab().then(()=>{if(currentView==='behavior')renderBehaviorPage();}).catch(e=>{document.getElementById('messages').innerHTML='<div class="analytics-progress">分析失败：'+esc(e.message)+'</div>';});return;}const r=behaviorResult,q=r.quality||{},pair=r.tools?Math.round(r.paired/r.tools*100):100;let h='<div class="behavior-page"><div class="behavior-hero"><div><div class="analytics-kicker">CLAUDE OBSERVABILITY</div><h2 class="behavior-heading">Claude 行为实验室</h2><div class="behavior-sub">不只显示 Claude 说了什么，还原它调用了什么、哪些结果被隐藏，以及回答的证据链是否完整。</div></div></div><div class="behavior-grid">'+behaviorMetric('⚙️',r.tools,'工具调用')+behaviorMetric('🔗',pair+'%','Tool 配对率')+behaviorMetric('🧠',r.thinking,'Thinking 块')+behaviorMetric('⚠️',(q.refusal||0)+(q.fallback||0),'疑似拒答/降级')+'</div>';
+  h+='<div class="behavior-grid"><section class="behavior-card"><h3>⚙️ 工具调用时间线</h3><p>按原始导出记录审计工具调用、审批与 MCP 来源。</p><div class="behavior-list"><div class="behavior-row"><span>调用 / 结果</span><span>'+r.tools+' / '+r.toolResults+'</span></div><div class="behavior-row"><span>需要审批</span><span>'+r.approvals+'</span></div><div class="behavior-row"><span>MCP / 外部集成</span><span>'+r.mcp+'</span></div><div class="behavior-row"><span>错误结果</span><span>'+r.errors+'</span></div><div class="behavior-row"><span>未配对调用</span><span>'+r.unpairedUse+'</span></div></div></section><section class="behavior-card"><h3>🔎 隐藏结果探针</h3><p>发现结构化结果、元数据与前端展示内容之间的差异。</p><div class="behavior-list"><div class="behavior-row"><span>结构化结果</span><span>'+r.structured+'</span></div><div class="behavior-row"><span>疑似未展示结果</span><span>'+r.hiddenResults+'</span></div><div class="behavior-row"><span>孤立 tool_result</span><span>'+r.unpairedResult+'</span></div></div></section><section class="behavior-card"><h3>🧠 Thinking 完整性</h3><p>只报告导出中明确存在的状态标记，不推断后台风控。</p><div class="behavior-list"><div class="behavior-row"><span>隐藏 / 替代展示</span><span>'+r.thinkingHidden+' / '+r.thinkingSummary+'</span></div><div class="behavior-row"><span>截断 / cut_off</span><span>'+r.thinkingTruncated+' / '+r.thinkingCutoff+'</span></div><div class="behavior-row"><span>签名标记</span><span>'+r.thinkingSigned+'</span></div><div class="behavior-row"><span>累计 Thinking 时长</span><span>'+analyticsDuration(r.thinkingDurationMs)+'</span></div></div></section><section class="behavior-card"><h3>🩺 对话健康与证据链</h3><p>结合健康扫描结果，区分文本现象与工具层异常。</p><div class="behavior-list"><div class="behavior-row"><span>疑似文本拒答</span><span>'+ (q.refusal||0)+'</span></div><div class="behavior-row"><span>疑似能力降级</span><span>'+ (q.fallback||0)+'</span></div><div class="behavior-row"><span>工具错误</span><span>'+r.errors+'</span></div><div class="behavior-row"><span>回复延迟异常</span><span>'+ (q.latency||0)+'</span></div><div class="behavior-row"><span>空 / 截断回答</span><span>'+((q.empty||0)+(q.truncated||0))+'</span></div></div></section></div>';
+  if(r.examples.length)h+='<div class="behavior-card"><h3>最近发现的工具调用</h3><div class="behavior-list">'+r.examples.map(x=>'<div class="behavior-row"><span>'+esc(x.name)+'</span><span>'+x.status+'</span></div>').join('')+'</div></div>';h+='<div class="behavior-note">⚠️ “疑似拒答”“疑似降级”和 Thinking 状态只代表导出文件中可观察到的文本或字段，不能证明 Anthropic 后台进行了风控、模型切换或账号降级。</div></div>';document.getElementById('messages').innerHTML=h;}
 function renderConvList(convs){
   const el=document.getElementById('conv-list');
   if(!convs.length){el.innerHTML='<div style="padding:20px;text-align:center;color:var(--text3)">'+t('暂无对话')+'</div>';return;}
