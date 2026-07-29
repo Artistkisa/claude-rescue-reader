@@ -168,14 +168,19 @@ claude-export/
 
 ## Offline Mode
 
-To use without an internet connection, place these files in the same directory as `viewer.html` and update the import paths accordingly:
+Download `claude-rescue-reader-offline.zip` from GitHub Releases, extract it, and open its `viewer.html`. Keep the `vendor/` folder beside `viewer.html`; the Markdown, ZIP, syntax-highlighting, and Mermaid dependencies are bundled and require no network access.
+
+The regular `viewer.html` remains a convenient single-file build for connected environments or basic viewing. External resources hard-coded by historical Artifacts are not viewer dependencies and may still be unavailable offline.
+
+To build an offline copy manually, place these files beside `viewer.html` and update the import paths:
 
 ```
 marked.min.js          ← https://cdn.jsdelivr.net/npm/marked/marked.min.js
-highlight.min.js       ← https://cdn.jsdelivr.net/npm/highlight.js@11.9.0/lib/highlight.min.js
+highlight.min.js       ← https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.11.1/build/highlight.min.js
 jszip.min.js           ← https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js
-github.min.css         ← https://cdn.jsdelivr.net/npm/highlight.js@11.9.0/styles/github.min.css
-github-dark.min.css    ← https://cdn.jsdelivr.net/npm/highlight.js@11.9.0/styles/github-dark.min.css
+mermaid.min.js         ← https://cdn.jsdelivr.net/npm/mermaid@11.16.0/dist/mermaid.min.js
+github.min.css         ← https://cdn.jsdelivr.net/npm/highlight.js@11.11.1/styles/github.min.css
+github-dark.min.css    ← https://cdn.jsdelivr.net/npm/highlight.js@11.11.1/styles/github-dark.min.css
 ```
 
 ## Privacy
@@ -216,6 +221,13 @@ This tool parses the Claude export format (as of 2026):
 The maintainable persistent data pipeline and compatibility analytics Worker sources live in `src/data-worker.js` and `src/analytics-worker.js`. After editing either file, run `scripts/build-single-file.ps1` to embed it back into `viewer.html`; regular users do not need the build script.
 
 ## Changelog
+
+**v1.3** *(2026-07-29)*
+- Added Claude Behavior Lab with tool-call auditing, hidden-result probing, Thinking integrity, and answer evidence-chain reporting
+- Reused the persistent Data Worker for large-history parsing, full-text search, analytics, project matching, and behavior analysis to reduce main-thread copies and stalls
+- Added project-association explanations, local manual corrections, project search/analytics/export, and a memory-reference graph
+- Added a ready-to-use offline distribution containing pinned Markdown, ZIP, syntax-highlighting, and Mermaid dependencies
+- Published both the regular single-file viewer and offline ZIP with SHA-256 checksums
 
 **v1.2** *(2026-07-28)*
 - Added direct ZIP loading and drag-and-drop input, including wrapper folders, loose JSON files, and macOS `__MACOSX` entries

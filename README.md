@@ -168,14 +168,19 @@ claude-export/
 
 ## 离线模式
 
-如需在无网络环境下使用，在 `viewer.html` 同目录下放置以下文件并修改引用路径：
+从 GitHub Release 下载 `claude-rescue-reader-offline.zip`，解压后直接打开其中的 `viewer.html`。请保持 `vendor/` 文件夹与 `viewer.html` 位于同一目录；Markdown、ZIP、代码高亮和 Mermaid 依赖均已包含，无需联网。
+
+普通的 `viewer.html` 仍保持单文件发行方式，适合联网环境或只需要基础浏览的场景。历史 Artifact 自身写死的外部资源不属于查看器依赖，离线时仍可能不可用。
+
+如需手动制作离线版，也可以在 `viewer.html` 同目录下放置以下文件并修改引用路径：
 
 ```
 marked.min.js          ← https://cdn.jsdelivr.net/npm/marked/marked.min.js
-highlight.min.js       ← https://cdn.jsdelivr.net/npm/highlight.js@11.9.0/lib/highlight.min.js
+highlight.min.js       ← https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.11.1/build/highlight.min.js
 jszip.min.js           ← https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js
-github.min.css         ← https://cdn.jsdelivr.net/npm/highlight.js@11.9.0/styles/github.min.css
-github-dark.min.css    ← https://cdn.jsdelivr.net/npm/highlight.js@11.9.0/styles/github-dark.min.css
+mermaid.min.js         ← https://cdn.jsdelivr.net/npm/mermaid@11.16.0/dist/mermaid.min.js
+github.min.css         ← https://cdn.jsdelivr.net/npm/highlight.js@11.11.1/styles/github.min.css
+github-dark.min.css    ← https://cdn.jsdelivr.net/npm/highlight.js@11.11.1/styles/github-dark.min.css
 ```
 
 ## 隐私说明
@@ -216,6 +221,13 @@ github-dark.min.css    ← https://cdn.jsdelivr.net/npm/highlight.js@11.9.0/styl
 持久数据管线与兼容性统计 Worker 的可维护源码分别位于 `src/data-worker.js` 和 `src/analytics-worker.js`。修改后运行 `scripts/build-single-file.ps1`，即可重新内联到 `viewer.html`；普通用户不需要运行构建脚本。
 
 ## Changelog
+
+**v1.3** *(2026-07-29)*
+- 新增 Claude 行为实验室：工具调用审计、隐藏结果探针、Thinking 完整性和回答证据链报告
+- 大型历史解析、全文搜索、统计、项目匹配和行为分析复用持久 Data Worker，减少主线程对象复制与卡顿
+- 新增项目关联解释、手动归属修正、项目级搜索/统计/导出及记忆引用关系图
+- 新增预打包离线发行版，内含固定版本的 Markdown、ZIP、代码高亮和 Mermaid 依赖
+- 普通单文件版与离线 ZIP 同时发布，并提供 SHA-256 校验文件
 
 **v1.2** *(2026-07-28)*
 - 新增 ZIP 直读和拖拽加载，兼容顶层目录、散落 JSON 文件及 macOS `__MACOSX` 条目
