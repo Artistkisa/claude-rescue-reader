@@ -44,6 +44,17 @@ test('folder import and core views',async({page})=>{
 
 test('ZIP import',async({page})=>{const errors=await openViewer(page);await page.setInputFiles('#zip-input',zipPath);await waitLoaded(page);expect(errors).toEqual([]);});
 
+test('Claude behavior lab audits tools, hidden results and thinking integrity',async({page})=>{
+  const errors=await openViewer(page);await page.setInputFiles('#file-input',fixtureDir);await waitLoaded(page);
+  await page.locator('.tab-btn[onclick*="behavior"]').click();await page.waitForFunction(()=>behaviorResult!==null);
+  await expect(page.locator('#messages')).toContainText('工具调用时间线');
+  await expect(page.locator('#messages')).toContainText('隐藏结果探针');
+  await expect(page.locator('#messages')).toContainText('Thinking 完整性');
+  const result=await page.evaluate(()=>behaviorResult);
+  expect(result).toMatchObject({tools:2,toolResults:1,paired:1,unpairedUse:1,approvals:1,mcp:1,structured:1,hiddenResults:1,thinking:1,thinkingTruncated:1,thinkingSigned:1});
+  expect(errors).toEqual([]);
+});
+
 test('project association explanations, local corrections, search, stats and export',async({page})=>{
   const errors=await openViewer(page);await page.setInputFiles('#file-input',fixtureDir);await waitLoaded(page);
   await page.locator('.tab-btn[onclick*="projects"]').click();await page.waitForFunction(()=>convProjectMapReady);
