@@ -758,9 +758,11 @@ function resetAnalytics(){
   analyticsGeneration++;analyticsResult=null;analyticsPromise=null;analyticsProgress=0;
   cleanupAnalyticsWorker();
 }
-function cleanupAnalyticsWorker(){
-  if(analyticsWorker){analyticsWorker.terminate();analyticsWorker=null;}
-  if(analyticsWorkerUrl){URL.revokeObjectURL(analyticsWorkerUrl);analyticsWorkerUrl='';}
+function cleanupAnalyticsWorker(worker=analyticsWorker,workerUrl=analyticsWorkerUrl){
+  if(worker)worker.terminate();
+  if(workerUrl)URL.revokeObjectURL(workerUrl);
+  if(analyticsWorker===worker)analyticsWorker=null;
+  if(analyticsWorkerUrl===workerUrl)analyticsWorkerUrl='';
 }
 function analyticsMessageRecord(m){
   let characters=0,thinking=0,tools=0,textBlocks=0,imageBlocks=0,artifacts=0,webSearches=0,wordText='';
@@ -776,7 +778,7 @@ function analyticsMessageRecord(m){
       if(/web_search|web_fetch/i.test(name))webSearches++;
     }
   }
-  if(!characters&&m.text){wordText=String(m.text);characters=wordText.length;}
+  if(!(m.content||[]).length&&m.text){wordText=String(m.text);characters=wordText.length;}
   const date=new Date(m.created_at||m.updated_at||''),timestamp=date.getTime();
   const dateKey=Number.isNaN(timestamp)?'':date.getFullYear()+'-'+String(date.getMonth()+1).padStart(2,'0')+'-'+String(date.getDate()).padStart(2,'0');
   return{sender:m.sender||'assistant',characters,thinking,tools,textBlocks,imageBlocks,artifacts,webSearches,wordText,
@@ -797,28 +799,33 @@ function startAnalytics(){
       analyticsWorkerUrl=URL.createObjectURL(new Blob(['('+analyticsWorkerMain.toString()+')()'],{type:'text/javascript'}));
       analyticsWorker=new Worker(analyticsWorkerUrl);
     }catch(err){analyticsPromise=null;reject(err);return;}
+    const worker=analyticsWorker,workerUrl=analyticsWorkerUrl;
     let nextBatch=0,batchId=0;
     const sendNext=()=>{
       if(generation!==analyticsGeneration)return;
-      if(nextBatch>=allConvs.length){analyticsWorker.postMessage({type:'finish'});return;}
-      const end=Math.min(allConvs.length,nextBatch+4),items=[];
-      for(;nextBatch<end;nextBatch++)items.push(compactConversationForAnalytics(allConvs[nextBatch]));
+      if(nextBatch>=allConvs.length){worker.postMessage({type:'finish'});return;}
+      const items=[];let batchMessages=0;
+      while(nextBatch<allConvs.length&&items.length<4){
+        const conversation=allConvs[nextBatch],messageCount=(conversation.chat_messages||[]).length;
+        if(items.length&&batchMessages+messageCount>600)break;
+        items.push(compactConversationForAnalytics(conversation));batchMessages+=messageCount;nextBatch++;
+      }
       analyticsProgress=allConvs.length?nextBatch/allConvs.length:1;updateAnalyticsProgress();
-      analyticsWorker.postMessage({type:'batch',id:++batchId,items});
+      worker.postMessage({type:'batch',id:++batchId,items});
     };
-    analyticsWorker.onmessage=e=>{
+    worker.onmessage=e=>{
       if(generation!==analyticsGeneration)return;
-      if(e.data.type==='batchDone')sendNext();
+      if(e.data.type==='batchDone')setTimeout(sendNext,0);
       else if(e.data.type==='result'){
         analyticsResult=e.data.result;analyticsProgress=1;analyticsPromise=null;
-        cleanupAnalyticsWorker();
+        cleanupAnalyticsWorker(worker,workerUrl);
         if(currentView==='analytics'){renderAnalyticsSide();renderAnalyticsPage();}
         resolve(analyticsResult);
       }
     };
-    analyticsWorker.onerror=e=>{cleanupAnalyticsWorker();analyticsPromise=null;reject(e.error||new Error(e.message||'Analytics Worker error'));};
+    worker.onerror=e=>{cleanupAnalyticsWorker(worker,workerUrl);if(generation!==analyticsGeneration)return;analyticsPromise=null;reject(e.error||new Error(e.message||'Analytics Worker error'));};
     sendNext();
-  }).catch(err=>{console.error('analytics',err);analyticsPromise=null;if(currentView==='analytics')renderAnalyticsError(err);return null;});
+  }).catch(err=>{console.error('analytics',err);if(generation===analyticsGeneration){analyticsPromise=null;if(currentView==='analytics')renderAnalyticsError(err);}return null;});
   return analyticsPromise;
 }
 function renderAnalyticsSide(){
@@ -846,7 +853,7 @@ function renderAnalyticsPage(){
 function analyticsMetric(icon,value,label){return '<div class="metric-card"><div class="metric-icon">'+icon+'</div><div class="metric-value">'+esc(value)+'</div><div class="metric-label">'+t(label)+'</div></div>';}
 function analyticsBars(data,labeler,maxRows=12){
   const rows=data.slice(0,maxRows),max=Math.max(1,...rows.map(x=>x[1]));
-  return rows.map(([key,value])=>'<div class="bar-row"><div class="bar-label" title="'+esc(key)+'">'+esc(labeler?labeler(key):key)+'</div><div class="bar-track"><div class="bar-fill" style="width:'+Math.max(1,value/max*100).toFixed(1)+'%"></div></div><div class="bar-value">'+value.toLocaleString(currentLang==='en'?'en-US':'zh-CN')+'</div></div>').join('');
+  return rows.map(([key,value])=>'<div class="bar-row"><div class="bar-label" title="'+esc(key)+'">'+esc(labeler?labeler(key):key)+'</div><div class="bar-track"><div class="bar-fill" style="width:'+(value===0?0:Math.max(1,value/max*100)).toFixed(1)+'%"></div></div><div class="bar-value">'+value.toLocaleString(currentLang==='en'?'en-US':'zh-CN')+'</div></div>').join('');
 }
 function analyticsWordCloud(words){
   if(!words||!words.length)return '<div class="analytics-note">'+t('暂无词频数据')+'</div>';
@@ -855,10 +862,11 @@ function analyticsWordCloud(words){
 }
 function analyticsDuration(ms){
   if(!ms)return '—';
-  if(ms<60000)return Math.round(ms/1000)+'s';
-  if(ms<3600000)return Math.round(ms/60000)+'m';
-  if(ms<86400000)return (ms/3600000).toFixed(1)+'h';
-  return (ms/86400000).toFixed(1)+'d';
+  const units=currentLang==='en'?{s:'s',m:'m',h:'h',d:'d'}:{s:'秒',m:'分钟',h:'小时',d:'天'};
+  if(ms<60000)return Math.round(ms/1000)+units.s;
+  if(ms<3600000)return Math.round(ms/60000)+units.m;
+  if(ms<86400000)return (ms/3600000).toFixed(1)+units.h;
+  return (ms/86400000).toFixed(1)+units.d;
 }
 function renderAnalyticsDashboard(s){
   const nf=n=>Number(n||0).toLocaleString(currentLang==='en'?'en-US':'zh-CN');

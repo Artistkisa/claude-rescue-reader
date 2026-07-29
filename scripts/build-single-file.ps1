@@ -4,6 +4,9 @@ $viewerPath = Join-Path $repoRoot 'viewer.html'
 $workerPath = Join-Path $repoRoot 'src\analytics-worker.js'
 $viewer = Get-Content -LiteralPath $viewerPath -Raw -Encoding UTF8
 $worker = (Get-Content -LiteralPath $workerPath -Raw -Encoding UTF8).Trim()
+if ($worker -match '// BEGIN GENERATED ANALYTICS WORKER|// END GENERATED ANALYTICS WORKER') {
+  throw 'analytics-worker.js contains generated-section marker strings.'
+}
 $pattern = '(?s)(// BEGIN GENERATED ANALYTICS WORKER[^\r\n]*\r?\n).*?(\r?\n// END GENERATED ANALYTICS WORKER)'
 $match = [regex]::Match($viewer, $pattern)
 if (-not $match.Success) {
