@@ -10,6 +10,7 @@
     "policy": "node scripts/pr-policy.mjs",
     "docs": "node scripts/check-docs.mjs",
     "capture:readme": "node scripts/capture-readme-screenshots.mjs",
+    "capture:demo-gif": "node scripts/capture-readme-demo-gif.mjs",
     "build:demo": "node scripts/build-synthetic-demo.mjs",
     "test:smoke": "playwright test tests/browser-smoke.spec.mjs tests/worker-performance.spec.mjs",
     "test:offline": "playwright test tests/offline-release.spec.mjs"
