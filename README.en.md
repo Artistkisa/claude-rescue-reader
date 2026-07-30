@@ -15,9 +15,9 @@ No installation · one file · ZIP without extraction · local-only · built for
 [![Offline bundle](https://github.com/Artistkisa/claude-rescue-reader/actions/workflows/release-verify.yml/badge.svg)](https://github.com/Artistkisa/claude-rescue-reader/releases/latest)
 [![License: MIT](https://img.shields.io/badge/license-MIT-yellow.svg)](LICENSE)
 
-**[⬇ Download viewer.html](https://github.com/Artistkisa/claude-rescue-reader/releases/latest/download/viewer.html)** · **[📦 Download the standard ZIP](https://github.com/Artistkisa/claude-rescue-reader/releases/latest/download/claude-rescue-reader.zip)** · **[🔌 Download the offline bundle](https://github.com/Artistkisa/claude-rescue-reader/releases/latest/download/claude-rescue-reader-offline.zip)** · **[🧪 Synthetic demo ZIP](docs/demo/claude-rescue-reader-synthetic-demo.zip)** · **[🌐 中文](README.md)**
+**[⬇ Download viewer.html](https://github.com/Artistkisa/claude-rescue-reader/releases/latest/download/viewer.html)** · **[🔌 Download the offline bundle](https://github.com/Artistkisa/claude-rescue-reader/releases/latest/download/claude-rescue-reader-offline.zip)** · **[🧪 Synthetic demo ZIP](docs/demo/claude-rescue-reader-synthetic-demo.zip)** · **[🌐 中文](README.md)**
 
-![Claude Export History Viewer showing conversations, Thinking, tool calls, and a Markdown table](docs/images/viewer-overview.png)
+![Claude Rescue Reader showing conversations, Thinking, tool calls, and a Markdown table](docs/images/viewer-overview.png)
 
 <sub>The screenshot is generated from the fictional “Beichen Coffee Subscription” archive; every person, brand, file, and number is synthetic.</sub>
 
