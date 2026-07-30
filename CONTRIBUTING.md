@@ -87,6 +87,34 @@ npm run benchmark:readme
 
 FFmpeg is required only for GIF capture. Screenshot scripts may use `CHROME_PATH`; on Windows they also detect the normal system Chrome location.
 
+## Automated review / 自动审核
+
+Pull requests are reviewed by both [G.H.O.S.T Review](https://github.com/Kisara-GHOST-Review/G.H.O.S.T-Review) and Sourcery. These checks complement the repository's validation, browser, privacy, policy, and documentation CI; a bot approval does not replace the required tests.
+
+G.H.O.S.T performs repository-aware code, security, and conflict review. Its `action_required` conclusion blocks merging. Address valid findings in the same PR, push the fix, and resolve the associated review conversation only after the concern has been handled. If a finding appears to be a false positive or its trade-off needs discussion, reply in the original thread so the reasoning remains reviewable instead of silently dismissing it.
+
+Common G.H.O.S.T commands:
+
+| Need | Command |
+| --- | --- |
+| Run a fresh full review | `@ghost-review review` |
+| Explain a finding | `@ghost-review explain` |
+| Suggest a minimal fix | `@ghost-review fix` |
+| Compare alternative approaches | `@ghost-review alternative` |
+| Reconsider the importance or a possible false positive | `@ghost-review why` |
+| Continue discussing edge cases | `@ghost-review discuss` |
+| Show the available commands | `@ghost-review help` |
+
+External contributors can use the read-only discussion commands. Commands that create Issues, change PR state, resolve threads, or write to a branch are restricted to repository collaborators. Maintainers may additionally request security or conflict analysis, but contributors are not expected to operate those workflows.
+
+Sourcery provides an independent review signal. Treat actionable Sourcery findings the same way: either fix them or leave a concise technical explanation in the relevant thread. Before merge, all required checks must pass, all actionable findings must be addressed, and all review conversations must be resolved.
+
+PR 会同时接受 [G.H.O.S.T Review](https://github.com/Kisara-GHOST-Review/G.H.O.S.T-Review) 与 Sourcery 审核。它们是静态校验、浏览器测试、隐私检查、PR 策略和文档检查的补充，机器人通过不代表可以跳过必需测试。
+
+G.H.O.S.T 会结合仓库上下文检查代码、安全问题与冲突；`action_required` 结论会阻止合并。有效问题应在同一个 PR 中修复并重新推送，确认问题处理完成后再解决对应的审查对话。若判断为误报或需要讨论取舍，请在原审查线程中使用 `@ghost-review why`、`explain` 或 `discuss` 留下可追踪的依据，不要直接忽略。外部贡献者可使用只读讨论命令；创建 Issue、修改 PR 状态、解决线程或写入分支等操作仅限仓库协作者。
+
+Sourcery 提供独立的第二份审核信号。对于可执行的问题，应修复或在对应线程中给出简洁的技术说明。合并前必须满足：全部必需检查通过、有效问题已处理、所有审查对话已解决。
+
 ## Pull requests / Pull Request 要求
 
 - Keep each PR focused and explain the user-visible result.
@@ -96,9 +124,8 @@ FFmpeg is required only for GIF capture. Screenshot scripts may use `CHROME_PATH
 - Add or update synthetic tests for parser and rendering changes.
 - Do not commit temporary files, logs, real exports, or generated failure artifacts.
 - Do not force-push shared branches. The repository uses squash merges and linear history.
-- Resolve review conversations before merge.
+- Resolve review conversations and obtain passing G.H.O.S.T Review and Sourcery checks before merge.
 
-PR 应保持单一目标，说明用户可见结果、验证方式及隐私/安全影响。解析或渲染改动应补充合成测试；不要提交临时文件、日志、真实导出或失败产物。仓库使用 squash merge 与线性历史，合并前需要解决审查对话。
+PR 应保持单一目标，说明用户可见结果、验证方式及隐私/安全影响。解析或渲染改动应补充合成测试；不要提交临时文件、日志、真实导出或失败产物。仓库使用 squash merge 与线性历史；合并前需要通过 G.H.O.S.T Review 与 Sourcery，并解决全部审查对话。
 
 By participating, you agree to follow the [Code of Conduct](CODE_OF_CONDUCT.md).
-
