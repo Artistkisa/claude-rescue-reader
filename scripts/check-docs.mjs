@@ -15,6 +15,21 @@ for(const file of['README.md','README.en.md']){
 }
 const zh=fs.readFileSync('README.md','utf8'),en=fs.readFileSync('README.en.md','utf8');
 for(const token of['viewer.html','LICENSE','Claude'])if(!zh.includes(token)||!en.includes(token))failures.push(`README parity token missing: ${token}`);
+for(const [file,text] of [['README.md',zh],['README.en.md',en]]){
+  const badgeCount=(text.match(/^\[!\[/gm)||[]).length;
+  if(badgeCount!==7)failures.push(`${file}: expected 7 high-signal badges, found ${badgeCount}`);
+  for(const workflow of['viewer-validation.yml','browser-smoke.yml','privacy-guard.yml','release-verify.yml'])if(!text.includes(workflow))failures.push(`${file}: workflow badge missing: ${workflow}`);
+  for(const token of['workflow-demo.gif','docs/benchmarks/readme-performance.json','scripts/benchmark-readme-performance.mjs'])if(!text.includes(token))failures.push(`${file}: README evidence link missing: ${token}`);
+}
+const benchmark=JSON.parse(fs.readFileSync('docs/benchmarks/readme-performance.json','utf8'));
+for(const result of benchmark.results){
+  const expected=[result.sizeMiB,result.cpuThrottle,result.median.initialListMs,result.median.openConversationMs,result.median.searchMs];
+  if(expected.some(value=>typeof value!=='number'||!Number.isFinite(value)))failures.push(`benchmark report has invalid values for ${result.sizeMiB} MiB`);
+  const rowEn=`| ${result.sizeMiB} MiB | ${result.cpuThrottle}× | ${(result.median.initialListMs/1000).toFixed(2)} s | ${(result.median.openConversationMs/1000).toFixed(2)} s | ${(result.median.searchMs/1000).toFixed(2)} s |`;
+  const rowZh=`| ${result.sizeMiB} MiB | ${result.cpuThrottle}× | ${(result.median.initialListMs/1000).toFixed(2)} 秒 | ${(result.median.openConversationMs/1000).toFixed(2)} 秒 | ${(result.median.searchMs/1000).toFixed(2)} 秒 |`;
+  if(!en.includes(rowEn))failures.push(`README.en.md: benchmark row is stale for ${result.sizeMiB} MiB`);
+  if(!zh.includes(rowZh))failures.push(`README.md: benchmark row is stale for ${result.sizeMiB} MiB`);
+}
 if(warnings.length)console.warn(warnings.join('\n'));
 if(failures.length){console.error(failures.map(x=>`- ${x}`).join('\n'));process.exit(1);}
 console.log('documentation checks passed');

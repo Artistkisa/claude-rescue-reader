@@ -6,11 +6,13 @@
 
 No installation · one file · ZIP without extraction · local-only · built for large histories
 
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
-[![Single File](https://img.shields.io/badge/single%20file-HTML-orange.svg)](viewer.html)
-[![Offline](https://img.shields.io/badge/runs-offline-brightgreen.svg)](#)
-[![Privacy](https://img.shields.io/badge/privacy-local--only-blue.svg)](#privacy--security)
-[![GitHub stars](https://img.shields.io/github/stars/Artistkisa/claude-rescue-reader?style=social)](https://github.com/Artistkisa/claude-rescue-reader/stargazers)
+[![Latest release](https://img.shields.io/github/v/release/Artistkisa/claude-rescue-reader?label=release)](https://github.com/Artistkisa/claude-rescue-reader/releases/latest)
+[![Viewer Validation](https://github.com/Artistkisa/claude-rescue-reader/actions/workflows/viewer-validation.yml/badge.svg?branch=main)](https://github.com/Artistkisa/claude-rescue-reader/actions/workflows/viewer-validation.yml)
+[![Browser Smoke](https://github.com/Artistkisa/claude-rescue-reader/actions/workflows/browser-smoke.yml/badge.svg?branch=main)](https://github.com/Artistkisa/claude-rescue-reader/actions/workflows/browser-smoke.yml)
+[![Privacy Guard](https://github.com/Artistkisa/claude-rescue-reader/actions/workflows/privacy-guard.yml/badge.svg?branch=main)](https://github.com/Artistkisa/claude-rescue-reader/actions/workflows/privacy-guard.yml)
+[![Offline bundle](https://github.com/Artistkisa/claude-rescue-reader/actions/workflows/release-verify.yml/badge.svg)](https://github.com/Artistkisa/claude-rescue-reader/releases/latest)
+[![Release downloads](https://img.shields.io/github/downloads/Artistkisa/claude-rescue-reader/total?label=downloads)](https://github.com/Artistkisa/claude-rescue-reader/releases)
+[![License: MIT](https://img.shields.io/badge/license-MIT-yellow.svg)](LICENSE)
 
 **[⬇ Download viewer.html](viewer.html)** · **[🧪 Download the synthetic demo ZIP](docs/demo/claude-rescue-reader-synthetic-demo.zip)** · **[📦 Download the offline bundle](https://github.com/Artistkisa/claude-rescue-reader/releases/latest)** · **[🌐 中文](README.md)**
 
@@ -40,6 +42,36 @@ You can also select the extracted folder. Chrome, Edge, and Firefox are supporte
 > 🔒 Parsing, search, analytics, and redaction all run locally in your browser. There is no backend and your conversations are never uploaded.
 
 ![Complete workflow: drop a ZIP, open a conversation, inspect the project graph, explore analytics, and preview a safe export](docs/images/workflow-demo.gif)
+
+## The difference at a glance
+
+| Capability | Text editor | Basic export viewer | Rescue Reader |
+|---|:---:|:---:|:---:|
+| Open a large ZIP directly | ❌ | Partial | ✅ |
+| Conversation branches | ❌ | Partial | ✅ |
+| Project-association evidence | ❌ | ❌ | ✅ |
+| Global and project memory | ❌ | Partial | ✅ |
+| Thinking integrity states | ❌ | ❌ | ✅ |
+| Tool-result provenance and audit | ❌ | ❌ | ✅ |
+| Worker-backed lazy parsing | ❌ | Partial | ✅ |
+| Redaction preview before export | ❌ | ❌ | ✅ |
+| Complete offline distribution | — | Partial | ✅ |
+
+<sub>“Basic export viewer” describes the common feature baseline, not any named project. “Partial” means support varies by implementation or archive shape.</sub>
+
+## Claude's export ZIP is far more than chat text
+
+Rescue Reader surfaces records that are easy to miss in a normal transcript:
+
+- Claude-generated conversation summaries that may not be prominent in the web UI
+- global memory, project memory, project instructions, and knowledge files
+- Thinking states such as truncated, hidden, summarized, signed, or replaced display
+- tool approvals, MCP/integration provenance, parameters, errors, and hidden structured results
+- project-knowledge searches and the evidence they provide for project reconstruction
+- branches, orphan messages, empty records, reverse timestamps, and incomplete attachments
+- attachment paths, internal metadata, flags, and other fields worth reviewing before sharing
+
+These fields prove what is present in the exported archive; they do **not** by themselves prove account moderation, risk controls, or model downgrading.
 
 ## Why this is more than another export viewer
 
@@ -220,6 +252,18 @@ claude-export/
 - Parsed records are cached locally in IndexedDB behind a source-size, modification-time, and edge-content fingerprint; changed sources cannot reuse stale cache entries
 - The cache never leaves the current browser and can be removed at any time with **Clear local parse cache** in the sidebar
 - Syntax highlighting, Mermaid, Artifact iframes, and ZIP parsing load only when their feature or viewport requires them, keeping the initial conversation list responsive
+
+#### Reproducible CPU-throttled benchmark
+
+| Synthetic `conversations.json` | CPU throttle | Initial list | Open a 100-message chat | Full-text search |
+|---:|---:|---:|---:|---:|
+| 50 MiB | 4× | 0.55 s | 0.65 s | 0.04 s |
+| 150 MiB | 6× | 1.69 s | 0.90 s | 0.10 s |
+| 300 MiB | 6× | 3.19 s | 1.02 s | 0.23 s |
+
+Results are medians of three fresh-browser runs on Chromium `150.0.7871.187` with Playwright `1.62.0`. CDP CPU throttling is applied before import. Each exact-size fixture is generated locally from fictional ASCII conversations with 100 alternating human/assistant messages; search uses one shared synthetic needle. No real history, title, local path, account data, or hardware model is read or published.
+
+Reproduce with `npm run benchmark:readme`. The [benchmark script](scripts/benchmark-readme-performance.mjs) and [raw report](docs/benchmarks/readme-performance.json) are committed beside the table. These numbers are comparative evidence, not a promise for every disk, browser, archive shape, or thermal state. Large single-line Claude exports causing editors or ordinary pages to stall are a recurring community pain point; [this ClaudeAI discussion](https://www.reddit.com/r/ClaudeAI/comments/1oee39d/built_a_tool_to_view_claude_conversation_exports/) is one public example.
 
 ### Other
 - 🌙 / ☀️ Light/dark theme toggle, preference saved automatically
