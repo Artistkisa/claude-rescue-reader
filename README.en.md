@@ -333,6 +333,15 @@ The maintainable persistent data pipeline and compatibility analytics Worker sou
 
 ## Changelog
 
+**v1.4** *(2026-07-30)*
+- Expanded image reattachment, project instructions, project-file downloads, and richer analytics insights
+- Added explainable safe-export findings with masked previews, locations, categories, and matching reasons
+- Added optional aggressive privacy filtering for names, schools/organizations, addresses, identity data, UIDs, social accounts, and links, with an explicit over-redaction warning
+- Added a `CONFIDENTIAL` watermark, classified badge, and more complete black-bar styling to SCP dossier exports
+- Expanded the privacy-safe mature-account demo ZIP and added a 20-second end-to-end workflow GIF
+- Added reproducible 50 / 150 / 300 MiB CPU-throttled benchmarks with a committed raw report
+- Unified the Claude Rescue Reader product name and replaced download-page links with direct latest-Release assets
+
 **v1.3** *(2026-07-29)*
 - Added Claude Behavior Lab with tool-call auditing, hidden-result probing, Thinking integrity, and answer evidence-chain reporting
 - Reused the persistent Data Worker for large-history parsing, full-text search, analytics, project matching, and behavior analysis to reduce main-thread copies and stalls
