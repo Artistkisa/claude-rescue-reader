@@ -20,7 +20,8 @@ for(const [file,text] of [['README.md',zh],['README.en.md',en]]){
   const badgeCount=(text.match(/^\[!\[/gm)||[]).length;
   if(badgeCount!==6)failures.push(`${file}: expected 6 high-signal badges, found ${badgeCount}`);
   for(const workflow of['viewer-validation.yml','browser-smoke.yml','privacy-guard.yml','release-verify.yml'])if(!text.includes(workflow))failures.push(`${file}: workflow badge missing: ${workflow}`);
-  for(const token of['workflow-demo.gif','docs/benchmarks/readme-performance.json','scripts/benchmark-readme-performance.mjs'])if(!text.includes(token))failures.push(`${file}: README evidence link missing: ${token}`);
+  const workflowDemo=file==='README.en.md'?'workflow-demo-en.gif':'workflow-demo.gif';
+  for(const token of[workflowDemo,'docs/benchmarks/readme-performance.json','scripts/benchmark-readme-performance.mjs'])if(!text.includes(token))failures.push(`${file}: README evidence link missing: ${token}`);
   for(const asset of['viewer.html','claude-rescue-reader-offline.zip'])if(!text.includes(`releases/latest/download/${asset}`))failures.push(`${file}: direct release download missing: ${asset}`);
   if(text.includes('releases/latest/download/claude-rescue-reader.zip'))failures.push(`${file}: redundant standard ZIP link should stay out of the README hero`);
 }

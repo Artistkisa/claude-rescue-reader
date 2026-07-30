@@ -21,6 +21,7 @@ projects/
 *.jpeg
 *.gif
 !docs/images/workflow-demo.gif
+!docs/images/workflow-demo-en.gif
 *.bmp
 *.tmp
 *.log
