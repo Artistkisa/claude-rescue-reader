@@ -1,0 +1,131 @@
+{
+  "generatedAt": "2026-07-30T06:52:21.386Z",
+  "browser": "150.0.7871.187",
+  "playwright": "1.62.0",
+  "node": "v24.16.0",
+  "method": {
+    "runs": 3,
+    "aggregation": "median",
+    "fixture": "ASCII-only synthetic conversations; 100 alternating human/assistant messages per full record; exact target byte size; one shared search needle per message.",
+    "privacy": "No real export, title, path, account data, or hardware model is read or recorded."
+  },
+  "results": [
+    {
+      "sizeMiB": 50,
+      "cpuThrottle": 4,
+      "actualBytes": 52428800,
+      "records": 142,
+      "runs": 3,
+      "samples": [
+        {
+          "run": 1,
+          "initialListMs": 563.7,
+          "openConversationMs": 521.4,
+          "searchMs": 43.8,
+          "hits": 141,
+          "heapMiB": 3.8
+        },
+        {
+          "run": 2,
+          "initialListMs": 545.3,
+          "openConversationMs": 647.1,
+          "searchMs": 42.6,
+          "hits": 141,
+          "heapMiB": 3.8
+        },
+        {
+          "run": 3,
+          "initialListMs": 525.5,
+          "openConversationMs": 1753.5,
+          "searchMs": 36.6,
+          "hits": 141,
+          "heapMiB": 3.8
+        }
+      ],
+      "median": {
+        "initialListMs": 545.3,
+        "openConversationMs": 647.1,
+        "searchMs": 42.6,
+        "heapMiB": 3.8
+      }
+    },
+    {
+      "sizeMiB": 150,
+      "cpuThrottle": 6,
+      "actualBytes": 157286400,
+      "records": 426,
+      "runs": 3,
+      "samples": [
+        {
+          "run": 1,
+          "initialListMs": 1754.1,
+          "openConversationMs": 958.8,
+          "searchMs": 96.4,
+          "hits": 425,
+          "heapMiB": 4.6
+        },
+        {
+          "run": 2,
+          "initialListMs": 1690.2,
+          "openConversationMs": 895.1,
+          "searchMs": 95.6,
+          "hits": 425,
+          "heapMiB": 4.6
+        },
+        {
+          "run": 3,
+          "initialListMs": 1694.8,
+          "openConversationMs": 885.9,
+          "searchMs": 94.9,
+          "hits": 425,
+          "heapMiB": 4.6
+        }
+      ],
+      "median": {
+        "initialListMs": 1694.8,
+        "openConversationMs": 895.1,
+        "searchMs": 95.6,
+        "heapMiB": 4.6
+      }
+    },
+    {
+      "sizeMiB": 300,
+      "cpuThrottle": 6,
+      "actualBytes": 314572800,
+      "records": 851,
+      "runs": 3,
+      "samples": [
+        {
+          "run": 1,
+          "initialListMs": 3173.1,
+          "openConversationMs": 958.5,
+          "searchMs": 177.9,
+          "hits": 850,
+          "heapMiB": 4.2
+        },
+        {
+          "run": 2,
+          "initialListMs": 3185,
+          "openConversationMs": 1209.1,
+          "searchMs": 225.6,
+          "hits": 850,
+          "heapMiB": 4.2
+        },
+        {
+          "run": 3,
+          "initialListMs": 3234.7,
+          "openConversationMs": 1024.7,
+          "searchMs": 229.6,
+          "hits": 850,
+          "heapMiB": 4.2
+        }
+      ],
+      "median": {
+        "initialListMs": 3185,
+        "openConversationMs": 1024.7,
+        "searchMs": 225.6,
+        "heapMiB": 4.2
+      }
+    }
+  ]
+}

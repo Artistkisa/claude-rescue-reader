@@ -6,11 +6,13 @@
 
 无需安装 · 单文件打开 · ZIP 免解压 · 纯本地处理 · 支持大型历史
 
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
-[![Single File](https://img.shields.io/badge/single%20file-HTML-orange.svg)](viewer.html)
-[![Offline](https://img.shields.io/badge/runs-offline-brightgreen.svg)](#)
-[![Privacy](https://img.shields.io/badge/privacy-local--only-blue.svg)](#隐私与安全)
-[![GitHub stars](https://img.shields.io/github/stars/Artistkisa/claude-rescue-reader?style=social)](https://github.com/Artistkisa/claude-rescue-reader/stargazers)
+[![Latest release](https://img.shields.io/github/v/release/Artistkisa/claude-rescue-reader?label=release)](https://github.com/Artistkisa/claude-rescue-reader/releases/latest)
+[![Viewer Validation](https://github.com/Artistkisa/claude-rescue-reader/actions/workflows/viewer-validation.yml/badge.svg?branch=main)](https://github.com/Artistkisa/claude-rescue-reader/actions/workflows/viewer-validation.yml)
+[![Browser Smoke](https://github.com/Artistkisa/claude-rescue-reader/actions/workflows/browser-smoke.yml/badge.svg?branch=main)](https://github.com/Artistkisa/claude-rescue-reader/actions/workflows/browser-smoke.yml)
+[![Privacy Guard](https://github.com/Artistkisa/claude-rescue-reader/actions/workflows/privacy-guard.yml/badge.svg?branch=main)](https://github.com/Artistkisa/claude-rescue-reader/actions/workflows/privacy-guard.yml)
+[![Offline bundle](https://github.com/Artistkisa/claude-rescue-reader/actions/workflows/release-verify.yml/badge.svg)](https://github.com/Artistkisa/claude-rescue-reader/releases/latest)
+[![Release downloads](https://img.shields.io/github/downloads/Artistkisa/claude-rescue-reader/total?label=downloads)](https://github.com/Artistkisa/claude-rescue-reader/releases)
+[![License: MIT](https://img.shields.io/badge/license-MIT-yellow.svg)](LICENSE)
 
 **[⬇ 下载单文件 viewer.html](viewer.html)** · **[🧪 下载合成演示 ZIP](docs/demo/claude-rescue-reader-synthetic-demo.zip)** · **[📦 下载完整离线版](https://github.com/Artistkisa/claude-rescue-reader/releases/latest)** · **[🌐 English](README.en.md)**
 
@@ -40,6 +42,36 @@
 > 🔒 所有历史解析、搜索、统计和脱敏都在当前浏览器本地完成。查看器没有后端，也不会上传你的对话。
 
 ![拖入 ZIP、打开对话、检查项目关系图、浏览统计并进行安全导出的完整闭环](docs/images/workflow-demo.gif)
+
+## 差异一眼可见
+
+| 能力 | 文本编辑器 | 普通导出查看器 | Rescue Reader |
+|---|:---:|:---:|:---:|
+| 大型 ZIP 直读 | ❌ | 部分 | ✅ |
+| 对话分支 | ❌ | 部分 | ✅ |
+| 项目关联证据 | ❌ | ❌ | ✅ |
+| 全局 / 项目记忆 | ❌ | 部分 | ✅ |
+| Thinking 完整性 | ❌ | ❌ | ✅ |
+| 工具结果来源与审计 | ❌ | ❌ | ✅ |
+| Worker 懒解析 | ❌ | 部分 | ✅ |
+| 导出前脱敏预览 | ❌ | ❌ | ✅ |
+| 完全离线发行版 | — | 部分 | ✅ |
+
+<sub>“普通导出查看器”指常见功能基线，不影射或点名任何项目；“部分”表示支持程度会随实现和导出结构变化。</sub>
+
+## Claude 的导出 ZIP，远不只是聊天文本
+
+Rescue Reader 会把普通聊天记录里不显眼的内容重新呈现出来：
+
+- Claude 已生成、但网页端不一定突出展示的对话摘要
+- 全局记忆、项目记忆、项目自定义指令与知识文件
+- Thinking 的截断、隐藏、摘要、签名和替代展示状态
+- 工具审批、MCP / 集成来源、调用参数、错误与隐藏结构化结果
+- 项目知识搜索记录，以及它们为项目归属推断提供的证据
+- 分支、孤儿消息、空记录、时间倒序与不完整附件
+- 附件路径、内部元数据、flags，以及分享前值得检查的其他字段
+
+这些字段只能证明“导出档案中存在相应记录”，**不能单独证明**账号被风控、模型被降级或后台采取了某种处置。
 
 ## 为什么它不只是另一个导出查看器
 
@@ -220,6 +252,18 @@ claude-export/
 - 解析记录以文件大小、修改时间和首尾内容指纹隔离后缓存在本机 IndexedDB；来源变化时不会复用旧缓存
 - 缓存始终留在当前浏览器，可通过侧栏的「清除本地解析缓存」随时删除
 - 代码高亮、Mermaid、Artifact iframe 和 ZIP 解析按实际功能/视口加载，不阻塞初始对话列表
+
+#### 可复现的 CPU 限速基准
+
+| 合成 `conversations.json` | CPU 限速 | 初始列表 | 打开 100 条消息对话 | 全文搜索 |
+|---:|---:|---:|---:|---:|
+| 50 MiB | 4× | 0.55 秒 | 0.65 秒 | 0.04 秒 |
+| 150 MiB | 6× | 1.69 秒 | 0.90 秒 | 0.10 秒 |
+| 300 MiB | 6× | 3.19 秒 | 1.02 秒 | 0.23 秒 |
+
+结果取 3 次全新浏览器运行的中位数，使用 Chromium `150.0.7871.187`、Playwright `1.62.0`，并在导入前通过 CDP 设置 CPU 限速。每份文件都由脚本在本地生成到精确体积，只含虚构 ASCII 对话；每条完整记录包含 100 条人类 / Claude 交替消息，搜索使用统一的合成标记词。测试不会读取或公布真实历史、真实标题、本地路径、账号数据或硬件型号。
+
+运行 `npm run benchmark:readme` 即可复现；[基准脚本](scripts/benchmark-readme-performance.mjs)和[原始报告](docs/benchmarks/readme-performance.json)与表格一同提交。数字用于说明不同体积下的相对表现，不承诺所有磁盘、浏览器、导出结构和散热状态都得到相同结果。大型单行 Claude 导出让编辑器或普通页面卡顿，是社区反复出现的实际痛点；[这条 ClaudeAI 讨论](https://www.reddit.com/r/ClaudeAI/comments/1oee39d/built_a_tool_to_view_claude_conversation_exports/)就是一个公开案例。
 
 ### 其他
 - 🌙 / ☀️ 明暗主题切换，偏好自动保存
