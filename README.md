@@ -1,6 +1,8 @@
 [中文](README.md) | [English](README.en.md)
 
-# Claude Export History Viewer
+# Claude Rescue Reader
+
+**本地 Claude 导出历史查看器**
 
 > **把 Claude 官方导出的 ZIP，变成可搜索、可分析、可安全分享的本地对话档案。**
 
@@ -11,10 +13,9 @@
 [![Browser Smoke](https://github.com/Artistkisa/claude-rescue-reader/actions/workflows/browser-smoke.yml/badge.svg?branch=main)](https://github.com/Artistkisa/claude-rescue-reader/actions/workflows/browser-smoke.yml)
 [![Privacy Guard](https://github.com/Artistkisa/claude-rescue-reader/actions/workflows/privacy-guard.yml/badge.svg?branch=main)](https://github.com/Artistkisa/claude-rescue-reader/actions/workflows/privacy-guard.yml)
 [![Offline bundle](https://github.com/Artistkisa/claude-rescue-reader/actions/workflows/release-verify.yml/badge.svg)](https://github.com/Artistkisa/claude-rescue-reader/releases/latest)
-[![Release downloads](https://img.shields.io/github/downloads/Artistkisa/claude-rescue-reader/total?label=downloads)](https://github.com/Artistkisa/claude-rescue-reader/releases)
 [![License: MIT](https://img.shields.io/badge/license-MIT-yellow.svg)](LICENSE)
 
-**[⬇ 下载单文件 viewer.html](viewer.html)** · **[🧪 下载合成演示 ZIP](docs/demo/claude-rescue-reader-synthetic-demo.zip)** · **[📦 下载完整离线版](https://github.com/Artistkisa/claude-rescue-reader/releases/latest)** · **[🌐 English](README.en.md)**
+**[⬇ 直接下载 viewer.html](https://github.com/Artistkisa/claude-rescue-reader/releases/latest/download/viewer.html)** · **[📦 下载标准 ZIP](https://github.com/Artistkisa/claude-rescue-reader/releases/latest/download/claude-rescue-reader.zip)** · **[🔌 下载完整离线版](https://github.com/Artistkisa/claude-rescue-reader/releases/latest/download/claude-rescue-reader-offline.zip)** · **[🧪 合成演示 ZIP](docs/demo/claude-rescue-reader-synthetic-demo.zip)** · **[🌐 English](README.en.md)**
 
 ![Claude Export History Viewer 界面：对话、Thinking、工具调用与 Markdown 表格](docs/images/viewer-overview.png)
 
@@ -25,7 +26,7 @@
 ## 30 秒开始
 
 1. 从 Claude 下载官方数据导出 ZIP。
-2. 下载本仓库的 [`viewer.html`](viewer.html)，双击用浏览器打开。
+2. [直接下载 `viewer.html`](https://github.com/Artistkisa/claude-rescue-reader/releases/latest/download/viewer.html)，双击用浏览器打开。
 3. 把 ZIP 拖进页面——**不用解压，不用上传，不用安装。**
 
 也可以选择解压后的整个文件夹；Chrome、Edge 和 Firefox 均可使用。
