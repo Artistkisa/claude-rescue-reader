@@ -1,6 +1,8 @@
 [中文](README.md) | [English](README.en.md)
 
-# Claude Export History Viewer
+# Claude Rescue Reader
+
+**A local Claude Export History Viewer**
 
 > **Turn Claude's official export ZIP into a searchable, analyzable, privacy-safe local archive.**
 
@@ -11,10 +13,9 @@ No installation · one file · ZIP without extraction · local-only · built for
 [![Browser Smoke](https://github.com/Artistkisa/claude-rescue-reader/actions/workflows/browser-smoke.yml/badge.svg?branch=main)](https://github.com/Artistkisa/claude-rescue-reader/actions/workflows/browser-smoke.yml)
 [![Privacy Guard](https://github.com/Artistkisa/claude-rescue-reader/actions/workflows/privacy-guard.yml/badge.svg?branch=main)](https://github.com/Artistkisa/claude-rescue-reader/actions/workflows/privacy-guard.yml)
 [![Offline bundle](https://github.com/Artistkisa/claude-rescue-reader/actions/workflows/release-verify.yml/badge.svg)](https://github.com/Artistkisa/claude-rescue-reader/releases/latest)
-[![Release downloads](https://img.shields.io/github/downloads/Artistkisa/claude-rescue-reader/total?label=downloads)](https://github.com/Artistkisa/claude-rescue-reader/releases)
 [![License: MIT](https://img.shields.io/badge/license-MIT-yellow.svg)](LICENSE)
 
-**[⬇ Download viewer.html](viewer.html)** · **[🧪 Download the synthetic demo ZIP](docs/demo/claude-rescue-reader-synthetic-demo.zip)** · **[📦 Download the offline bundle](https://github.com/Artistkisa/claude-rescue-reader/releases/latest)** · **[🌐 中文](README.md)**
+**[⬇ Download viewer.html](https://github.com/Artistkisa/claude-rescue-reader/releases/latest/download/viewer.html)** · **[📦 Download the standard ZIP](https://github.com/Artistkisa/claude-rescue-reader/releases/latest/download/claude-rescue-reader.zip)** · **[🔌 Download the offline bundle](https://github.com/Artistkisa/claude-rescue-reader/releases/latest/download/claude-rescue-reader-offline.zip)** · **[🧪 Synthetic demo ZIP](docs/demo/claude-rescue-reader-synthetic-demo.zip)** · **[🌐 中文](README.md)**
 
 ![Claude Export History Viewer showing conversations, Thinking, tool calls, and a Markdown table](docs/images/viewer-overview.png)
 
@@ -25,7 +26,7 @@ No installation · one file · ZIP without extraction · local-only · built for
 ## Start in 30 seconds
 
 1. Download your official Claude data export ZIP.
-2. Download [`viewer.html`](viewer.html) and open it in your browser.
+2. [Download `viewer.html` directly](https://github.com/Artistkisa/claude-rescue-reader/releases/latest/download/viewer.html) and open it in your browser.
 3. Drop the ZIP onto the page — **no extraction, upload, or installation required.**
 
 You can also select the extracted folder. Chrome, Edge, and Firefox are supported.
