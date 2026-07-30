@@ -6,7 +6,9 @@ import os from 'node:os';
 import {spawnSync} from 'node:child_process';
 
 const root=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'..');
-const output=path.join(root,'docs','images','workflow-demo.gif');
+const demoLang=process.env.DEMO_LANG==='en'?'en':'zh';
+const outputName=process.env.DEMO_OUTPUT||(demoLang==='en'?'workflow-demo-en.gif':'workflow-demo.gif');
+const output=path.join(root,'docs','images',outputName);
 const zipPath=path.join(root,'docs','demo','claude-rescue-reader-synthetic-demo.zip');
 const temp=await fs.mkdtemp(path.join(os.tmpdir(),'claude-rescue-demo-'));
 const systemChrome=process.platform==='win32'?'C:/Program Files/Google/Chrome/Application/chrome.exe':undefined;
@@ -16,6 +18,7 @@ const browser=await chromium.launch({headless:true,...(executablePath?{executabl
 const pause=ms=>new Promise(resolve=>setTimeout(resolve,ms));
 try{
   const context=await browser.newContext({viewport:{width:1280,height:720},deviceScaleFactor:1,recordVideo:{dir:temp,size:{width:1280,height:720}}});
+  await context.addInitScript(lang=>localStorage.setItem('cv-lang',lang),demoLang);
   const page=await context.newPage();
   await page.goto(pathToFileURL(path.join(root,'viewer.html')).href);
   await page.evaluate(()=>{
@@ -34,7 +37,7 @@ try{
   };
   const click=async locator=>{const box=await locator.boundingBox();if(!box)throw new Error('Demo target is not visible');await point(box.x+box.width/2,box.y+box.height/2,true);await locator.click();};
 
-  await caption('1 / 5  拖入导出 ZIP · Drop the export ZIP');
+  await caption(demoLang==='en'?'1 / 5  Drop the Claude export ZIP':'1 / 5  拖入导出 ZIP · Drop the export ZIP');
   await pause(900);await point(270,168);
   await page.evaluate(()=>{const file=document.getElementById('demo-file');file.style.left='500px';file.style.top='305px';file.style.transform='scale(.94)';});
   await point(665,340);await pause(500);
@@ -46,27 +49,27 @@ try{
   },zipBase64);
   await page.waitForFunction(()=>allConvs.length===40&&allProjects.length===4,{timeout:15_000});await pause(700);
 
-  await caption('2 / 5  打开完整对话 · Open a conversation');
+  await caption(demoLang==='en'?'2 / 5  Open a complete conversation':'2 / 5  打开完整对话 · Open a conversation');
   await click(page.locator('.conv-item').first());
   await page.waitForFunction(()=>currentConv&&document.querySelectorAll('.msg-wrap').length>=5);await pause(2100);
 
-  await caption('3 / 5  检查项目证据链 · Inspect the project graph');
+  await caption(demoLang==='en'?'3 / 5  Inspect the project evidence graph':'3 / 5  检查项目证据链 · Inspect the project graph');
   await click(page.locator('.tab-btn[onclick*="projects"]'));
   await page.waitForFunction(()=>convProjectMapReady,{timeout:15_000});
   await click(page.locator('.proj-card').first());
   await page.waitForFunction(()=>document.querySelector('.project-graph'));
   await page.locator('.project-graph').scrollIntoViewIfNeeded();await pause(2800);
 
-  await caption('4 / 5  浏览使用画像 · Explore analytics');
+  await caption(demoLang==='en'?'4 / 5  Explore your usage analytics':'4 / 5  浏览使用画像 · Explore analytics');
   await click(page.locator('.tab-btn[onclick*="analytics"]'));
   await page.waitForFunction(()=>document.querySelector('.word-cloud'),{timeout:15_000});await pause(3000);
 
-  await caption('5 / 5  预览安全脱敏 · Preview a safe export');
+  await caption(demoLang==='en'?'5 / 5  Preview a privacy-safe export':'5 / 5  预览安全脱敏 · Preview a safe export');
   await click(page.locator('.tab-btn[onclick*="convs"]'));
   await click(page.locator('.conv-item').first());await page.waitForFunction(()=>currentConv);
   await click(page.locator('#export-btn'));await click(page.locator('#export-menu button').nth(1));
   await page.waitForSelector('#redaction-modal .redaction-dialog');await pause(2800);
-  await caption('全程本地处理 · Private, offline, complete');await pause(1800);
+  await caption(demoLang==='en'?'Local-first · Private · Offline':'全程本地处理 · Private, offline, complete');await pause(1800);
 
   const video=await page.video();await context.close();const webm=await video.path();
   await fs.mkdir(path.dirname(output),{recursive:true});
