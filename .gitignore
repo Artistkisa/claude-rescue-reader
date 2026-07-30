@@ -14,6 +14,9 @@ projects/
 # 截图和临时文件
 *.png
 !docs/images/viewer-overview.png
+!docs/images/conversation-summary.png
+!docs/images/project-associations.png
+!docs/images/memory-view.png
 *.jpg
 *.jpeg
 *.gif
