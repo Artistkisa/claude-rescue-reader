@@ -73,14 +73,6 @@ Rescue Reader surfaces records that are easy to miss in a normal transcript:
 
 These fields prove what is present in the exported archive; they do **not** by themselves prove account moderation, risk controls, or model downgrading.
 
-## Why this is more than another export viewer
-
-- **Engineered for real large exports:** chunked reads, a persistent Worker, lazy message parsing, and fingerprinted IndexedDB caches.
-- **Reconstructs more of Claude:** branches, Thinking states, tool calls/results, Artifacts, Design, project memories, and knowledge files.
-- **Explains instead of guessing:** project matches expose memory, file, keyword, and confidence evidence; low-confidence chats remain unassigned.
-- **Shows privacy risk before export:** category, masked preview, location, and reason are visible before anything is written.
-- **Single-file convenience plus true offline use:** grab one HTML for everyday use or the pinned-dependency offline bundle for isolated machines.
-
 ## Reconstructing relationships that exist in the export but are hard to see
 
 ### Project memory → project files → related conversations
