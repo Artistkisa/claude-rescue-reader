@@ -47,6 +47,37 @@ You can also select the extracted folder. Chrome, Edge, and Firefox are supporte
 - **Shows privacy risk before export:** category, masked preview, location, and reason are visible before anything is written.
 - **Single-file convenience plus true offline use:** grab one HTML for everyday use or the pinned-dependency offline bundle for isolated machines.
 
+## Reconstructing relationships that exist in the export but are hard to see
+
+### Project memory → project files → related conversations
+
+Claude exports do not contain a direct conversation-to-project relationship. Instead of grouping by title alone, the viewer uses three confidence-gated evidence layers:
+
+1. **Unique project file:** the conversation references a file owned by only one project.
+2. **Project knowledge search:** `project_knowledge_search` queries match project-document content.
+3. **Project-memory keywords:** titles or exported summaries match memory terms unique to a project; ties and low-confidence results remain unassigned.
+
+Every result exposes its method, confidence, matched files/queries/memories, and a local manual correction control. The graph connects project memory, knowledge files, and conversations into an inspectable evidence chain.
+
+![Fictional project showing the memory, file, and conversation graph plus three association evidence types](docs/images/project-associations.png)
+
+<sub>This is not a pre-baked mockup: the 88% knowledge match, 98% unique-file match, and project-memory match are calculated from the synthetic export by the production matcher.</sub>
+
+### Global memory, project memory, and exported conversation summaries
+
+The viewer parses global work/personal context, current priorities, history, and structured project memories. The conversation side panel directly renders the export's existing `summary` and metadata — **it does not contact a server or ask a model to summarize again.**
+
+<table>
+<tr>
+<td width="72%"><img src="docs/images/memory-view.png" alt="Global memory, project memory, and project reference graph"></td>
+<td width="28%"><img src="docs/images/conversation-summary.png" alt="Conversation summary and metadata from a Claude export"></td>
+</tr>
+<tr>
+<td><b>Global memory + project-level memory</b></td>
+<td><b>Conversation summary from the export</b></td>
+</tr>
+</table>
+
 <details>
 <summary><b>Account restricted? That is why this project exists.</b></summary>
 
