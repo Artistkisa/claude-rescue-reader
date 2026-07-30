@@ -1,0 +1,20 @@
+import JSZip from 'jszip';
+import fs from 'node:fs/promises';
+import path from 'node:path';
+import {fileURLToPath} from 'node:url';
+import {demoConversations,demoMemories,demoProjects,demoDesign} from '../tests/fixtures/synthetic-readme-demo-export.mjs';
+
+const root=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'..');
+const output=path.join(root,'docs','demo','claude-rescue-reader-synthetic-demo.zip');
+const zip=new JSZip(),date=new Date('2026-06-18T00:00:00Z'),options={date,createFolders:false,unixPermissions:0o100644};
+const json=value=>JSON.stringify(value,null,2);
+zip.file('README.txt','Claude Rescue Reader synthetic demo export\n\nEvery person, organization, account, path, file, identifier, event, and number in this archive is fictional. It is safe to use for product demonstrations and tests.\n',options);
+zip.file('conversations.json',json(demoConversations),options);
+zip.file('memories.json',json([demoMemories]),options);
+zip.file('users.json',json([{uuid:'10000000-0000-4000-8000-000000009999',full_name:'合成演示用户',email_address:'demo@example.invalid'}]),options);
+zip.file('design.json',json(demoDesign),options);
+for(const project of demoProjects)zip.file(`projects/${project.uuid}.json`,json(project),options);
+const bytes=await zip.generateAsync({type:'nodebuffer',compression:'DEFLATE',compressionOptions:{level:9},platform:'UNIX'});
+await fs.mkdir(path.dirname(output),{recursive:true});
+await fs.writeFile(output,bytes);
+console.log(`Synthetic demo ZIP written to ${path.relative(root,output)} (${bytes.length} bytes)`);

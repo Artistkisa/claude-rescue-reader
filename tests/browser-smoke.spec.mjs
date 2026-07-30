@@ -55,6 +55,14 @@ test('folder import and core views',async({page})=>{
 
 test('ZIP import',async({page})=>{const errors=await openViewer(page);await page.setInputFiles('#zip-input',zipPath);await waitLoaded(page);await page.locator('.conv-item').first().click();await expect(page.locator('[data-attachment-media] img')).toBeVisible();expect(errors).toEqual([]);});
 
+test('committed synthetic demo ZIP exercises a mature archive shape',async({page})=>{
+  const errors=await openViewer(page);await page.setInputFiles('#zip-input',path.join(root,'docs','demo','claude-rescue-reader-synthetic-demo.zip'));
+  await page.waitForFunction(()=>allConvs.length===40&&allProjects.length===4);
+  expect(await page.evaluate(()=>({summaries:allConvs.filter(c=>c.summary).length,projects:Object.keys(memoryData?.project_memories||{}).length}))).toEqual({summaries:40,projects:4});
+  await page.locator('.tab-btn[onclick*="projects"]').click();await page.waitForFunction(()=>convProjectMapReady);await page.locator('.proj-card').first().click();await page.waitForFunction(()=>document.querySelectorAll('.match-panel').length>=3);
+  expect(await page.evaluate(()=>[...new Set(Object.values(convProjectEvidence).map(item=>item.method))].sort())).toEqual(expect.arrayContaining(['file','knowledge','keyword']));expect(errors).toEqual([]);
+});
+
 test('Claude behavior lab audits tools, hidden results and thinking integrity',async({page})=>{
   const errors=await openViewer(page);await page.setInputFiles('#file-input',fixtureDir);await waitLoaded(page);
   await page.locator('.tab-btn[onclick*="behavior"]').click();await page.waitForFunction(()=>behaviorResult!==null,{timeout:15_000});

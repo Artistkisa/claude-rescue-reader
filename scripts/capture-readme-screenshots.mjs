@@ -21,7 +21,7 @@ try{
     for(const project of payload.projects){const file=new File([JSON.stringify(project)],project.uuid+'.json',{type:'application/json'});Object.defineProperty(file,'webkitRelativePath',{value:'claude-export/projects/'+project.uuid+'.json'});files.push(file);}
     routeDroppedFiles(files);
   },{conversations:demoConversations,memories:demoMemories,projects:demoProjects,design:demoDesign});
-  await page.waitForFunction(()=>allConvs.length===4);
+  await page.waitForFunction(expected=>allConvs.length===expected,demoConversations.length);
   await page.locator('.conv-item').first().click();
   await page.waitForFunction(()=>currentConv&&currentConv.name.includes('北辰咖啡')&&document.querySelectorAll('.msg-wrap').length>=5);
   await page.waitForTimeout(500);
