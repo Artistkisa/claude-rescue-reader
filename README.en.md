@@ -331,6 +331,13 @@ This tool parses the Claude export format (as of 2026):
 
 The maintainable persistent data pipeline and compatibility analytics Worker sources live in `src/data-worker.js` and `src/analytics-worker.js`. After editing either file, run `scripts/build-single-file.ps1` to embed it back into `viewer.html`; regular users do not need the build script.
 
+## Community
+
+- [Contributing guide](CONTRIBUTING.md) — setup, tests, pull-request workflow, and privacy rules
+- [Code of Conduct](CODE_OF_CONDUCT.md) — respectful collaboration and sensitive-data boundaries
+- [Security policy](SECURITY.md) — supported versions and private vulnerability reporting
+- [MIT License](LICENSE)
+
 ## Changelog
 
 **v1.4** *(2026-07-30)*

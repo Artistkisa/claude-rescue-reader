@@ -1,0 +1,77 @@
+name: Feature request / 功能建议
+description: Suggest a focused improvement to the local Claude export workflow / 建议一项聚焦的本地 Claude 导出改进
+title: "[Feature]: "
+labels:
+  - enhancement
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Describe the user problem before the proposed UI or implementation. Please use fictional examples and avoid private export content.
+
+        请先说明用户问题，再描述界面或实现方案。请使用虚构示例，不要包含私有导出内容。
+
+  - type: checkboxes
+    id: privacy
+    attributes:
+      label: Privacy confirmation / 隐私确认
+      options:
+        - label: This request contains no real conversation, account data, local path, credential, or private screenshot. / 本建议不包含真实对话、账号数据、本地路径、凭据或私有截图。
+          required: true
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area / 功能区域
+      options:
+        - Import and parsing / 导入与解析
+        - Conversation reading and branches / 对话阅读与分支
+        - Projects and memories / 项目与记忆
+        - Search and analytics / 搜索与统计
+        - Artifacts, Design, files, and images / Artifact、Design、文件与图片
+        - Privacy and safe export / 隐私与安全导出
+        - Performance and Worker pipeline / 性能与 Worker 管线
+        - Offline distribution / 离线发行
+        - Documentation and onboarding / 文档与首次使用
+        - Other / 其他
+    validations:
+      required: true
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: User problem / 用户问题
+      description: What is difficult or impossible today, and who is affected?
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed behavior / 建议行为
+      description: Describe the smallest useful outcome. Mockups must use synthetic data.
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered / 考虑过的替代方案
+
+  - type: textarea
+    id: privacy_impact
+    attributes:
+      label: Privacy, offline, and performance impact / 隐私、离线与性能影响
+      description: Could this add network access, persistent storage, new dependencies, sensitive output, or main-thread work?
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Final checks / 最终检查
+      options:
+        - label: I searched existing issues and pull requests. / 我已搜索已有 Issue 和 PR。
+          required: true
+        - label: I would be willing to help test this with synthetic data. / 我愿意使用合成数据帮助测试。
+
