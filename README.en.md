@@ -2,24 +2,59 @@
 
 # Claude Export History Viewer
 
+> **Turn Claude's official export ZIP into a searchable, analyzable, privacy-safe local archive.**
+
+No installation · one file · ZIP without extraction · local-only · built for large histories
+
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Single File](https://img.shields.io/badge/single%20file-HTML-orange.svg)](viewer.html)
 [![Offline](https://img.shields.io/badge/runs-offline-brightgreen.svg)](#)
-[![No Build](https://img.shields.io/badge/no%20build-zero%20dependencies-blue.svg)](#)
+[![Privacy](https://img.shields.io/badge/privacy-local--only-blue.svg)](#privacy--security)
 [![GitHub stars](https://img.shields.io/github/stars/Artistkisa/claude-rescue-reader?style=social)](https://github.com/Artistkisa/claude-rescue-reader/stargazers)
 
-> Hello,
->
-> An internal investigation of suspicious signals associated with your account indicates a violation of our Usage Policy. As a result, we have revoked your access to Claude.
->
-> To appeal our decision, log in to claude.ai with this account and you'll be taken to the appeals page.
->
-> Regards,
-> Anthropic's Safeguards Team
+**[⬇ Download viewer.html](viewer.html)** · **[📦 Download the offline bundle](https://github.com/Artistkisa/claude-rescue-reader/releases/latest)** · **[🌐 中文](README.md)**
 
-So your account is gone, but the conversations aren't. This tool lets you read them.
+![Claude Export History Viewer showing conversations, Thinking, tool calls, and a Markdown table](docs/images/viewer-overview.png)
 
-**All data is processed locally. Nothing is uploaded to any server.**
+<sub>The screenshot is generated from the fictional “Beichen Coffee Subscription” archive; every person, brand, file, and number is synthetic.</sub>
+
+---
+
+## Start in 30 seconds
+
+1. Download your official Claude data export ZIP.
+2. Download [`viewer.html`](viewer.html) and open it in your browser.
+3. Drop the ZIP onto the page — **no extraction, upload, or installation required.**
+
+You can also select the extracted folder. Chrome, Edge, and Firefox are supported.
+
+| What you get | More than “it opens” |
+|---|---|
+| 💬 **Faithful reading** | Markdown, code, Thinking, tool calls, Artifacts, Design, attachments, and branches |
+| 🔎 **Fast retrieval** | Title/summary search, full-text search, in-conversation navigation, and project search |
+| 📊 **History insights** | Activity trends, model/tool distribution, word frequency, longest chats, profiles, and health reports |
+| 🧭 **Project reconstruction** | Memories, knowledge files, evidence, confidence, local corrections, and reference graphs |
+| 🧪 **Claude behavior audit** | Tool timelines, hidden-result probes, Thinking integrity, and answer evidence chains |
+| 🛡️ **Safe sharing** | Finding previews, standard/aggressive redaction, SCP styling, and safe PDF/Markdown export |
+
+> 🔒 Parsing, search, analytics, and redaction all run locally in your browser. There is no backend and your conversations are never uploaded.
+
+## Why this is more than another export viewer
+
+- **Engineered for real large exports:** chunked reads, a persistent Worker, lazy message parsing, and fingerprinted IndexedDB caches.
+- **Reconstructs more of Claude:** branches, Thinking states, tool calls/results, Artifacts, Design, project memories, and knowledge files.
+- **Explains instead of guessing:** project matches expose memory, file, keyword, and confidence evidence; low-confidence chats remain unassigned.
+- **Shows privacy risk before export:** category, masked preview, location, and reason are visible before anything is written.
+- **Single-file convenience plus true offline use:** grab one HTML for everyday use or the pinned-dependency offline bundle for isolated machines.
+
+<details>
+<summary><b>Account restricted? That is why this project exists.</b></summary>
+
+Restricted Claude accounts can generally still request an official data export from the restriction page. Once the ZIP arrives, this viewer restores local reading, search, analysis, and export even when the original chat UI is no longer available.
+
+The account may be gone; the conversations do not have to be.
+
+</details>
 
 ---
 
@@ -49,7 +84,7 @@ This tool turns it into a readable conversation interface.
 - 📦 Browse and review your Claude conversation archive
 - 🔍 Search and export specific conversations
 
-## Quick Start
+## Detailed Setup
 
 ### Step 1: Export Your Claude Data
 
@@ -186,11 +221,14 @@ github.min.css         ← https://cdn.jsdelivr.net/npm/highlight.js@11.11.1/sty
 github-dark.min.css    ← https://cdn.jsdelivr.net/npm/highlight.js@11.11.1/styles/github-dark.min.css
 ```
 
-## Privacy
+## Privacy & Security
 
 - ✅ Runs entirely locally — no backend, no telemetry, no network requests (CDN excepted)
 - ✅ Your data is never uploaded or shared
 - ✅ Nothing persists after closing the browser except theme and UI-language preferences (`localStorage` stores only `cv-theme` / `cv-lang`)
+- ✅ Safe export shows finding type, masked preview, location, and reason without exposing the full sensitive value
+- ✅ Optional aggressive filtering also handles names, schools/organizations, detailed addresses, identity data, UIDs, social accounts, and links, with an explicit over-redaction warning
+- ✅ SCP dossier mode uses black bars and `[DATA EXPUNGED]`; PDF exports add a `CONFIDENTIAL` watermark and classified badge
 - ⚠️ The exported JSON files contain your complete conversation history — store them carefully
 
 ## Known Limitations

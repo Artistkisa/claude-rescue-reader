@@ -9,6 +9,7 @@
     "privacy": "node scripts/privacy-guard.mjs",
     "policy": "node scripts/pr-policy.mjs",
     "docs": "node scripts/check-docs.mjs",
+    "capture:readme": "node scripts/capture-readme-screenshots.mjs",
     "test:smoke": "playwright test tests/browser-smoke.spec.mjs tests/worker-performance.spec.mjs",
     "test:offline": "playwright test tests/offline-release.spec.mjs"
   },
