@@ -39,6 +39,8 @@ You can also select the extracted folder. Chrome, Edge, and Firefox are supporte
 
 > 🔒 Parsing, search, analytics, and redaction all run locally in your browser. There is no backend and your conversations are never uploaded.
 
+![Complete workflow: drop a ZIP, open a conversation, inspect the project graph, explore analytics, and preview a safe export](docs/images/workflow-demo.gif)
+
 ## Why this is more than another export viewer
 
 - **Engineered for real large exports:** chunked reads, a persistent Worker, lazy message parsing, and fingerprinted IndexedDB caches.
