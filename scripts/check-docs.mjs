@@ -2,6 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 
 const failures=[],warnings=[];
+for(const file of['CODE_OF_CONDUCT.md','CONTRIBUTING.md','SECURITY.md','.github/PULL_REQUEST_TEMPLATE.md','.github/ISSUE_TEMPLATE/bug_report.yml','.github/ISSUE_TEMPLATE/feature_request.yml','.github/ISSUE_TEMPLATE/config.yml'])if(!fs.existsSync(file))failures.push(`community health file missing: ${file}`);
 for(const file of['README.md','README.en.md']){
   const text=fs.readFileSync(file,'utf8');
   if(!/^# Claude Rescue Reader/m.test(text))failures.push(`${file}: main title missing`);

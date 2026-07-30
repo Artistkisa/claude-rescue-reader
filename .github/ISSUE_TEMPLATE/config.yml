@@ -1,0 +1,9 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Security vulnerability / 安全漏洞
+    url: https://github.com/Artistkisa/claude-rescue-reader/security/policy
+    about: Report security-sensitive findings privately; do not open a public issue. / 安全问题请私密报告，不要公开提交。
+  - name: Usage documentation / 使用文档
+    url: https://github.com/Artistkisa/claude-rescue-reader#readme
+    about: Check setup, supported export structures, offline mode, and known limitations first. / 请先查看安装、导出结构、离线模式和已知限制。
+

@@ -331,6 +331,13 @@ github-dark.min.css    ← https://cdn.jsdelivr.net/npm/highlight.js@11.11.1/sty
 
 持久数据管线与兼容性统计 Worker 的可维护源码分别位于 `src/data-worker.js` 和 `src/analytics-worker.js`。修改后运行 `scripts/build-single-file.ps1`，即可重新内联到 `viewer.html`；普通用户不需要运行构建脚本。
 
+## 参与社区
+
+- [贡献指南](CONTRIBUTING.md) — 开发环境、测试命令、PR 流程与隐私规则
+- [社区行为准则](CODE_OF_CONDUCT.md) — 尊重协作与敏感数据边界
+- [安全策略](SECURITY.md) — 支持版本及私密漏洞报告方式
+- [MIT License](LICENSE)
+
 ## Changelog
 
 **v1.4** *(2026-07-30)*
