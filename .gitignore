@@ -13,6 +13,7 @@ projects/
 
 # 截图和临时文件
 *.png
+!docs/images/viewer-overview.png
 *.jpg
 *.jpeg
 *.gif

@@ -2,24 +2,59 @@
 
 # Claude Export History Viewer
 
+> **把 Claude 官方导出的 ZIP，变成可搜索、可分析、可安全分享的本地对话档案。**
+
+无需安装 · 单文件打开 · ZIP 免解压 · 纯本地处理 · 支持大型历史
+
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Single File](https://img.shields.io/badge/single%20file-HTML-orange.svg)](viewer.html)
 [![Offline](https://img.shields.io/badge/runs-offline-brightgreen.svg)](#)
-[![No Build](https://img.shields.io/badge/no%20build-zero%20dependencies-blue.svg)](#)
+[![Privacy](https://img.shields.io/badge/privacy-local--only-blue.svg)](#隐私与安全)
 [![GitHub stars](https://img.shields.io/github/stars/Artistkisa/claude-rescue-reader?style=social)](https://github.com/Artistkisa/claude-rescue-reader/stargazers)
 
-> Hello,
->
-> An internal investigation of suspicious signals associated with your account indicates a violation of our Usage Policy. As a result, we have revoked your access to Claude.
->
-> To appeal our decision, log in to claude.ai with this account and you'll be taken to the appeals page.
->
-> Regards,
-> Anthropic's Safeguards Team
+**[⬇ 下载单文件 viewer.html](viewer.html)** · **[📦 下载完整离线版](https://github.com/Artistkisa/claude-rescue-reader/releases/latest)** · **[🌐 English](README.en.md)**
 
-好，所以你的账号没了，但对话还在。这个工具就是为了让你能看到它们。
+![Claude Export History Viewer 界面：对话、Thinking、工具调用与 Markdown 表格](docs/images/viewer-overview.png)
 
-**所有数据均在本地处理，不会上传至任何服务器。**
+<sub>截图使用“北辰咖啡订阅服务”虚构历史生成；人物、品牌、文件与数值均为合成演示数据。</sub>
+
+---
+
+## 30 秒开始
+
+1. 从 Claude 下载官方数据导出 ZIP。
+2. 下载本仓库的 [`viewer.html`](viewer.html)，双击用浏览器打开。
+3. 把 ZIP 拖进页面——**不用解压，不用上传，不用安装。**
+
+也可以选择解压后的整个文件夹；Chrome、Edge 和 Firefox 均可使用。
+
+| 你会得到 | 不只是“能打开” |
+|---|---|
+| 💬 **完整阅读** | Markdown、代码、Thinking、工具调用、Artifact、Design、附件和对话分支 |
+| 🔎 **快速找回** | 标题/摘要搜索、全文搜索、对话内定位、项目级搜索 |
+| 📊 **理解历史** | 活跃趋势、模型/工具分布、词频、最长对话、使用画像和健康报告 |
+| 🧭 **重建项目** | 项目记忆、知识文件、关联证据、置信度、手动修正和引用关系图 |
+| 🧪 **审计 Claude 行为** | 工具调用时间线、隐藏结果探针、Thinking 完整性和回答证据链 |
+| 🛡️ **安全分享** | 敏感信息预览、标准/强力脱敏、SCP 黑条风格及安全 PDF/Markdown |
+
+> 🔒 所有历史解析、搜索、统计和脱敏都在当前浏览器本地完成。查看器没有后端，也不会上传你的对话。
+
+## 为什么它不只是另一个导出查看器
+
+- **为真实大文件设计**：分块读取、持久 Worker、消息懒解析、IndexedDB 解析缓存；不会先把整份历史复制到主线程。
+- **尽量还原 Claude 内容**：不仅显示正文，也理解分支、Thinking 状态、工具调用/result、Artifact、Design、项目记忆与知识文件。
+- **能解释，不乱猜**：项目关联展示命中的记忆、文件、关键词和置信度；低信度结果保持未归属。
+- **导出前看清风险**：列出敏感信息类型、遮罩预览、位置和原因；强力模式明确提示可能误伤。
+- **单文件便利与完全离线兼得**：日常使用下载一个 HTML；隔离网络环境可选带固定依赖的 offline bundle。
+
+<details>
+<summary><b>账号被封了？这正是项目最初诞生的原因</b></summary>
+
+Claude 账号受限后，通常仍可通过限制页面申请官方数据导出。收到 ZIP 后，即使无法再进入原来的聊天界面，也能用本工具在本地恢复阅读、搜索和导出。
+
+所以，账号可能没了，但对话不必跟着消失。
+
+</details>
 
 ---
 
@@ -49,7 +84,7 @@ Claude 的导出文件是这样的：
 - 📦 整理和回顾自己的 Claude 对话记录
 - 🔍 搜索、导出特定对话内容
 
-## 快速开始
+## 完整使用说明
 
 ### 第一步：导出 Claude 数据
 
@@ -186,11 +221,14 @@ github.min.css         ← https://cdn.jsdelivr.net/npm/highlight.js@11.11.1/sty
 github-dark.min.css    ← https://cdn.jsdelivr.net/npm/highlight.js@11.11.1/styles/github-dark.min.css
 ```
 
-## 隐私说明
+## 隐私与安全
 
 - ✅ 纯本地运行，无后端，无埋点，无任何网络请求（CDN 除外）
 - ✅ 数据不会被上传或分享
 - ✅ 浏览器关闭后，除主题和界面语言偏好外不保留任何数据（`localStorage` 仅存 `cv-theme` / `cv-lang`）
+- ✅ 安全导出展示命中类型、遮罩预览、位置和匹配原因，不在预览中暴露完整敏感值
+- ✅ 可选强力隐私过滤会进一步处理姓名、学校/单位、详细地址、证件、UID、社媒账号和链接，并明确提示可能误伤
+- ✅ SCP 档案模式使用黑条与 `[数据删除]`，PDF 额外带有 `CONFIDENTIAL` 水印和保密徽章
 - ⚠️ 导出的 JSON 文件包含您的完整对话历史，请妥善保管
 
 ## 已知限制
