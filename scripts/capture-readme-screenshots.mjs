@@ -7,7 +7,8 @@ import {demoConversations,demoMemories,demoProjects,demoDesign} from '../tests/f
 const root=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'..');
 const imageDir=path.join(root,'docs','images');
 await fs.mkdir(imageDir,{recursive:true});
-const executablePath=process.env.CHROME_PATH||undefined;
+const systemChrome=process.platform==='win32'?'C:/Program Files/Google/Chrome/Application/chrome.exe':undefined;
+const executablePath=process.env.CHROME_PATH||systemChrome;
 const browser=await chromium.launch({headless:true,...(executablePath?{executablePath}:{})});
 try{
   const page=await browser.newPage({viewport:{width:1440,height:900},deviceScaleFactor:1});

@@ -15,9 +15,9 @@
 [![Offline bundle](https://github.com/Artistkisa/claude-rescue-reader/actions/workflows/release-verify.yml/badge.svg)](https://github.com/Artistkisa/claude-rescue-reader/releases/latest)
 [![License: MIT](https://img.shields.io/badge/license-MIT-yellow.svg)](LICENSE)
 
-**[⬇ 直接下载 viewer.html](https://github.com/Artistkisa/claude-rescue-reader/releases/latest/download/viewer.html)** · **[📦 下载标准 ZIP](https://github.com/Artistkisa/claude-rescue-reader/releases/latest/download/claude-rescue-reader.zip)** · **[🔌 下载完整离线版](https://github.com/Artistkisa/claude-rescue-reader/releases/latest/download/claude-rescue-reader-offline.zip)** · **[🧪 合成演示 ZIP](docs/demo/claude-rescue-reader-synthetic-demo.zip)** · **[🌐 English](README.en.md)**
+**[⬇ 直接下载 viewer.html](https://github.com/Artistkisa/claude-rescue-reader/releases/latest/download/viewer.html)** · **[🔌 下载完整离线版](https://github.com/Artistkisa/claude-rescue-reader/releases/latest/download/claude-rescue-reader-offline.zip)** · **[🧪 合成演示 ZIP](docs/demo/claude-rescue-reader-synthetic-demo.zip)** · **[🌐 English](README.en.md)**
 
-![Claude Export History Viewer 界面：对话、Thinking、工具调用与 Markdown 表格](docs/images/viewer-overview.png)
+![Claude Rescue Reader 界面：对话、Thinking、工具调用与 Markdown 表格](docs/images/viewer-overview.png)
 
 <sub>截图使用“北辰咖啡订阅服务”虚构历史生成；人物、品牌、文件与数值均为合成演示数据。</sub>
 

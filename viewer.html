@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Claude Export History Viewer</title>
+<title>Claude Rescue Reader — Local Claude Export Viewer</title>
 <style>
 /* ── Light theme (default, Claude-style) ── */
 :root {
@@ -409,7 +409,7 @@ mark.cs.active { background:var(--accent); color:#fff; }
 <!-- Sidebar -->
 <div id="sidebar">
   <div id="sidebar-header">
-    <h1>💬 Claude Export <span id="conv-total">0</span></h1>
+    <h1>💬 Claude Rescue Reader <span id="conv-total">0</span></h1>
     <button id="load-btn" data-i18n="📂 选择导出文件夹" onclick="document.getElementById('file-input').click()">📂 选择导出文件夹</button>
     <input type="file" id="file-input" webkitdirectory multiple accept=".json">
     <button id="load-zip-btn" data-i18n="🗜️ 直接选择 ZIP 压缩包（免解压）" onclick="document.getElementById('zip-input').click()">🗜️ 直接选择 ZIP 压缩包（免解压）</button>
@@ -458,7 +458,7 @@ mark.cs.active { background:var(--accent); color:#fff; }
   <div id="messages">
     <div id="empty-state">
       <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>
-      <p data-i18n="Claude 历史记录查看器" style="font-size:17px;font-weight:600;color:var(--text2);margin-bottom:4px;">Claude 历史记录查看器</p>
+      <p data-i18n="Claude Rescue Reader" style="font-size:17px;font-weight:600;color:var(--text2);margin-bottom:4px;">Claude Rescue Reader</p>
       <p data-i18n="点击左侧按钮，选择 Claude 导出的文件夹" style="font-size:13px;color:var(--text3);">点击左侧按钮，选择 Claude 导出的文件夹</p>
       <div class="welcome-actions">
         <div class="welcome-action"><b data-i18n="🗜️ 直接打开 ZIP">🗜️ 直接打开 ZIP</b><span data-i18n="适合刚从 Claude 下载的原始导出包，无需解压">适合刚从 Claude 下载的原始导出包，无需解压</span></div>
@@ -570,7 +570,7 @@ const EN={
   '此处有多个版本（编辑或重新生成），切换后后续对话随之改变':'Multiple versions exist here (edited or regenerated); switching also changes subsequent messages.',
   '复制这条消息':'Copy this message','你':'You','思考过程':'Thinking','工具':'Tool','结果':'Result','图片':'Image','知识引用':'Knowledge reference','搜索引用':'Search citation',
   '对话内容':'Conversation','工具调用':'Tool call','工具结果':'Tool result','查看 Mermaid 源码':'View Mermaid source','复制':'Copy','已复制':'Copied','匹配':'matches',
-  'Claude 历史记录查看器':'Claude History Viewer','点击左侧按钮，选择 Claude 导出的文件夹':'Select a Claude export folder using the button on the left.',
+  'Claude Rescue Reader':'Claude Rescue Reader','点击左侧按钮，选择 Claude 导出的文件夹':'Select a Claude export folder using the button on the left.',
   '📦 导出文件夹结构':'📦 Export folder structure','必须':'Required','账号信息':'Account information','可选':'Optional','如何导出？':'How do I export?',
   '下载 ZIP 后可直接选择 ZIP 加载（免解压），或解压后选择整个文件夹':'After downloading the ZIP, load it directly or extract it and select the entire folder.',
   '📋 对话摘要':'📋 Conversation summary','🗂 元数据':'🗂 Metadata','项目（单数）':'Project','局限性说明':'Limitations',
