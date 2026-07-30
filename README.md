@@ -12,7 +12,7 @@
 [![Privacy](https://img.shields.io/badge/privacy-local--only-blue.svg)](#隐私与安全)
 [![GitHub stars](https://img.shields.io/github/stars/Artistkisa/claude-rescue-reader?style=social)](https://github.com/Artistkisa/claude-rescue-reader/stargazers)
 
-**[⬇ 下载单文件 viewer.html](viewer.html)** · **[📦 下载完整离线版](https://github.com/Artistkisa/claude-rescue-reader/releases/latest)** · **[🌐 English](README.en.md)**
+**[⬇ 下载单文件 viewer.html](viewer.html)** · **[🧪 下载合成演示 ZIP](docs/demo/claude-rescue-reader-synthetic-demo.zip)** · **[📦 下载完整离线版](https://github.com/Artistkisa/claude-rescue-reader/releases/latest)** · **[🌐 English](README.en.md)**
 
 ![Claude Export History Viewer 界面：对话、Thinking、工具调用与 Markdown 表格](docs/images/viewer-overview.png)
 

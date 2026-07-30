@@ -12,7 +12,7 @@ No installation · one file · ZIP without extraction · local-only · built for
 [![Privacy](https://img.shields.io/badge/privacy-local--only-blue.svg)](#privacy--security)
 [![GitHub stars](https://img.shields.io/github/stars/Artistkisa/claude-rescue-reader?style=social)](https://github.com/Artistkisa/claude-rescue-reader/stargazers)
 
-**[⬇ Download viewer.html](viewer.html)** · **[📦 Download the offline bundle](https://github.com/Artistkisa/claude-rescue-reader/releases/latest)** · **[🌐 中文](README.md)**
+**[⬇ Download viewer.html](viewer.html)** · **[🧪 Download the synthetic demo ZIP](docs/demo/claude-rescue-reader-synthetic-demo.zip)** · **[📦 Download the offline bundle](https://github.com/Artistkisa/claude-rescue-reader/releases/latest)** · **[🌐 中文](README.md)**
 
 ![Claude Export History Viewer showing conversations, Thinking, tool calls, and a Markdown table](docs/images/viewer-overview.png)
 
