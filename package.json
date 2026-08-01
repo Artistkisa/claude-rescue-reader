@@ -21,7 +21,7 @@
     "@playwright/test": "1.62.0",
     "highlight.js": "^11.11.1",
     "jszip": "3.10.1",
-    "marked": "^15.0.12",
+    "marked": "^18.0.7",
     "mermaid": "^11.16.0"
   }
 }
