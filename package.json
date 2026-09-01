@@ -18,7 +18,7 @@
   },
   "devDependencies": {
     "@highlightjs/cdn-assets": "^11.11.1",
-    "@playwright/test": "1.62.0",
+    "@playwright/test": "1.62.1",
     "highlight.js": "^11.11.1",
     "jszip": "3.10.1",
     "marked": "^15.0.12",
