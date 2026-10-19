@@ -12,7 +12,7 @@ const replacements=new Map([
   ["['https://cdn.jsdelivr.net/npm/marked@18.0.11/lib/marked.umd.js','https://unpkg.com/marked@18.0.11/lib/marked.umd.js']","['vendor/marked.umd.js']"],
   ["['https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js','https://unpkg.com/jszip@3.10.1/dist/jszip.min.js']","['vendor/jszip.min.js']"],
   ["['https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.11.1/highlight.min.js','https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.11.1/build/highlight.min.js']","['vendor/highlight.min.js']"],
-  ["['https://cdn.jsdelivr.net/npm/mermaid@11.17.2/dist/mermaid.min.js','https://unpkg.com/mermaid@11.17.2/dist/mermaid.min.js']","['vendor/mermaid.min.js']"],
+  ["['https://cdn.jsdelivr.net/npm/mermaid@12.2.0/dist/mermaid.min.js','https://unpkg.com/mermaid@12.2.0/dist/mermaid.min.js']","['vendor/mermaid.min.js']"],
   ["link.href='https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.11.1/styles/'+(dark?'github-dark':'github')+'.min.css'","link.href='vendor/'+(dark?'github-dark':'github')+'.min.css'"]
 ]);
 for(const [from,to] of replacements){if(!viewer.includes(from))throw new Error(`Offline replacement target missing: ${from}`);viewer=viewer.replace(from,to);}

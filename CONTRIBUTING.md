@@ -40,7 +40,7 @@ Use clearly fictional names and the fixtures under `tests/fixtures/`. If a bug c
 
 Requirements:
 
-- Node.js 22 or later;
+- Node.js 22.12.0 or later;
 - PowerShell 7 for `scripts/build-single-file.ps1`;
 - Chromium for browser tests.
 

@@ -4,7 +4,7 @@
   "version": "0.0.0",
   "type": "module",
   "engines": {
-    "node": ">=22"
+    "node": ">=22.12.0"
   },
   "scripts": {
     "validate": "node scripts/validate-viewer.mjs",
@@ -25,6 +25,6 @@
     "highlight.js": "^11.11.1",
     "jszip": "3.10.1",
     "marked": "^18.0.11",
-    "mermaid": "^11.17.2"
+    "mermaid": "^12.2.0"
   }
 }
