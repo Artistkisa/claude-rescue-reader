@@ -16,7 +16,7 @@
     "capture:demo-gif": "node scripts/capture-readme-demo-gif.mjs",
     "benchmark:readme": "node scripts/benchmark-readme-performance.mjs",
     "build:demo": "node scripts/build-synthetic-demo.mjs",
-    "test:smoke": "playwright test tests/browser-smoke.spec.mjs tests/worker-performance.spec.mjs",
+    "test:smoke": "playwright test tests/browser-smoke.spec.mjs tests/analytics.spec.mjs tests/worker-performance.spec.mjs",
     "test:offline": "playwright test tests/offline-release.spec.mjs"
   },
   "devDependencies": {

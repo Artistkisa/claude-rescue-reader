@@ -25,6 +25,11 @@ test('offline bundle loads all optional features without network',async({page})=
   expect(rendered).toContain('&lt;script&gt;');
   expect(rendered).not.toContain('<script>');
   expect(rendered).toContain('synthetic code');
+  expect(await page.evaluate(()=>analyticsWorker)).toBeNull();
+  await page.locator('[data-analytics-tab]').click();await page.waitForFunction(()=>analyticsExploreResult?.current.messages===5&&analyticsDrillResult?.total===1);
+  await expect(page.locator('[data-analytics-conversation]')).toHaveCount(1);
+  await page.locator('[data-analytics-view="overview"]').click();await page.waitForFunction(()=>analyticsResult?.messages===5);
+  await expect(page.locator('.word-cloud')).not.toHaveCount(0);
   const notices=await fs.readFile(path.join(root,'dist','offline','THIRD_PARTY_NOTICES.txt'),'utf8');
   for(const [dependency,label] of [['marked','marked'],['jszip','JSZip'],['@highlightjs/cdn-assets','highlight.js CDN assets'],['mermaid','Mermaid']]){
     const metadata=JSON.parse(await fs.readFile(path.join(root,'node_modules',dependency,'package.json'),'utf8'));

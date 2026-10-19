@@ -231,13 +231,18 @@ claude-export/
 - Per-project memories displayed in 6 standard sections, collapsible
 
 ### Analytics
-- Analytics starts in the persistent Data Worker only after opening the **Analytics** tab; normal reading performs no analytics scan
+- **Explore** opens by default with combined date, project, model and role filters, message/active-conversation/character trends, 7/30-day moving averages and comparison with the preceding equal-length period
+- Choose all history, the last 7/30/90 archive days or custom dates. Presets end on the latest valid message; dates use the local time zone and weeks start Monday
+- Click a trend bucket for matching conversation summaries, 50 per page, or apply those conversations to the main list. Returning preserves filters, the selected interval and page
+- A dedicated Analytics Worker is created only when Analytics is first opened. Import, reading and search build no analytics index; leaving cancels unfinished work
+- **Archive overview** retains the following totals and word-frequency features across the entire archive, independently of exploration filters:
 - Summarizes conversations, messages, roles, characters, thinking blocks, tool calls, attachments, and web searches
 - Shows monthly/weekday/hourly activity, conversation depth, message and character distribution by role, content-block composition, model information (when present in the export), and longest conversations
 - Builds Chinese/English frequent-word clouds inside the Worker and summarizes searches, files, artifacts, and thinking blocks
 - Adds history-health metrics for active-day streaks, response latency, conversation span, branches/alternatives, and empty messages
 - Adds a local usage profile and record insights for peak hour, late-night activity, streak range, most-used tool, longest Thinking block, and conversations with the most tool failures
-- Analytics, word frequency, full-text indexing, and project matching reuse the raw records already owned by the Worker; the main thread no longer reserializes every message, and no content is uploaded
+- The Data Worker feeds raw records directly through MessageChannel, waiting for consumption acknowledgements (at most 4 conversations and a target of 512 KiB per batch; oversized records travel alone). The main thread receives controls and summaries
+- The Analytics Worker retains a compact index and at most 12 aggregate cache entries, with no second raw archive or new network dependency; see [semantics and protocol](docs/analytics.md)
 
 ### Large-export performance
 - `conversations.json` is read in 4 MiB chunks and transferred to a persistent Data Worker with Transferable `ArrayBuffer`s
@@ -329,7 +334,7 @@ This tool parses the Claude export format (as of 2026):
 - [highlight.js](https://highlightjs.org/) — Code syntax highlighting
 - [JSZip](https://stuk.github.io/jszip/) — Direct ZIP archive loading (no unzipping)
 
-The maintainable persistent data pipeline and compatibility analytics Worker sources live in `src/data-worker.js` and `src/analytics-worker.js`. After editing either file, run `scripts/build-single-file.ps1` to embed it back into `viewer.html`; regular users do not need the build script.
+The data and analytics Workers live in `src/data-worker.js` and `src/analytics-worker.js`, with shared overview and project-matching algorithms in `src/analysis-core.js`. After editing these sources, run `scripts/build-single-file.ps1` to embed them back into `viewer.html`; regular users do not need the build script.
 
 ## Community
 

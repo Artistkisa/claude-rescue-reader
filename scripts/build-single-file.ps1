@@ -5,6 +5,12 @@ $workerPath = Join-Path (Join-Path $repoRoot 'src') 'analytics-worker.js'
 $dataWorkerPath = Join-Path (Join-Path $repoRoot 'src') 'data-worker.js'
 $viewer = Get-Content -LiteralPath $viewerPath -Raw -Encoding UTF8
 $originalViewer = $viewer
+$core = (Get-Content -LiteralPath (Join-Path $repoRoot 'src/analysis-core.js') -Raw -Encoding UTF8).Trim()
+$corePattern = '(?s)(// BEGIN GENERATED ANALYSIS CORE[^\r\n]*\r?\n).*?(\r?\n// END GENERATED ANALYSIS CORE)'
+$coreMatch = [regex]::Match($viewer, $corePattern)
+if (-not $coreMatch.Success) { throw 'Analysis core markers were not found in viewer.html.' }
+$viewer = $viewer.Substring(0, $coreMatch.Index) + $coreMatch.Groups[1].Value + $core +
+  $coreMatch.Groups[2].Value + $viewer.Substring($coreMatch.Index + $coreMatch.Length)
 $worker = (Get-Content -LiteralPath $workerPath -Raw -Encoding UTF8).Trim()
 $dataWorker = (Get-Content -LiteralPath $dataWorkerPath -Raw -Encoding UTF8).Trim()
 if ($worker -match '// BEGIN GENERATED ANALYTICS WORKER|// END GENERATED ANALYTICS WORKER') {

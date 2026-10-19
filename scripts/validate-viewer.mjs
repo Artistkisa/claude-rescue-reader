@@ -3,8 +3,11 @@ import fs from 'node:fs';
 const html=fs.readFileSync('viewer.html','utf8');
 const worker=fs.readFileSync('src/analytics-worker.js','utf8').trim();
 const dataWorker=fs.readFileSync('src/data-worker.js','utf8').trim();
+const core=fs.readFileSync('src/analysis-core.js','utf8').trim();
 const failures=[];
 const fail=m=>failures.push(m);
+const generatedCore=html.match(/\/\/ BEGIN GENERATED ANALYSIS CORE[^\r\n]*\r?\n([\s\S]*?)\r?\n\/\/ END GENERATED ANALYSIS CORE/);
+if(!generatedCore||generatedCore[1].trim().replace(/\r\n/g,'\n')!==core.replace(/\r\n/g,'\n'))fail('Embedded analysis core differs from src/analysis-core.js');
 
 if(/^(?:<<<<<<<[^\r\n]*|=======|>>>>>>>[^\r\n]*)\r?$/m.test(html))fail('Git conflict marker found in viewer.html');
 for(const marker of['// BEGIN GENERATED DATA WORKER','// END GENERATED DATA WORKER','// BEGIN GENERATED ANALYTICS WORKER','// END GENERATED ANALYTICS WORKER'])if(!html.includes(marker))fail(`Missing generated marker: ${marker}`);
