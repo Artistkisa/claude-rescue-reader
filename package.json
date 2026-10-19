@@ -3,6 +3,9 @@
   "private": true,
   "version": "0.0.0",
   "type": "module",
+  "engines": {
+    "node": ">=22"
+  },
   "scripts": {
     "validate": "node scripts/validate-viewer.mjs",
     "build:offline": "node scripts/build-offline-bundle.mjs",
@@ -21,7 +24,7 @@
     "@playwright/test": "1.62.1",
     "highlight.js": "^11.11.1",
     "jszip": "3.10.1",
-    "marked": "^15.0.12",
+    "marked": "^18.0.11",
     "mermaid": "^11.17.2"
   }
 }
