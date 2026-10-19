@@ -9,10 +9,10 @@ await fs.mkdir(vendor,{recursive:true});
 
 let viewer=await fs.readFile(path.join(root,'viewer.html'),'utf8');
 const replacements=new Map([
-  ["['https://cdn.jsdelivr.net/npm/marked@15.0.12/marked.min.js','https://unpkg.com/marked@15.0.12/marked.min.js']","['vendor/marked.umd.js']"],
+  ["['https://cdn.jsdelivr.net/npm/marked@18.0.11/lib/marked.umd.js','https://unpkg.com/marked@18.0.11/lib/marked.umd.js']","['vendor/marked.umd.js']"],
   ["['https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js','https://unpkg.com/jszip@3.10.1/dist/jszip.min.js']","['vendor/jszip.min.js']"],
   ["['https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.11.1/highlight.min.js','https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.11.1/build/highlight.min.js']","['vendor/highlight.min.js']"],
-  ["['https://cdn.jsdelivr.net/npm/mermaid@11.16.0/dist/mermaid.min.js','https://unpkg.com/mermaid@11.16.0/dist/mermaid.min.js']","['vendor/mermaid.min.js']"],
+  ["['https://cdn.jsdelivr.net/npm/mermaid@12.2.0/dist/mermaid.min.js','https://unpkg.com/mermaid@12.2.0/dist/mermaid.min.js']","['vendor/mermaid.min.js']"],
   ["link.href='https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.11.1/styles/'+(dark?'github-dark':'github')+'.min.css'","link.href='vendor/'+(dark?'github-dark':'github')+'.min.css'"]
 ]);
 for(const [from,to] of replacements){if(!viewer.includes(from))throw new Error(`Offline replacement target missing: ${from}`);viewer=viewer.replace(from,to);}
@@ -29,5 +29,6 @@ const copies=[
 for(const [source,name] of copies)await fs.copyFile(path.join(root,source),path.join(vendor,name));
 await fs.writeFile(path.join(out,'viewer.html'),viewer);
 await fs.writeFile(path.join(out,'README.txt'),`Claude Rescue Reader Offline Bundle\n\nOpen viewer.html directly. Keep the vendor folder beside it.\n直接打开 viewer.html，并保持 vendor 文件夹与它位于同一目录。\n\nAll analysis stays in your browser. Artifact pages may still reference their own unavailable external resources.\n所有分析都在浏览器本地完成；历史 Artifact 自己引用的外部资源仍可能不可用。\n`);
-await fs.writeFile(path.join(out,'THIRD_PARTY_NOTICES.txt'),`Bundled browser dependencies:\n- marked 15.0.12 (MIT)\n- JSZip 3.10.1 (MIT/GPLv3)\n- highlight.js CDN assets 11.11.1 (BSD-3-Clause)\n- Mermaid 11.16.0 (MIT)\n\nSee each package in node_modules for its complete license text.\n`);
+const versions=await Promise.all(['marked','jszip','@highlightjs/cdn-assets','mermaid'].map(async dependency=>JSON.parse(await fs.readFile(path.join(root,'node_modules',dependency,'package.json'),'utf8')).version));
+await fs.writeFile(path.join(out,'THIRD_PARTY_NOTICES.txt'),`Bundled browser dependencies:\n- marked ${versions[0]} (MIT)\n- JSZip ${versions[1]} (MIT/GPLv3)\n- highlight.js CDN assets ${versions[2]} (BSD-3-Clause)\n- Mermaid ${versions[3]} (MIT)\n\nSee each package in node_modules for its complete license text.\n`);
 console.log(`Offline bundle built at ${out}`);

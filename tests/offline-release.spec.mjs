@@ -19,5 +19,16 @@ test('offline bundle loads all optional features without network',async({page})=
   await page.evaluate(()=>ensureJSZip());await page.waitForFunction(()=>typeof JSZip!=='undefined');
   await page.waitForFunction(()=>typeof hljs!=='undefined');await page.waitForFunction(()=>typeof mermaid!=='undefined');
   expect(await page.evaluate(()=>({marked:typeof marked,zip:typeof JSZip,highlight:typeof hljs,mermaid:typeof mermaid}))).toEqual({marked:'object',zip:'function',highlight:'object',mermaid:'object'});
+  await expect(page.locator('.mermaid svg').first()).toBeVisible();
+  const rendered=await page.evaluate(()=>marked.parse('# Synthetic heading\n\n<script>alert("synthetic")</script>\n\n```text\nsynthetic code\n```'));
+  expect(rendered).toContain('<h1>Synthetic heading</h1>');
+  expect(rendered).toContain('&lt;script&gt;');
+  expect(rendered).not.toContain('<script>');
+  expect(rendered).toContain('synthetic code');
+  const notices=await fs.readFile(path.join(root,'dist','offline','THIRD_PARTY_NOTICES.txt'),'utf8');
+  for(const [dependency,label] of [['marked','marked'],['jszip','JSZip'],['@highlightjs/cdn-assets','highlight.js CDN assets'],['mermaid','Mermaid']]){
+    const metadata=JSON.parse(await fs.readFile(path.join(root,'node_modules',dependency,'package.json'),'utf8'));
+    expect(notices).toContain(`${label} ${metadata.version}`);
+  }
   expect(network).toEqual([]);expect(errors).toEqual([]);
 });
