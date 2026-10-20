@@ -49,3 +49,54 @@ test('large synthetic export remains metadata-first under throttled CPU',async({
     expect(await page.evaluate(()=>window.analyticsWorkerCreations)).toBe(1);
   }finally{await fs.rm(dir,{recursive:true,force:true});}
 });
+
+test('analytics scans, cached pagination and cancellation stay responsive on 120k messages',async({page})=>{
+  await page.goto(pathToFileURL(path.join(root,'viewer.html')).href);
+  const cdp=await page.context().newCDPSession(page);
+  await cdp.send('Emulation.setCPUThrottlingRate',{rate:4});
+  await page.evaluate(async()=>{
+    const conversations=Array.from({length:1200},(_,index)=>({
+      uuid:'query-perf-'+index,name:'Synthetic query performance '+index,
+      chat_messages:Array.from({length:100},(_,item)=>({
+        sender:item%2?'human':'assistant',model:item%2?'model-a':'model-b',
+        created_at:'2026-01-02T20:00:00Z',text:'Synthetic text'
+      }))
+    }));
+    const generation=nextDataWorkerGeneration(),result=await dataWorkerRequest('ingest',JSON.stringify(conversations),[],generation);
+    allConvs=result.conversations;allProjects=[];projectOverrides={};convProjectMapReady=true;
+    await analyticsRequest('query',{filters:{range:'all'}});
+  });
+  const result=await page.evaluate(async()=>{
+    const filters={range:'all',models:['model-a']},started=performance.now();
+    const summary=await analyticsRequest('query',{filters}),scanMs=performance.now()-started;
+    let progress=0;
+    const listener=event=>{if(event.data.type==='progress')progress++;};
+    analyticsWorker.addEventListener('message',listener);
+    const pageStarted=performance.now();
+    const first=await analyticsRequest('drilldown',{filters,page:0});
+    const next=await analyticsRequest('drilldown',{filters,page:1,includeIds:true});
+    analyticsWorker.removeEventListener('message',listener);
+    return{scanMs,pageMs:performance.now()-pageStarted,messages:summary.current.messages,total:next.total,first:first.rows[0],next:next.rows[0],uuids:next.uuids.length,progress};
+  });
+  expect(result).toMatchObject({messages:60000,total:1200,uuids:1200,progress:0});
+  expect(result.first.uuid).not.toBe(result.next.uuid);
+  expect(result.scanMs).toBeLessThan(2000);expect(result.pageMs).toBeLessThan(1000);
+  const canceled=await page.evaluate(async()=>{
+    const cancelOnProgress=event=>{
+      if(event.data.type==='progress'&&event.data.phase==='query'){
+        analyticsWorker.removeEventListener('message',cancelOnProgress);
+        analyticsWorker.postMessage({type:'cancel',generation:dataWorkerGeneration,requestId:event.data.requestId});
+      }
+    };
+    analyticsWorker.addEventListener('message',cancelOnProgress);
+    const started=performance.now();
+    const canceled=await analyticsRequest('query',{filters:{range:'7'}});
+    analyticsWorker.removeEventListener('message',cancelOnProgress);
+    const elapsed=performance.now()-started;
+    const recovered=await analyticsRequest('query',{filters:{range:'all',roles:['human']}});
+    const drill=await analyticsRequest('drilldown',{filters:{range:'all',roles:['human']}});
+    return{canceled,elapsed,messages:recovered.current.messages,matched:drill.total};
+  });
+  expect(canceled).toMatchObject({canceled:null,messages:60000,matched:1200});
+  expect(canceled.elapsed).toBeLessThan(1000);
+});

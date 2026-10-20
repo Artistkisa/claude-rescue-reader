@@ -35,9 +35,9 @@ All controls, events and batches carry source `generation` and `requestId`. A UI
 | `cancel` | Interrupt unfinished work and stop its stream |
 | `release` | Clear index/cache and close the port before termination |
 
-事件：`ready`、`progress`、`result`、`projects`（共享项目推断）、`canceled`、`error`。进度由实际处理记录/消息及筛选扫描推进；分段让出事件循环以便取消。
+事件：`ready`、`progress`、`result`、`projects`（共享项目推断）、`canceled`、`error`。进度由实际处理记录/消息及筛选扫描推进；检查点检查取消，约每 8 ms 让出事件循环，而非每个检查点都等待计时器。进度同阶段最多每 50 ms 发布一次，阶段切换及完成立即发布；下钻扫描使用 `phase: 'drilldown'`。时间片是协作式目标，不是单条 JSON 解析或排序的硬性时限。
 
-Events: `ready`, `progress`, `result`, `projects` (shared inferred assignments), `canceled`, `error`. Progress follows consumed records/messages and query scans; processing yields between chunks for cancellation.
+Events: `ready`, `progress`, `result`, `projects` (shared inferred assignments), `canceled`, `error`. Checkpoints test cancellation and yield after roughly 8 ms of work instead of waiting for a timer at every checkpoint. Same-phase progress is limited to one update per 50 ms; phase transitions and completion publish immediately. Drilldown scans use `phase: 'drilldown'`. The cooperative time slice is not a hard deadline for a single JSON parse or sort.
 
 Data Worker 的 `analyticsConnect` 接收另一端口；`analyticsDisconnect` 释放。Analytics 发送 `streamStart`，Data 返回 `batch`：最多 4 条，UTF-8 目标上限 512 KiB，超大单条独立发送。消费后才发送 `batchAck`，允许读取下一批；`streamCancel` 停止供数。原始记录仅跨两个 Worker，不经过主线程。
 
@@ -47,9 +47,13 @@ Data Worker's `analyticsConnect` receives the peer port; `analyticsDisconnect` c
 
 The compact index stores summaries, projects and message time/model/role/character counts, without message bodies. The 12-entry aggregate LRU keys include source, filters, project and stopword versions. Navigation cancels work and keeps the idle Worker. Reimport, failure and unload terminate it and close ports. Creation failure offers retry without a main-thread scan.
 
-打开过探索后，精简索引按全部消息数占用内存，离开统计页仍驻留以便再次打开时复用；聚合缓存上限不会限制索引大小。当前下钻分页和切换桶会重新扫描精简索引；聚合缓存命中不扫描。现有 2 秒性能目标针对普通对话打开，不代表统计筛选或下钻耗时。
+打开过探索后，精简索引按全部消息数占用内存，离开统计页仍驻留以便再次打开时复用；聚合缓存上限不会限制索引大小。另仅保留最近一组命中对话摘要（不含消息正文），内存随命中对话数增长，不按 12 组复制。查询扫描同时生成这组摘要；相同条件的翻页和列表 UUID 请求复用摘要，不再扫描或排序。条件或选中桶改变时可重新扫描并替换；键包含来源、有效日期范围、规范化的项目/模型/角色条件、项目/停用词版本及手动修正，排除页码和是否返回 UUID。取消的部分扫描不发布为缓存；重新导入或释放时清空。
 
-After Explore has opened, the compact index uses memory proportional to all messages and remains resident outside Analytics for reuse. The aggregate cache limit does not cap index size. Drilldown pagination and bucket changes currently rescan the compact index; aggregate cache hits skip scanning. The existing two-second target covers ordinary conversation opening, not analytics queries or drilldown latency.
+After Explore has opened, the compact index uses memory proportional to all messages and remains resident outside Analytics for reuse. The aggregate cache limit does not cap index size. One additional result holds only the latest matching conversation summaries, with memory proportional to matched conversations rather than 12 copies. Queries collect these summaries during aggregation; pagination and UUID requests reuse them without scanning or sorting. Changing conditions or the selected bucket can rescan and replace that result. Its key includes source, effective date range, normalized project/model/role selections, project/stopword revisions and overrides, excluding pagination and UUID inclusion. Partial canceled scans are never cached; reimport and release clear the result.
+
+现有 2 秒普通对话打开目标继续保留。性能回归还对 12 万条合成消息要求：索引已建立后的筛选少于 2 秒，连续两次缓存下钻合计少于 1 秒。它们是 CI 回归上限，并非所有设备的性能承诺。[统计基准与原始样本](benchmarks/analytics-performance.md)说明测量口径。运行 `npm run benchmark:analytics` 输出 JSON；可加 `-- --output=test-results/analytics-benchmark.json` 保存报告，不修改已有基准。
+
+The existing two-second conversation-open target remains. CI also checks 120,000 synthetic messages: a filter after indexing takes under two seconds, and two cached drilldowns take under one second combined. These are regression budgets, not guarantees for all devices. See the [analytics benchmark and raw samples](benchmarks/analytics-performance.md). Run `npm run benchmark:analytics` for JSON output or add `-- --output=test-results/analytics-benchmark.json` to save a report without changing the recorded baseline.
 
 验证：`npm run test:smoke` 包括统计合成样本、背压、取消、缓存、重试及 4× CPU 性能回归；`npm run build:offline` 和 `npm run test:offline` 验证离线运行。
 

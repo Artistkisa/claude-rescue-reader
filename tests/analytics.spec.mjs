@@ -181,8 +181,7 @@ test('weekly and monthly averages use their labeled daily scale for every metric
 
 test('cancel, debounce, stale generations, failure retry and bounded cache',async({page})=>{
   await load(page,Array.from({length:70},(_,index)=>conversation('cancel-'+index,Array.from({length:30},(_,item)=>message('m-'+item,'2026-01-02T20:00:00Z',item%2?'model-a':'model-b')))));
-  await page.locator('[data-analytics-tab]').click();
-  await page.locator('.tab-btn[onclick*="convs"]').click();
+  await page.evaluate(()=>{document.querySelector('[data-analytics-tab]').click();document.querySelector('.tab-btn[onclick*="convs"]').click();});
   await page.waitForTimeout(50);
   expect(await page.evaluate(()=>analyticsExploreResult)).toBeNull();
   await openAnalytics(page);
@@ -218,6 +217,62 @@ test('Worker creation failure exposes retry and retains a local execution path',
   await page.evaluate(()=>{window.Worker=window.RealWorker;});
   await page.getByRole('button',{name:'重新计算',exact:true}).click();
   await page.waitForFunction(()=>analyticsExploreResult?.current.messages===1);
+});
+
+test('drilldown reuses summaries across pages and invalidates every matching input',async({page})=>{
+  await load(page,Array.from({length:56},(_,index)=>conversation('cached-'+index,[
+    message('first-'+index,'2026-01-01T20:00:00Z','model-a'),
+    message('second-'+index,'2026-01-02T20:00:00Z','model-b','assistant')
+  ])),[{uuid:'project',name:'Synthetic project',docs:[]}]);
+  await query(page);
+  await page.evaluate(()=>{
+    window.drillScans=0;
+    analyticsWorker.addEventListener('message',event=>{if(event.data.type==='progress'&&event.data.phase==='drilldown')window.drillScans++;});
+  });
+  const request=(extra={})=>page.evaluate(extra=>analyticsRequest('drilldown',{filters:{range:'all'},...extra}),extra);
+  expect((await request()).total).toBe(56);
+  const second=await request({page:1,includeIds:true});
+  expect(second.rows).toHaveLength(6);expect(second.uuids).toHaveLength(56);
+  const explicitEmpty=await request({filters:{range:'all',models:[],roles:[],projects:[]},page:1});
+  expect(explicitEmpty.rows).toEqual(second.rows);
+  expect(await page.evaluate(()=>window.drillScans)).toBe(0);
+  let scans=0;
+  for(const extra of [
+    {selection:{start:'2026-01-01',end:'2026-01-01'}},
+    {filters:{range:'all',models:['model-a']}},
+    {filters:{range:'all',roles:['assistant']}},
+    {filters:{range:'all',projects:['project']},overrides:{'cached-0':'project'}},
+    {filters:{range:'all',projects:['project']},overrides:{'cached-1':'project'}},
+    {projectVersion:1},
+    {projectVersion:1,stopwordVersion:1}
+  ]){
+    const cold=await request(extra);
+    expect(cold.total).toBe(extra.filters?.projects?1:56);
+    expect(cold.rows[0].messages).toBe(extra.selection||extra.filters?.models||extra.filters?.roles?1:2);
+    const current=await page.evaluate(()=>window.drillScans);expect(current).toBeGreaterThan(scans);scans=current;
+    const warm=await request({...extra,page:1,includeIds:true});
+    expect(warm.total).toBe(cold.total);expect(warm.uuids).toHaveLength(cold.total);
+    expect(await page.evaluate(()=>window.drillScans)).toBe(scans);
+  }
+  const evicted=await request({selection:{start:'2026-01-01',end:'2026-01-01'}});
+  expect(evicted.total).toBe(56);expect(evicted.rows[0].messages).toBe(1);
+  expect(await page.evaluate(()=>window.drillScans)).toBeGreaterThan(scans);
+  await load(page,[conversation('replacement',[message('only','2026-01-01T20:00:00Z')])]);
+  expect((await request()).rows.map(row=>row.uuid)).toEqual(['replacement']);
+});
+
+test('equivalent filter order shares aggregates and drilldown summaries',async({page})=>{
+  await load(page,[conversation('ordered',[message('first','2026-01-01T20:00:00Z','model-a'),message('second','2026-01-02T20:00:00Z','model-b')])]);
+  const first=await query(page,{range:'all',models:['model-b','model-a','model-a'],roles:['human']});
+  await page.evaluate(()=>{
+    window.orderProgress=0;
+    analyticsWorker.addEventListener('message',event=>{if(event.data.type==='progress')window.orderProgress++;});
+  });
+  const second=await query(page,{roles:['human'],models:['model-a','model-b'],range:'all'});
+  expect(second.cacheKey).toBe(first.cacheKey);expect(second.current.messages).toBe(2);
+  const drill=await page.evaluate(()=>analyticsRequest('drilldown',{filters:{range:'all',models:['model-a','model-b'],roles:['human']}}));
+  expect(drill.rows[0].messages).toBe(2);
+  expect(await page.evaluate(()=>window.orderProgress)).toBe(0);
 });
 
 test('raw records travel only between Workers with bounded acknowledged batches',async({page})=>{
