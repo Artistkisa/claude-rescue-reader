@@ -75,7 +75,7 @@ function analyticsWorkerMain(){
     const filters=message.filters||{range:'all'},overrides=message.overrides||{},range=bounds(filters),span=range.start===null?0:range.end-range.start+1;
     const key=JSON.stringify([generation,filters,message.projectVersion||0,message.stopwordVersion||0,overrides]);
     if(cache.has(key)){const value=cache.get(key);cache.delete(key);cache.set(key,value);return{...value,cacheKey:key};}
-    const previousRange={start:span?range.start-span:null,end:span?range.start-1:null,all:false},current=emptySummary(),previous=emptySummary(),daily=new Map(),bucketSets=new Map();
+    const previousRange=!range.all&&span?{start:range.start-span,end:range.start-1,all:false}:null,current=emptySummary(),previous=emptySummary(),daily=new Map(),bucketSets=new Map();
     const grain=span<=60?'day':span<=365?'week':'month',buckets=[];
     if(span)for(let day=bucketStart(range.start,grain);day<=range.end;day=nextBucket(day,grain))buckets.push({start:keyForDay(Math.max(day,range.start)),end:keyForDay(Math.min(nextBucket(day,grain)-1,range.end)),day,messages:0,characters:0,conversations:0,ma7:null,ma30:null});
     const bucketMap=new Map(buckets.map(bucket=>[bucket.day,bucket]));let processed=0;
@@ -93,7 +93,7 @@ function analyticsWorkerMain(){
           const bucket=bucketMap.get(bucketStart(row.day,grain));bucket.messages++;bucket.characters+=row.characters;
           if(!bucketSets.has(bucket.day))bucketSets.set(bucket.day,new Set());bucketSets.get(bucket.day).add(conversation.uuid);
         }
-        if(timeMatch(row,previousRange)){previousHit=true;previous.messages++;previous.characters+=row.characters;}
+        if(previousRange&&timeMatch(row,previousRange)){previousHit=true;previous.messages++;previous.characters+=row.characters;}
       }
       if(currentHit)current.conversations++;if(previousHit)previous.conversations++;
     }
@@ -108,8 +108,8 @@ function analyticsWorkerMain(){
         for(const window of [7,30])if(day-range.start+1>=window){const averages={};for(const metric of metrics)averages[metric]=(window===30?sums[metric]:rolling.slice(-7).reduce((sum,item)=>sum+item[metric],0))/window;bucket['ma'+window]=averages;}
       }
     }
-    const comparison={};for(const metric of metrics)comparison[metric]=previous[metric]?{percent:(current[metric]-previous[metric])/previous[metric]*100}:{status:current[metric]?'new':'unchanged'};
-    const result={current,previous,comparison,buckets,grain,range:{start:span?keyForDay(range.start):'',end:span?keyForDay(range.end):'',all:range.all},previousRange:{start:span?keyForDay(previousRange.start):'',end:span?keyForDay(previousRange.end):''},options:{models:index.models,roles:index.roles,projects:[{uuid:'',name:''},...(settings.projects||[]).map(project=>({uuid:project.uuid,name:project.name||''}))]},matchCount:current.conversations};
+    const comparison=previousRange?{}:null;if(comparison)for(const metric of metrics)comparison[metric]=previous[metric]?{percent:(current[metric]-previous[metric])/previous[metric]*100}:{status:current[metric]?'new':'unchanged'};
+    const result={current,previous,comparison,buckets,grain,range:{start:span?keyForDay(range.start):'',end:span?keyForDay(range.end):'',all:range.all},previousRange:previousRange?{start:keyForDay(previousRange.start),end:keyForDay(previousRange.end)}:null,options:{models:index.models,roles:index.roles,projects:[{uuid:'',name:''},...(settings.projects||[]).map(project=>({uuid:project.uuid,name:project.name||''}))]},matchCount:current.conversations};
     cache.set(key,result);while(cache.size>12)cache.delete(cache.keys().next().value);return{...result,cacheKey:key};
   }
   async function drilldown(token,message){

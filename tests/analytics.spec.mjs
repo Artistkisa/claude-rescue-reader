@@ -30,6 +30,7 @@ test('local dates, zero buckets, Monday weeks, months and invalid timestamps',as
   ]);
   const all=await query(page);
   expect(all.current).toMatchObject({messages:5,conversations:2,invalidTime:1});
+  expect(all.comparison).toBeNull();expect(all.previousRange).toBeNull();
   expect(all.range).toMatchObject({start:'2025-12-31',end:'2026-01-05'});
   const daily=await query(page,{range:'custom',start:'2025-12-31',end:'2026-01-06'});
   expect(daily.current.messages).toBe(4);expect(daily.buckets.map(bucket=>bucket.messages)).toEqual([1,1,0,0,1,1,0]);
@@ -79,7 +80,7 @@ test('archives with no valid dates retain totals without inventing dates or mode
   expect(all.current).toMatchObject({messages:2,conversations:1,invalidTime:2});
   expect(all.buckets).toEqual([]);expect(all.options.models).toEqual(['']);
   const limited=await query(page,{range:'7'});
-  expect(limited.current.messages).toBe(0);expect(limited.comparison.messages).toEqual({status:'unchanged'});
+  expect(limited.current.messages).toBe(0);expect(limited.comparison).toBeNull();expect(limited.previousRange).toBeNull();
   const rows=await page.evaluate(()=>analyticsRequest('drilldown',{filters:{range:'all'}}));
   expect(rows.rows[0]).toMatchObject({messages:2,latest:null});
 });
@@ -127,6 +128,55 @@ test('chart, paged table and conversation list agree and preserve exploration st
   await expect(page.locator('#messages img')).toHaveCount(0);
   await page.locator('#lang-btn').click();
   await expect(page.locator('[data-analytics-view="explore"]')).toHaveText('Explore');
+});
+
+test('all-history comparisons stay hidden across date changes, reset and language changes',async({page})=>{
+  await load(page,[conversation('history',[message('valid','2026-01-02T20:00:00Z'),message('invalid','broken')])]);
+  await openAnalytics(page);
+  await expect(page.locator('[data-analytics-metric="messages"] .metric-value')).toHaveText('2');
+  await expect(page.locator('[data-analytics-comparison]')).toHaveCount(0);
+  await expect(page.locator('#messages')).toContainText('全部历史不比较上一周期；选择日期范围可查看对比');
+  await page.locator('#analytics-range').selectOption('7');
+  await page.waitForFunction(()=>analyticsExploreResult?.range.all===false&&analyticsDrillResult);
+  await expect(page.locator('[data-analytics-comparison]')).toHaveCount(3);
+  await expect(page.locator('[data-analytics-metric="messages"] .metric-value')).toHaveText('1');
+  await expect(page.locator('[data-analytics-metric="messages"] [data-analytics-comparison]')).toContainText('新增');
+  await page.getByRole('button',{name:'清除筛选',exact:true}).click();
+  await page.waitForFunction(()=>analyticsExploreResult?.range.all&&analyticsDrillResult);
+  await expect(page.locator('[data-analytics-comparison]')).toHaveCount(0);
+  await page.locator('#lang-btn').click();
+  await expect(page.locator('#messages')).toContainText('All history has no previous-period comparison; select a date range to compare');
+});
+
+test('weekly and monthly averages use their labeled daily scale for every metric',async({page})=>{
+  const messages=Array.from({length:400},(_,index)=>message('day-'+index,new Date(Date.UTC(2025,0,1+index,20)).toISOString()));
+  await load(page,[conversation('steady',messages)]);
+  await openAnalytics(page);
+  for(const [range,grain]of [['all','month'],['90','week']]){
+    await page.locator('#analytics-range').selectOption(range);
+    await page.waitForFunction(grain=>analyticsExploreResult?.grain===grain&&analyticsDrillResult,grain);
+    for(const metric of ['messages','characters','conversations']){
+      await page.locator('#analytics-metric').selectOption(metric);
+      await expect(page.locator('[data-analytics-axis="total"]')).toContainText('桶总量');
+      await expect(page.locator('[data-analytics-axis="average"]')).toContainText('日均移动平均');
+      for(const window of [7,30]){
+        const geometry=await page.locator('[data-analytics-average="'+window+'"]').evaluate(element=>({
+          top:element.getBBox().y,
+          axisTop:Number(element.closest('svg').querySelector('[data-analytics-axis="average"] line').getAttribute('y1')),
+          path:element.getAttribute('d')
+        }));
+        expect(geometry.path).not.toMatch(/NaN|Infinity/);
+        expect(geometry.top).toBeCloseTo(geometry.axisTop);
+      }
+    }
+  }
+  await page.locator('#lang-btn').click();
+  await expect(page.locator('[data-analytics-axis="total"]')).toContainText('Bucket totals');
+  await expect(page.locator('[data-analytics-axis="average"]')).toContainText('Daily moving averages');
+  await expect(page.locator('#messages')).toContainText('independent scales');
+  await page.locator('[data-analytics-bucket]').last().click();
+  await page.waitForFunction(()=>analyticsDrillResult?.total===1);
+  await expect(page.locator('[data-analytics-conversation]')).toHaveCount(1);
 });
 
 test('cancel, debounce, stale generations, failure retry and bounded cache',async({page})=>{

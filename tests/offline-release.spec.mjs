@@ -27,6 +27,8 @@ test('offline bundle loads all optional features without network',async({page})=
   expect(rendered).toContain('synthetic code');
   expect(await page.evaluate(()=>analyticsWorker)).toBeNull();
   await page.locator('[data-analytics-tab]').click();await page.waitForFunction(()=>analyticsExploreResult?.current.messages===5&&analyticsDrillResult?.total===1);
+  await expect(page.locator('[data-analytics-comparison]')).toHaveCount(0);
+  await expect(page.locator('[data-analytics-axis="average"]')).toContainText('日均移动平均');
   await expect(page.locator('[data-analytics-conversation]')).toHaveCount(1);
   await page.locator('[data-analytics-view="overview"]').click();await page.waitForFunction(()=>analyticsResult?.messages===5);
   await expect(page.locator('.word-cloud')).not.toHaveCount(0);

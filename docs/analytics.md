@@ -9,15 +9,15 @@ Explore is the default view. Archive overview and word frequency are computed se
 - 全历史包含无效时间消息并显示其数量；限定日期时排除。模型缺失显示“未提供”，不推断模型；没有项目证据的对话为“未归属”。
 - 日期使用浏览器本地时区，含首尾两天。快捷范围以整份档案最新有效消息日期为终点。周一为周起点；不超过 60 天按日、61–365 天按周、更长按月分桶，并补零。边界周/月截取到所选范围。
 - 项目条件作用于整条对话；时间、模型、角色作用于消息。活跃对话数是至少含一条匹配消息的去重对话数。字符包括文本和 Thinking，按 JavaScript 字符串长度计数，与原总览一致。
-- 7/30 日移动平均使用所选范围内的每日值，只从完整窗口开始显示。周/月图在桶的最后一天采样每日移动平均，柱形表示桶总量；活跃对话的移动平均使用每日去重数量。
-- 前期为紧邻当前范围之前的等长日历区间，沿用非时间条件。全历史使用有效日期跨度确定对比区间；无效时间不进入前期。零基期显示“新增”或“无变化”。
+- 7/30 日移动平均使用所选范围内的每日值，只从完整窗口开始显示。周/月图在桶的最后一天采样每日移动平均，柱形表示桶总量；活跃对话的移动平均使用每日去重数量。柱形使用左轴，日均移动平均使用独立右轴，均从零起算；双轴高度不可直接比较数值。
+- 前期为紧邻当前范围之前的等长日历区间，沿用非时间条件。全历史不提供前期比较；无有效日期跨度时也不提供比较，接口的 `comparison` 和 `previousRange` 为 `null`。限定日期的零基期仍显示“新增”或“无变化”，无效时间不进入前期。
 - 下钻每页 50 条，按最近命中时间降序；无有效时间的记录排在最后。图表下钻只匹配选中桶中的消息。“在对话列表中查看”应用同一批 UUID，标记可清除；对话列表中的消息数仍为原对话总消息数。
 
 - All history includes invalid timestamps and reports their count; date-limited queries exclude them. Missing models remain “Not provided”; projects without evidence are “Unassigned”.
 - Dates use the browser's local time zone and inclusive boundaries. Presets end on the latest valid message date in the entire archive. Weeks start Monday; buckets are daily through 60 days, weekly through 365 days, and monthly thereafter. Empty buckets are filled; boundary buckets are clipped.
 - Projects filter entire conversations; dates, models and roles filter messages. Active conversations are distinct conversations containing a match. Characters count text and Thinking using JavaScript string length.
-- Moving averages use complete 7/30-day windows inside the selected range. Weekly/monthly charts sample daily averages at bucket end; bars show bucket totals. Conversation averages use each day's distinct active-conversation count.
-- Comparisons use the immediately preceding equal-length calendar interval with identical non-date filters. All history uses its valid-date span. Invalid dates never enter the previous interval. Zero baselines show “New” or “Unchanged”.
+- Moving averages use complete 7/30-day windows inside the selected range. Weekly/monthly charts sample daily averages at bucket end; bars show bucket totals. Conversation averages use each day's distinct active-conversation count. Bars use the left axis; daily averages use an independent right axis. Both start at zero; heights across axes do not imply equal values.
+- Comparisons use the immediately preceding equal-length calendar interval with identical non-date filters. All history and queries without a valid date span omit comparison; `comparison` and `previousRange` are `null`. Date-limited zero baselines still show “New” or “Unchanged”. Invalid dates never enter the previous interval.
 - Drilldown returns 50 summaries per page, ordered by latest match, with invalid-only matches last. A selected bucket restricts matching messages. The list marker applies the same UUIDs and can be cleared; list message counts still describe entire original conversations.
 
 ## Worker 协议 / Worker protocol
@@ -46,6 +46,10 @@ Data Worker's `analyticsConnect` receives the peer port; `analyticsDisconnect` c
 索引仅含对话摘要、项目及消息时间/模型/角色/字符数，不含正文。聚合 LRU 最多 12 项，键含来源、条件、项目及停用词版本。离页取消但保留空闲 Worker；重新导入、失败或卸载时终止并关闭端口。创建失败提供重试，不在主线程扫描。
 
 The compact index stores summaries, projects and message time/model/role/character counts, without message bodies. The 12-entry aggregate LRU keys include source, filters, project and stopword versions. Navigation cancels work and keeps the idle Worker. Reimport, failure and unload terminate it and close ports. Creation failure offers retry without a main-thread scan.
+
+打开过探索后，精简索引按全部消息数占用内存，离开统计页仍驻留以便再次打开时复用；聚合缓存上限不会限制索引大小。当前下钻分页和切换桶会重新扫描精简索引；聚合缓存命中不扫描。现有 2 秒性能目标针对普通对话打开，不代表统计筛选或下钻耗时。
+
+After Explore has opened, the compact index uses memory proportional to all messages and remains resident outside Analytics for reuse. The aggregate cache limit does not cap index size. Drilldown pagination and bucket changes currently rescan the compact index; aggregate cache hits skip scanning. The existing two-second target covers ordinary conversation opening, not analytics queries or drilldown latency.
 
 验证：`npm run test:smoke` 包括统计合成样本、背压、取消、缓存、重试及 4× CPU 性能回归；`npm run build:offline` 和 `npm run test:offline` 验证离线运行。
 
