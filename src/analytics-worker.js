@@ -1,71 +1,155 @@
 function analyticsWorkerMain(){
-  const state={conversations:0,messages:0,human:0,assistant:0,humanCharacters:0,assistantCharacters:0,characters:0,thinking:0,tools:0,attachments:0,textBlocks:0,imageBlocks:0,artifacts:0,webSearches:0,emptyMessages:0,branchPoints:0,alternativeMessages:0,branchedConversations:0,conversationDurationMs:0,months:{},activeDates:{},weekdays:Array(7).fill(0),hours:Array(24).fill(0),models:{},depths:{},wordsZh:{},wordsEn:{},responseLatencies:[],longest:[]};
-  const add=(obj,key,n=1)=>{obj[key]=(obj[key]||0)+n;};
-  const stopEn=new Set('a an and are as at be been but by can could did do does for from had has have he her hers him his how i if in into is it its may me might more most my no not of on or our ours she should so some than that the their theirs them then there these they this those to too us was we were what when where which who why will with would you your yours'.split(' '));
-  const stopZh=new Set(('的 了 和 是 在 我 有 就 不 人 都 一 一个 上 也 很 到 说 要 去 你 会 着 没有 看 好 自己 这 那 里 为 以 及 与 或 而 被 把 对 从 等 中 能 可以 进行 使用 需要 如果 这个 这些 我们 你们 他们 '+
-    '因为 所以 然后 而且 但是 还是 已经 可能 现在 之后 之前 其中 其中的 通过 对于 关于 根据 按照 以及 以及其 以及这 以及那 以及与 '+
-    '什么 怎么 为什么 哪个 哪些 哪里 哪些个 这里 那里 这样 那样 这么 那么 不是 没有 不能 无法 不会 不同 一些 一种 一个 '+
-    '本身 目前 当前 直接 完全 真正 真实 所有 全部 整个 完整 相关 具体 一般 通常 主要 核心 内容 问题 文章 说明 '+
-    '数据 文件 图片 标题 结构 技术 逻辑 工具 系统 服务 设计 代码 网站 产品 项目 章节 分类 部分 方面 东西 事情 '+
-    '你的 我的 他的 她的 它的 我们的 你们的 他们的 各种 某些 任何 其他 还有 以及 其中 因此 例如 '+
-    '吧 呢 啊 哦 嗯 呀 嘿 哈 哈哈 诶 哎 唉 这类 这次 这点 这个问题 这种情况 就是 那个 那些 知道 的是 存在 或者 开始 几个 这种 出来 只是 只是说 还有点 '+
-    '一下 一下子 一直 一定 一样 一起 一共 多个 少数 许多 多少 时候 以后 以前 现在的 之后的 起来 下来 上来 回来 过去').split(/\s+/));
-  const zhSegmenter=typeof Intl!=='undefined'&&Intl.Segmenter?new Intl.Segmenter('zh',{granularity:'word'}):null;
-  function countWords(text){
-    if(!text)return;
-    for(const word of text.toLowerCase().match(/[a-z][a-z0-9'-]{2,}/g)||[])if(!stopEn.has(word))add(state.wordsEn,word);
-    const chinese=(text.match(/[\u3400-\u9fff]+/g)||[]).join(' ');
-    if(!chinese)return;
-    if(zhSegmenter){for(const part of zhSegmenter.segment(chinese)){const word=part.segment.trim();if(part.isWordLike&&word.length>=2&&!stopZh.has(word))add(state.wordsZh,word);}}
-    else for(const word of chinese.match(/[\u3400-\u9fff]{2,4}/g)||[])if(!stopZh.has(word))add(state.wordsZh,word);
+  const shared=archiveAnalysisCore(),cache=new Map(),dayMs=86400000;
+  let generation=0,port=null,active=null,index=null,settings={},stream=null;
+  const emit=(type,requestId,result)=>self.postMessage({type,generation,requestId,...result});
+  const dayKey=date=>date.getFullYear()+'-'+String(date.getMonth()+1).padStart(2,'0')+'-'+String(date.getDate()).padStart(2,'0');
+  const dayNumber=text=>{if(!/^\d{4}-\d{2}-\d{2}$/.test(text||''))return null;const value=Date.parse(text+'T00:00:00Z')/dayMs;return Number.isFinite(value)&&new Date(value*dayMs).toISOString().slice(0,10)===text?value:null;};
+  const keyForDay=day=>new Date(day*dayMs).toISOString().slice(0,10);
+  const canceled=()=>Object.assign(new Error('Canceled'),{canceled:true});
+  async function checkpoint(token){await new Promise(resolve=>setTimeout(resolve,0));if(token.canceled||active!==token)throw canceled();}
+  function cancel(){
+    if(!active)return;
+    active.canceled=true;
+    if(stream){port.postMessage({type:'streamCancel',generation,requestId:stream.requestId});stream.reject?.(canceled());stream=null;}
+    emit('canceled',active.requestId,{});active=null;
   }
-  self.onmessage=e=>{
-    const msg=e.data||{};
-    if(msg.type==='init'){for(const word of msg.customStopZh||[])if(word)stopZh.add(String(word).toLowerCase());return;}
-    if(msg.type==='batch'){
-      for(const c of msg.items||[]){
-        state.conversations++;
-        let convChars=0,convBranched=false;
-        const childCounts={},timed=[];
-        for(const m of c.messages||[]){
-          state.messages++;
-          if(m.sender==='human'){state.human++;state.humanCharacters+=m.characters||0;}
-          else if(m.sender==='assistant'){state.assistant++;state.assistantCharacters+=m.characters||0;}
-          state.characters+=m.characters||0;convChars+=m.characters||0;
-          state.thinking+=m.thinking||0;state.tools+=m.tools||0;state.attachments+=m.attachments||0;
-          state.textBlocks+=m.textBlocks||0;state.imageBlocks+=m.imageBlocks||0;state.artifacts+=m.artifacts||0;state.webSearches+=m.webSearches||0;
-          if(m.empty)state.emptyMessages++;
-          if(m.month)add(state.months,m.month);
-          if(m.date)add(state.activeDates,m.date);
-          if(Number.isInteger(m.weekday)&&m.weekday>=0&&m.weekday<7)state.weekdays[m.weekday]++;
-          if(Number.isInteger(m.hour)&&m.hour>=0&&m.hour<24)state.hours[m.hour]++;
-          if(m.model)add(state.models,m.model);
-          countWords(m.wordText);
-          if(m.parentUuid)add(childCounts,m.parentUuid);
-          if(Number.isFinite(m.timestamp))timed.push(m);
-        }
-        for(const count of Object.values(childCounts))if(count>1){state.branchPoints++;state.alternativeMessages+=count-1;convBranched=true;}
-        if(convBranched)state.branchedConversations++;
-        timed.sort((a,b)=>a.timestamp-b.timestamp);
-        if(timed.length>1)state.conversationDurationMs+=timed[timed.length-1].timestamp-timed[0].timestamp;
-        const byUuid=Object.fromEntries(timed.filter(m=>m.uuid).map(m=>[m.uuid,m]));
-        for(const m of timed){const parent=byUuid[m.parentUuid];if(m.sender==='assistant'&&parent?.sender==='human'){
-          const latency=m.timestamp-parent.timestamp;if(latency>=0&&latency<=86400000)state.responseLatencies.push(latency);
-        }}
-        const depth=(c.messages||[]).length,depthKey=depth<=5?'1–5':depth<=10?'6–10':depth<=25?'11–25':depth<=50?'26–50':depth<=100?'51–100':'101+';
-        add(state.depths,depthKey);
-        state.longest.push({uuid:c.uuid,title:c.title,messages:(c.messages||[]).length,characters:convChars,updatedAt:c.updatedAt});
+  async function* records(token){
+    const receiver={requestId:token.requestId,pending:null,resolve:null,reject:null};stream=receiver;
+    port.postMessage({type:'streamStart',generation,requestId:token.requestId});
+    try{
+      while(true){
+        const batch=receiver.pending||await new Promise((resolve,reject)=>{receiver.resolve=resolve;receiver.reject=reject;});receiver.pending=null;receiver.resolve=null;receiver.reject=null;
+        if(token.canceled)throw canceled();
+        for(const record of batch.items)yield record;
+        emit('progress',token.requestId,{loaded:batch.loaded,total:batch.total,phase:token.mode==='overview'?'overview':'index'});
+        if(batch.done)break;
+        await checkpoint(token);
+        port.postMessage({type:'batchAck',generation,requestId:token.requestId,batchId:batch.batchId});
       }
-      self.postMessage({type:'batchDone',id:msg.id});
-    }else if(msg.type==='finish'){
-      state.longest.sort((a,b)=>b.messages-a.messages||b.characters-a.characters);state.longest=state.longest.slice(0,10);
-      state.wordsZh=Object.entries(state.wordsZh).sort((a,b)=>b[1]-a[1]).slice(0,40);
-      state.wordsEn=Object.entries(state.wordsEn).sort((a,b)=>b[1]-a[1]).slice(0,40);
-      state.responseLatencies.sort((a,b)=>a-b);state.medianResponseMs=state.responseLatencies.length?state.responseLatencies[Math.floor(state.responseLatencies.length/2)]:0;delete state.responseLatencies;
-      const dates=Object.keys(state.activeDates).sort();let streak=0,longestStreak=0,previous=NaN;
-      for(const date of dates){const day=Date.parse(date+'T00:00:00Z')/86400000;streak=day===previous+1?streak+1:1;longestStreak=Math.max(longestStreak,streak);previous=day;}
-      state.activeDays=dates.length;state.longestStreak=longestStreak;delete state.activeDates;
-      self.postMessage({type:'result',result:state});
+    }finally{if(stream===receiver)stream=null;}
+  }
+  async function ensureIndex(token){
+    if(index)return;
+    const conversations=[],models=new Set(['']),roles=new Set();let min=null,max=null;
+    async function* indexRecords(){
+    for await(const record of records(token)){
+      const conversation=JSON.parse(record.raw),messages=Array.isArray(conversation.chat_messages)?conversation.chat_messages:[],rows=[];
+      for(let messageIndex=0;messageIndex<messages.length;messageIndex++){
+        if(messageIndex%128===0){await checkpoint(token);emit('progress',token.requestId,{loaded:conversations.length+messageIndex/Math.max(1,messages.length),total:settings.totalConversations,phase:'index'});}
+        const message=messages[messageIndex],timestamp=Date.parse(message.created_at||message.updated_at||''),day=Number.isFinite(timestamp)?dayNumber(dayKey(new Date(timestamp))):null;
+        const model=String(message.model||message.model_slug||message.message?.model||''),role=String(message.sender||'assistant');
+        let characters=0;const content=Array.isArray(message.content)?message.content:[];
+        for(const block of content){if(block?.type==='text')characters+=String(block.text||'').length;else if(block?.type==='thinking')characters+=String(block.thinking||'').length;}
+        if(!content.length&&message.text)characters=String(message.text).length;
+        rows.push({day,timestamp:Number.isFinite(timestamp)?timestamp:null,model,role,characters});models.add(model);roles.add(role);
+        if(day!==null){min=min===null?day:Math.min(min,day);max=max===null?day:Math.max(max,day);}
+      }
+      conversations.push({uuid:record.meta.uuid,title:record.meta.name,project:'',rows});
+      yield{meta:record.meta,conversation};
     }
+    }
+    let inferred=settings.projectIndex;
+    if(!inferred&&settings.projects?.length)inferred=await shared.calculateProjectIndex(indexRecords(),record=>record.conversation,settings.projects,settings.memoryData,()=>checkpoint(token));
+    else for await(const record of indexRecords()){await checkpoint(token);}
+    inferred=inferred||{map:{},evidence:{},stats:{}};
+    for(const conversation of conversations)conversation.project=inferred.map[conversation.uuid]||'';
+    await checkpoint(token);index={conversations,models:[...models].sort(),roles:[...roles].sort(),min,max};
+    emit('projects',token.requestId,{result:inferred});
+  }
+  function effectiveProject(conversation,overrides){const value=overrides?.[conversation.uuid];return Object.prototype.hasOwnProperty.call(overrides||{},conversation.uuid)&&(value===null||(settings.projects||[]).some(project=>project.uuid===value))?value||'':conversation.project;}
+  function bounds(filters){
+    if(filters.range==='custom'){
+      const start=dayNumber(filters.start),end=dayNumber(filters.end);
+      if(start===null||end===null||end<start)throw new Error('Invalid date range');
+      return{start,end,all:false};
+    }
+    const count=Number(filters.range);return count>0&&index.max!==null?{start:index.max-count+1,end:index.max,all:false}:{start:index.min,end:index.max,all:filters.range==='all'||!filters.range};
+  }
+  const emptySummary=()=>({messages:0,conversations:0,characters:0,invalidTime:0});
+  const nonTimeMatch=(row,filters)=>(!filters.models?.length||filters.models.includes(row.model))&&(!filters.roles?.length||filters.roles.includes(row.role));
+  const timeMatch=(row,range)=>row.day===null?range.all:range.start!==null&&row.day>=range.start&&row.day<=range.end;
+  const bucketStart=(day,grain)=>{const date=new Date(day*dayMs);if(grain==='week')return day-(date.getUTCDay()+6)%7;if(grain==='month')return day-date.getUTCDate()+1;return day;};
+  const nextBucket=(day,grain)=>{if(grain==='week')return day+7;if(grain==='month'){const date=new Date(day*dayMs);return Date.UTC(date.getUTCFullYear(),date.getUTCMonth()+1,1)/dayMs;}return day+1;};
+  async function query(token,message){
+    await ensureIndex(token);
+    const filters=message.filters||{range:'all'},overrides=message.overrides||{},range=bounds(filters),span=range.start===null?0:range.end-range.start+1;
+    const key=JSON.stringify([generation,filters,message.projectVersion||0,message.stopwordVersion||0,overrides]);
+    if(cache.has(key)){const value=cache.get(key);cache.delete(key);cache.set(key,value);return{...value,cacheKey:key};}
+    const previousRange=!range.all&&span?{start:range.start-span,end:range.start-1,all:false}:null,current=emptySummary(),previous=emptySummary(),daily=new Map(),bucketSets=new Map();
+    const grain=span<=60?'day':span<=365?'week':'month',buckets=[];
+    if(span)for(let day=bucketStart(range.start,grain);day<=range.end;day=nextBucket(day,grain))buckets.push({start:keyForDay(Math.max(day,range.start)),end:keyForDay(Math.min(nextBucket(day,grain)-1,range.end)),day,messages:0,characters:0,conversations:0,ma7:null,ma30:null});
+    const bucketMap=new Map(buckets.map(bucket=>[bucket.day,bucket]));let processed=0;
+    for(const conversation of index.conversations){
+      if(processed++%8===0){await checkpoint(token);emit('progress',token.requestId,{loaded:processed,total:index.conversations.length,phase:'query'});}
+      if(filters.projects?.length&&!filters.projects.includes(effectiveProject(conversation,overrides)))continue;
+      let currentHit=false,previousHit=false;
+      for(let rowIndex=0;rowIndex<conversation.rows.length;rowIndex++){
+        if(rowIndex%512===0)await checkpoint(token);
+        const row=conversation.rows[rowIndex];if(!nonTimeMatch(row,filters))continue;
+        if(timeMatch(row,range)){
+          currentHit=true;current.messages++;current.characters+=row.characters;
+          if(row.day===null){current.invalidTime++;continue;}
+          let dailyValue=daily.get(row.day);if(!dailyValue){dailyValue={messages:0,characters:0,conversations:new Set()};daily.set(row.day,dailyValue);}dailyValue.messages++;dailyValue.characters+=row.characters;dailyValue.conversations.add(conversation.uuid);
+          const bucket=bucketMap.get(bucketStart(row.day,grain));bucket.messages++;bucket.characters+=row.characters;
+          if(!bucketSets.has(bucket.day))bucketSets.set(bucket.day,new Set());bucketSets.get(bucket.day).add(conversation.uuid);
+        }
+        if(previousRange&&timeMatch(row,previousRange)){previousHit=true;previous.messages++;previous.characters+=row.characters;}
+      }
+      if(currentHit)current.conversations++;if(previousHit)previous.conversations++;
+    }
+    const metrics=['messages','characters','conversations'],sums={messages:0,characters:0,conversations:0},rolling=[];
+    for(let day=range.start;span&&day<=range.end;day++){
+      if((day-range.start)%256===0)await checkpoint(token);
+      const entry=daily.get(day),value={messages:entry?.messages||0,characters:entry?.characters||0,conversations:entry?.conversations.size||0};rolling.push(value);for(const metric of metrics)sums[metric]+=value[metric];
+      if(rolling.length>30){const expired=rolling.shift();for(const metric of metrics)sums[metric]-=expired[metric];}
+      const bucket=bucketMap.get(bucketStart(day,grain));
+      if(day===dayNumber(bucket.end)){
+        bucket.conversations=bucketSets.get(bucket.day)?.size||0;
+        for(const window of [7,30])if(day-range.start+1>=window){const averages={};for(const metric of metrics)averages[metric]=(window===30?sums[metric]:rolling.slice(-7).reduce((sum,item)=>sum+item[metric],0))/window;bucket['ma'+window]=averages;}
+      }
+    }
+    const comparison=previousRange?{}:null;if(comparison)for(const metric of metrics)comparison[metric]=previous[metric]?{percent:(current[metric]-previous[metric])/previous[metric]*100}:{status:current[metric]?'new':'unchanged'};
+    const result={current,previous,comparison,buckets,grain,range:{start:span?keyForDay(range.start):'',end:span?keyForDay(range.end):'',all:range.all},previousRange:previousRange?{start:keyForDay(previousRange.start),end:keyForDay(previousRange.end)}:null,options:{models:index.models,roles:index.roles,projects:[{uuid:'',name:''},...(settings.projects||[]).map(project=>({uuid:project.uuid,name:project.name||''}))]},matchCount:current.conversations};
+    cache.set(key,result);while(cache.size>12)cache.delete(cache.keys().next().value);return{...result,cacheKey:key};
+  }
+  async function drilldown(token,message){
+    await ensureIndex(token);const filters=message.filters||{range:'all'},range=bounds(filters),selected=message.selection;
+    if(selected){range.start=dayNumber(selected.start);range.end=dayNumber(selected.end);range.all=false;}
+    const matches=[];let count=0;
+    for(const conversation of index.conversations){
+      if(count++%8===0)await checkpoint(token);
+      if(filters.projects?.length&&!filters.projects.includes(effectiveProject(conversation,message.overrides)))continue;
+      let messages=0,characters=0,latest=null;
+      for(let rowIndex=0;rowIndex<conversation.rows.length;rowIndex++){
+        if(rowIndex%512===0)await checkpoint(token);
+        const row=conversation.rows[rowIndex];if(nonTimeMatch(row,filters)&&timeMatch(row,range)){messages++;characters+=row.characters;if(row.timestamp!==null)latest=Math.max(latest??-Infinity,row.timestamp);}
+      }
+      if(messages)matches.push({uuid:conversation.uuid,title:conversation.title,messages,characters,latest});
+    }
+    matches.sort((first,second)=>(second.latest??-Infinity)-(first.latest??-Infinity)||first.uuid.localeCompare(second.uuid));
+    const page=Math.max(0,Math.min(Number(message.page)||0,Math.max(0,Math.ceil(matches.length/50)-1)));
+    return{rows:matches.slice(page*50,page*50+50),total:matches.length,page,...(message.includeIds?{uuids:matches.map(item=>item.uuid)}:{})};
+  }
+  self.onmessage=event=>{
+    const message=event.data||{};
+    if(message.type==='init'){
+      cancel();port?.close();generation=message.generation;settings=message;index=null;cache.clear();port=message.port;
+      port.onmessage=event=>{const batch=event.data||{};if(batch.generation!==generation||!stream||batch.requestId!==stream.requestId)return;if(batch.type==='error'){stream.reject?.(new Error(batch.error));return;}if(stream.resolve)stream.resolve(batch);else stream.pending=batch;};port.start();emit('ready',message.requestId,{});return;
+    }
+    if(message.generation!==generation)return;
+    if(message.type==='cancel'){cancel();return;}
+    if(message.type==='release'){cancel();index=null;cache.clear();port?.close();port=null;return;}
+    if(!['query','overview','drilldown'].includes(message.type))return;
+    cancel();const token={requestId:message.requestId,canceled:false,mode:message.type};active=token;
+    Promise.resolve().then(async()=>{
+      let result;
+      if(message.type==='overview'){
+        const key='overview:'+JSON.stringify([generation,message.stopwordVersion,message.customStopZh]);
+        result=cache.get(key);
+        if(result){cache.delete(key);cache.set(key,result);}
+        else{result=await shared.calculateAnalytics(records(token),record=>JSON.parse(record.raw),message.customStopZh,async detail=>{await checkpoint(token);if(detail)emit('progress',token.requestId,{loaded:detail.done+detail.messageIndex/Math.max(1,detail.totalMessages),total:settings.totalConversations,phase:'overview'});});cache.set(key,result);while(cache.size>12)cache.delete(cache.keys().next().value);}
+      }else result=await(message.type==='query'?query(token,message):drilldown(token,message));
+      await checkpoint(token);active=null;emit('result',message.requestId,{result,mode:message.type});
+    }).catch(error=>{if(error.canceled)return;if(active===token){active=null;emit('error',message.requestId,{error:error.message});}});
   };
 }

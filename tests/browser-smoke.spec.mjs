@@ -45,7 +45,7 @@ test('folder import and core views',async({page})=>{
   await expect(page.locator('[data-attachment-media]')).toContainText(/手动绑定|Manually attached/);
   expect(await page.evaluate(async()=>{const html=await preparePdfConversation(currentConv);return /attachment-preview[\s\S]*blob:/i.test(html);})).toBe(true);
   await page.locator('#tree-mode-btn').click();await expect(page.locator('#tree-mode-btn')).toContainText(/完整|Full/);
-  await page.locator('.tab-btn').nth(4).click();await page.waitForFunction(()=>document.querySelector('.word-cloud'));
+  await page.locator('.tab-btn').nth(4).click();await page.locator('[data-analytics-view="overview"]').click();await page.waitForFunction(()=>document.querySelector('.word-cloud'));
   await expect(page.locator('#messages')).toContainText(/你的 Claude 使用画像|Your Claude usage profile/);
   await expect(page.locator('#messages')).toContainText('project_knowledge_search');
   await expect(page.locator('#messages')).toContainText('Synthetic branching conversation');
@@ -132,7 +132,7 @@ test('persistent data worker accepts transferable chunks and returns metadata fi
     const full=await dataWorkerRequest('getConversation',{uuid:metadata.conversations[0].uuid},[],generation);
     const after=await dataWorkerRequest('debugState',null,[],generation);
     const search=await dataWorkerRequest('search',{query:'synthetic widget'},[],generation);
-    const analytics=await dataWorkerRequest('analytics',{customStopZh:[]},[],generation);
+    const analytics=await analyticsRequest('overview',{customStopZh:[]});
     const projectIndex=await dataWorkerRequest('projectIndex',{projects:projectData,memoryData},[],generation);
     return{metadata:metadata.conversations[0],fullMessages:full.chat_messages.length,search,before,after,analytics,projectIndex};
   },{text:payload,projectData:projects,memoryData:memories});

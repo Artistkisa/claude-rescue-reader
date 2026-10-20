@@ -231,13 +231,18 @@ claude-export/
 - 各项目记忆按 6 个标准分区展示，可折叠
 
 ### 统计
-- 打开「统计」Tab 后才在持久 Data Worker 中计算，普通阅读不会预先扫描统计数据
+- 默认进入「探索分析」，支持日期、项目、模型、角色组合筛选，以及消息、活跃对话、字符趋势、7/30 日移动平均和上一等长周期对比
+- 支持全历史、最近 7/30/90 天、自定义日期；快捷范围以档案最新有效消息为终点，按本地时区统计，周一为周起点
+- 点击趋势桶查看每页 50 条的匹配对话摘要，也可带筛选进入对话列表；返回统计页保留筛选、选中区间和页码
+- 首次打开「统计」才创建独立 Analytics Worker；普通导入、阅读、搜索不建立统计索引，离开统计页取消未完成计算
+- 「全档案总览」保留以下原有统计与词频功能，始终统计整份档案，不受探索筛选影响：
 - 展示对话、消息、角色、字符、Thinking、工具、附件与网页搜索总量
 - 展示月度/星期/小时活跃度、对话深度、角色消息与字符分布、内容块构成、模型信息（导出包含时）与最长对话
 - 在 Worker 内生成中英文高频词云，并汇总搜索、文件、Artifact 与 Thinking 数量
 - 额外分析活跃天数/连续活跃、回复延迟、对话跨度、分支与替代消息、空消息等历史健康指标
 - 生成本地“使用画像”和极值洞察：最活跃时段、深夜消息、连续活跃区间、最常用工具、最长 Thinking 与工具失败最多的对话
-- 统计、词频、全文索引和项目匹配直接复用 Worker 内的原始记录，不再由主线程重复序列化全部消息；任何内容都不会上传
+- Data Worker 通过 MessageChannel 直接供数，消费确认后才发送下一批（最多 4 条、目标 512 KiB，超大单条独立发送）；主线程只接收控制信息和统计摘要
+- 统计 Worker 仅保留精简索引及最多 12 组聚合缓存，不保存第二份原始档案，不新增网络依赖；[统计口径与内部协议](docs/analytics.md)
 
 ### 大型导出性能
 - `conversations.json` 以 4 MiB 分块读取，并通过 Transferable `ArrayBuffer` 交给持久 Data Worker
@@ -329,7 +334,7 @@ github-dark.min.css    ← https://cdn.jsdelivr.net/npm/highlight.js@11.11.1/sty
 - [highlight.js](https://highlightjs.org/) — 代码语法高亮
 - [JSZip](https://stuk.github.io/jszip/) — ZIP 压缩包直读（免解压）
 
-持久数据管线与兼容性统计 Worker 的可维护源码分别位于 `src/data-worker.js` 和 `src/analytics-worker.js`。修改后运行 `scripts/build-single-file.ps1`，即可重新内联到 `viewer.html`；普通用户不需要运行构建脚本。
+数据与统计 Worker 的源码分别位于 `src/data-worker.js` 和 `src/analytics-worker.js`，共用总览与项目匹配算法位于 `src/analysis-core.js`。修改后运行 `scripts/build-single-file.ps1`，即可重新内联到 `viewer.html`；普通用户不需要运行构建脚本。
 
 ## 参与社区
 
