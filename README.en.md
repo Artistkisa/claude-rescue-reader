@@ -285,10 +285,19 @@ Download `claude-rescue-reader-offline.zip` from GitHub Releases, extract it, an
 
 The regular `viewer.html` remains a convenient single-file build for connected environments or basic viewing. External resources hard-coded by historical Artifacts are not viewer dependencies and may still be unavailable offline.
 
-To build an offline copy manually, place these files beside `viewer.html` and update the import paths:
+To build an offline copy from source, run these commands in the repository directory (requires Node.js 22.12.0 or later):
+
+```bash
+npm ci
+npm run build:offline
+```
+
+The build script rewrites dependency paths and regenerates the Content Security Policy (CSP) script hashes. Open `dist/offline/viewer.html` and keep its `vendor/` folder beside it. Use the build script to update paths and policy; editing scripts by hand invalidates the existing hashes.
+
+These are the dependency files in the offline bundle's `vendor/` folder and their pinned source URLs:
 
 ```
-marked.umd.js         ← https://cdn.jsdelivr.net/npm/marked@18.0.11/lib/marked.umd.js
+marked.umd.js          ← https://cdn.jsdelivr.net/npm/marked@18.0.11/lib/marked.umd.js
 highlight.min.js       ← https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.11.1/build/highlight.min.js
 jszip.min.js           ← https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js
 mermaid.min.js         ← https://cdn.jsdelivr.net/npm/mermaid@12.2.0/dist/mermaid.min.js
