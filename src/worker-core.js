@@ -237,7 +237,7 @@ function markdownPlain(text){
   const plain=tokens=>tokens.map(token=>token.type==='code'?token.text:token.tokens?plain(token.tokens):token.items?token.items.map(item=>plain(item.tokens||[])).join('\n'):token.type==='table'?[...token.header,...token.rows.flat()].map(cell=>plain(cell.tokens||[])).join(' '):token.text||'').join('');
   return plain(tokens);
 }
-function searchFields(message){const fields=[];if(message.text)fields.push({key:'text',text:markdownPlain(message.text)});for(let i=0;i<(message.content||[]).length;i++){const b=message.content[i];if(b?.type==='text')fields.push({key:'content.'+i+'.text',text:markdownPlain(b.text||'')});else if(b?.type==='thinking')fields.push({key:'content.'+i+'.thinking',text:String(b.thinking||'')});else if(typeof b?.content==='string')fields.push({key:'content.'+i+'.content',text:b.content});}return fields;}
+function searchFields(message){const fields=[];if(!message.content?.length&&message.text)fields.push({key:'text',text:markdownPlain(message.text)});for(let i=0;i<(message.content||[]).length;i++){const b=message.content[i];if(b?.type==='text')fields.push({key:'content.'+i+'.text',text:markdownPlain(b.text||'')});else if(b?.type==='thinking')fields.push({key:'content.'+i+'.thinking',text:String(b.thinking||'')});}return fields;}
 function readArtifact(b){
   if(!b||typeof b!=='object')return null;
   const inp=(b.type==='tool_use'||b.type==='server_tool_use')?(b.input||{}):b;
@@ -279,6 +279,8 @@ const FILESTORE={};let _fid=0;
 
 function prepare(message,offsets={},full=false){
   const copy=structuredClone(message),msg=copy,content=copy.content||[];
+  // Modern exports duplicate body text at the top level; only content blocks are rendered.
+  if(content.length)delete copy.text;
   const visuals=[],files=[],searchQueries=[],searchResults=[];
   for(const b of content){
     if(!b||typeof b!=='object')continue;
