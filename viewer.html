@@ -2,7 +2,7 @@
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8">
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-2K7dn44Kfb3MI9i9ddF4RldJzqd8e9w/POwN9cjeAiM=' 'sha256-tMIvewdj4Er6it91vRKx68b9zhu5Sxm35MV7o9YOuqs=' https://cdn.jsdelivr.net https://unpkg.com https://cdnjs.cloudflare.com blob:; script-src-attr 'none'; style-src 'unsafe-inline' https://cdn.jsdelivr.net https://unpkg.com https://cdnjs.cloudflare.com; img-src blob: data:; font-src data:; connect-src blob:; worker-src blob:; frame-src blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-V1KSd1hnV1zCPdGtCNCEjrT0QmjEyPmjqE08UVvbZms=' 'sha256-tMIvewdj4Er6it91vRKx68b9zhu5Sxm35MV7o9YOuqs=' https://cdn.jsdelivr.net https://unpkg.com https://cdnjs.cloudflare.com blob:; script-src-attr 'none'; style-src 'unsafe-inline' https://cdn.jsdelivr.net https://unpkg.com https://cdnjs.cloudflare.com; img-src blob: data:; font-src data:; connect-src blob:; worker-src blob:; frame-src blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="referrer" content="no-referrer">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Claude Rescue Reader — Local Claude Export Viewer</title>
@@ -1061,6 +1061,95 @@ function exportFormatCore(){
   return{sha256,downloadUrl,manifest,logicalPath,frontmatter,memory,memoryFiles};
 }
 
+// Pure, local rules. Offsets always refer to original UTF-16 source text.
+function redactionRules(){
+  const WINDOW=32768,OVERLAP=512,LIMIT=4096;
+  const separators=/[\s\u200b-\u200d\u2060\ufeff._,，。:：;；'"“”‘’()（）\[\]{}<>《》/\\\-–—]/u;
+  function normalize(text){
+    const chars=[],starts=[],ends=[];let offset=0;
+    for(const character of text){const end=offset+character.length;for(let c of character.normalize('NFKC')){if(c>='A'&&c<='Z')c=c.toLowerCase();if(!separators.test(c)){chars.push(c);starts.push(offset);ends.push(end);}}offset=end;}
+    return{chars,starts,ends};
+  }
+  function grams(chars){const result=new Map();for(let i=1;i<chars.length;i++){const gram=chars[i-1]+chars[i];result.set(gram,(result.get(gram)||0)+1);}return result;}
+  function dice(a,b){const left=grams(a),right=grams(b);let common=0;for(const [gram,n]of left)common+=Math.min(n,right.get(gram)||0);return a.length+b.length>2?2*common/(a.length+b.length-2):0;}
+  function distance(a,b,limit){
+    if(Math.abs(a.length-b.length)>limit)return limit+1;
+    let previous=Array.from({length:b.length+1},(_,i)=>i);
+    for(let i=1;i<=a.length;i++){const next=new Array(b.length+1).fill(limit+1);next[0]=i;let minimum=limit+1;for(let j=Math.max(1,i-limit);j<=Math.min(b.length,i+limit);j++){next[j]=Math.min(previous[j]+1,next[j-1]+1,previous[j-1]+(a[i-1]===b[j-1]?0:1));minimum=Math.min(minimum,next[j]);}if(minimum>limit)return limit+1;previous=next;}
+    return previous[b.length];
+  }
+  function compile(terms){
+    const normalized=terms.map(term=>normalize(term).chars),index=new Map();
+    normalized.forEach((chars,id)=>{if(chars.length<4)return;for(let p=1;p<chars.length;p++){const gram=chars[p-1]+chars[p];if(!index.has(gram))index.set(gram,[]);index.get(gram).push({id,offset:p-1});}});
+    return{normalized,index};
+  }
+  const rules=[
+    {label:'个人姓名',trigger:/(?:我(?:名)?叫|我的名字是|你可以叫我|(?:姓名|名字|联系人(?:姓名)?)[ \t]*(?:是|为|[:：])|\bmy name is[ \t]+|\bcontact name[ \t]*[:=][ \t]*)/giu,kind:'name',owned:/我|my name/i},
+    {label:'个人姓名',trigger:/(?:(?:我的)?导师是|\bmy supervisor is[ \t]+)/giu,kind:'supervisor',owned:/我的|\bmy /i},
+    {label:'详细地址',trigger:/(?:我住在|我的住址(?:是|为)|收货地址[ \t]*(?:是|为|[:：])?[ \t]*|地址[ \t]*[:：]|寄到|\bmy address is[ \t]+|\bsend it to[ \t]+)/giu,kind:'address',owned:/我|my|收货|寄到|send/i},
+    {label:'学校或单位',trigger:/(?:我在|目前就读于|我就读于|我的(?:公司|学校)(?:是|为)|(?:公司|学校)[ \t]*[:：][ \t]*|\bI (?:work|study) at[ \t]+|\bmy (?:company|school) is[ \t]+)/giu,kind:'organization',owned:/我|目前就读于|\bI |\bmy /i},
+    {label:'社交账号',trigger:/(?:(?:我的[ \t]*)?(?:微信|QQ|Twitter|推特|社交账号)[ \t]*(?:号|账号)?[ \t]*(?:是|为|[:：])[ \t]*|\bmy (?:wechat|twitter|social handle) is[ \t]+)/giu,kind:'social',owned:/我的|\bmy /i},
+    {label:'凭据或令牌',trigger:/(?:登录(?:用的)?(?:密码|口令)(?:是|为|[:：])|临时口令(?:是|为|[:：])|\b(?:my )?(?:login password|temporary passphrase) is[ \t]+)/giu,kind:'secret',owned:/./},
+    {label:'联系方式',trigger:/(?:联系我[ \t]*(?:用|请拨打|[:：])|\breach me at[ \t]+|\bcontact me at[ \t]+)/giu,kind:'contact',owned:/./}
+  ];
+  const excluded=/(?:叫什么|怎么|如何|哪里|什么|是否|例如|示例|假设|教学|变量|函数|研究|学习|\b(?:what|where|how|example|suppose|variable|function|tutorial)\b)/i;
+  function contextSpans(text,emit){
+    for(const rule of rules){rule.trigger.lastIndex=0;for(const match of text.matchAll(rule.trigger)){
+      const from=match.index+match[0].length+(text.slice(match.index+match[0].length).match(/^[ \t]*/)?.[0].length||0),tail=text.slice(from,from+160),prefix=text.slice(Math.max(0,match.index-160),match.index).split(/[\n。！？!?]/).pop();
+      if(/^[^\n。！？!?]{0,160}[？?]/.test(tail)||excluded.test(prefix)||excluded.test(tail.split(/[\n。！？!?,，;；]/)[0]||''))continue;
+      let value=null;
+      if(rule.kind==='name')value=tail.match(/^(?:[\p{Script=Han}]{2,4}(?=$|[\s，。！？,.;!?])|[A-Z][a-z]{1,29}(?: [A-Z][a-z]{1,29}){0,2}(?=$|[\s,.;!?]))/u)?.[0];
+      if(rule.kind==='supervisor')value=tail.match(/^(?:[\p{Script=Han}]{2,4}?(?=教授|老师|[\s，。！？,.;!?]|$)|[A-Z][a-z]{1,29}(?: [A-Z][a-z]{1,29}){0,2}(?=$|[\s,.;!?]))/u)?.[0];
+      if(rule.kind==='address'){value=tail.match(/^[^\n。！？!?,，;；]{3,120}/u)?.[0];if(value&&!/(?:[路街巷号楼室]|\b\d+\s+[\w .-]+\b(?:street|road|avenue|lane|st|rd)\b)/i.test(value))value=null;}
+      if(rule.kind==='organization')value=tail.match(/^(?:[\p{Script=Han}\w·（）() -]{2,60}?(?:公司|集团|实验室|大学|学院|中学|小学)|[A-Z][\w &.-]{1,70}?\b(?:University|College|School|Labs|Inc|Ltd|Company)\b)/u)?.[0];
+      if(rule.kind==='social'){value=tail.match(/^@?[A-Za-z0-9_][A-Za-z0-9_.-]{4,31}(?![A-Za-z0-9_.-])/)?.[0]?.replace(/[.-]+$/,'');if(value&&/^(?:short|private|unknown|hidden|none|微信|账号)$/i.test(value))value=null;}
+      if(rule.kind==='contact')value=tail.match(/^(?:\+\d{1,3}[ .-])?\d(?:[ .-]?\d){7,13}(?!\d)/)?.[0];
+      if(rule.kind==='secret')value=tail.match(/^(?:"([^"\r\n]{1,128})"|'([^'\r\n]{1,128})'|([^\s，。！？,;!?]{1,128}))/)?.[0];
+      if(value&&/^(?:外卖|出租车|网约车|救护车|大家|朋友|同事|助手|机器人|anonymous|unknown|someone|somebody)$/i.test(value))value=null;
+      if(value&&rule.kind==='organization'&&/^(?:某某|一家|一所|某个|这家|这所|那家|那所|some |a |the )/i.test(value))value=null;
+      if(value){const trimmed=value.trimEnd();emit({anchor:match.index,start:from,end:from+trimmed.length,label:rule.label,evidence:rule.owned.test(match[0])?'definite':'candidate',method:'context',reason:'语境句式与类别结构匹配'});}
+    }}
+    // Explicitly obfuscated email syntax, not arbitrary substitutions in prose.
+    for(const match of text.matchAll(/[A-Z0-9._%+-]{1,64}[ \t]*(?:\[at\]|\(at\)|＠)[ \t]*[A-Z0-9](?:[A-Z0-9-]*[A-Z0-9])?(?:[ \t]*(?:\[dot\]|\(dot\)|[.．])[ \t]*[A-Z0-9](?:[A-Z0-9-]*[A-Z0-9])?)+/gi))emit({start:match.index,end:match.index+match[0].length,label:'邮箱',evidence:'definite',method:'format',reason:'邮箱混淆写法'});
+    for(const match of text.matchAll(/(?<![\d０-９])(?:[+＋]?[８8][６6][ .-]?)?[１1][ \t.\-\u200b-\u200d]?[３-９3-9](?:[ \t.\-\u200b-\u200d]?[０-９0-9]){9}(?![\d０-９])/gu)){const normalized=match[0].normalize('NFKC');if(/[０-９\s.\-\u200b-\u200d]/u.test(match[0])&&/^(?:\+?86[ .-]?)?1[ \t.\-\u200b-\u200d]?[3-9](?:[ \t.\-\u200b-\u200d]?\d){9}$/.test(normalized))emit({start:match.index,end:match.index+match[0].length,label:'手机号',evidence:'definite',method:'format',reason:'号码结构与变体匹配'});}
+  }
+  function* scan(text,compiled,emit,incomplete){
+    const stride=WINDOW-2*OVERLAP;
+    for(let base=0;base<text.length;base+=stride){
+      const offset=Math.max(0,base-OVERLAP),chunk=text.slice(offset,base+stride+OVERLAP),ownedEnd=base+stride;
+      const output=span=>{const anchor=(span.anchor??span.start)+offset;if(anchor>=base&&anchor<ownedEnd)emit({...span,start:span.start+offset,end:span.end+offset});};
+      contextSpans(chunk,output);yield;
+      if(compiled){let consumed=0;const seen=new Set();
+        for(const lineMatch of chunk.matchAll(/[^\r\n]+/g)){
+          const line=lineMatch[0],map=normalize(line),chars=map.chars;
+          for(let position=0;position+1<chars.length;position++){
+            for(const ref of compiled.index.get(chars[position]+chars[position+1])||[]){
+              const term=compiled.normalized[ref.id],limit=term.length>=8&&term.length<=128?(term.length>=16?2:1):0;
+              for(let delta=-limit;delta<=limit;delta++){
+                const start=position-ref.offset+delta;if(start<0)continue;
+                for(let size=term.length-limit;size<=term.length+limit;size++){
+                  const end=start+size;if(end>chars.length)continue;
+                  const key=ref.id+':'+lineMatch.index+':'+start+':'+end;if(seen.has(key))continue;seen.add(key);
+                  if(++consumed>LIMIT){incomplete();return;}if(consumed%64===0)yield;
+                  const a=map.starts[start],b=map.ends[end-1];if(b-a>512||start>0&&map.starts[start-1]===a||end<chars.length&&map.ends[end]===b)continue;
+                  const candidate=chars.slice(start,end),equal=candidate.join('')===term.join('');
+                  const boundary=(!/[a-z0-9]/.test(term[0])||!/[a-z0-9]/i.test(line[a-1]||''))&&(!/[a-z0-9]/.test(term[term.length-1])||!/[a-z0-9]/i.test(line[b]||''));
+                  const similarity=equal?1:limit&&boundary?dice(term,candidate):0,edits=equal?0:similarity>=0.85?distance(term,candidate,limit):limit+1;
+                  if(equal||limit&&similarity>=0.85&&edits<=limit)output({start:lineMatch.index+a,end:lineMatch.index+b,label:'自定义敏感词',evidence:'definite',method:equal?'normalized':'similar',edits,similarity,reason:equal?'自定义词归一化等值匹配':'自定义词二元组与编辑距离匹配'});
+                }
+              }
+            }
+            if(position%128===0)yield;
+          }
+        }
+      }
+      yield;
+      if(ownedEnd>=text.length)break;
+    }
+  }
+  return{scan,compile,normalize,dice,distance};
+}
+
 function workerDomainCore(){
 let currentLang='zh',labels={},markedConfigured=false;const codes=new Map();
 const ROOT_ID='00000000-0000-4000-8000-000000000000';
@@ -1094,7 +1183,8 @@ const escAttr=s=>esc(s).replace(/"/g,'&quot;').replace(/'/g,'&#39;');
 const fmtDate=iso=>iso?new Date(iso).toLocaleDateString(currentLang==='en'?'en-US':'zh-CN',{year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'}):'';
 const fmtTime=iso=>iso?new Date(iso).toLocaleTimeString(currentLang==='en'?'en-US':'zh-CN',{hour:'2-digit',minute:'2-digit'}):'';
 // Match the original text once; replacements are never scanned as new secrets.
-const REDACTION_RULE_VERSION=2;
+const REDACTION_RULE_VERSION=3;
+const contextRules=redactionRules();
 const SENSITIVE_PATTERNS=[
   ['内嵌二进制',/data:(?:image|audio|video|application)\/[\w.+-]+;base64,[A-Za-z0-9+/]+={0,2}/gi],
   ['私钥',/-----BEGIN (?:RSA |EC |DSA |OPENSSH |ENCRYPTED |PGP )?PRIVATE KEY(?: BLOCK)?-----[\s\S]*?(?:-----END (?:RSA |EC |DSA |OPENSSH |ENCRYPTED |PGP )?PRIVATE KEY(?: BLOCK)?-----|$)/g],
@@ -1122,27 +1212,27 @@ const STRICT_SENSITIVE_PATTERNS=[
 ];
 const SECRET_KEY=/^(?:password|passwd|pwd|passphrase|secret|client[_ -]?secret|api[_ -]?key|access[_ -]?key|private[_ -]?key|access[_ -]?token|refresh[_ -]?token|auth[_ -]?token|id[_ -]?token|token|authorization|proxy[_ -]?authorization|cookie|set[_ -]?cookie|x[_ -]?api[_ -]?key|aws[_ -]?secret[_ -]?access[_ -]?key|db[_ -]?password|密码|口令|密钥)$/i;
 const IDENTIFIER_KEY=/^(?:device[_ -]?id|user[_ -]?id|visitor[_ -]?id|session[_ -]?id|storage[_ -]?key|fingerprint|did)$/i;
-const CONTEXT_SECRET_RE=/((?:device[_ -]?id|user[_ -]?id|visitor[_ -]?id|fingerprint|session[_ -]?id|storage[_ -]?key|access[_ -]?token|refresh[_ -]?token|auth[_ -]?token|id[_ -]?token|client[_ -]?secret|api[_ -]?key|access[_ -]?key|private[_ -]?key|aws[_ -]?secret[_ -]?access[_ -]?key|db[_ -]?password|password|passwd|pwd|passphrase|token|secret|did|密码|口令|密钥)\s*["']?\s*[:=：]\s*)(?:"([^"\r\n]+)"|'([^'\r\n]+)'|([^\s,"'，。；;<>\]}]+))/gi;
+const CONTEXT_SECRET_RE=/((?:(?:cohere)[ \t]+(?:api[ \t]+)?key|device[_ -]?id|user[_ -]?id|visitor[_ -]?id|fingerprint|session[_ -]?id|storage[_ -]?key|access[_ -]?token|refresh[_ -]?token|auth[_ -]?token|id[_ -]?token|client[_ -]?secret|api[_ -]?key|access[_ -]?key|private[_ -]?key|aws[_ -]?secret[_ -]?access[_ -]?key|db[_ -]?password|password|passwd|pwd|passphrase|token|secret|did|密码|口令|密钥)\s*["']?\s*[:=：]\s*)(?:"([^"\r\n]+)"|'([^'\r\n]+)'|([^\s,"'，。；;<>\]}]+))/gi;
 const QUERY_SECRET_RE=/([?&#](?:token|access_token|refresh_token|id_token|auth|authorization|api[_-]?key|key|sid|session|device_id|did|t|sig|signature|x-amz-signature|x-amz-credential|x-amz-security-token|x-goog-signature|x-goog-credential)=)([^\s&#"'<>）)\]}]+)/gi;
-const STRICT_CONTEXT_RE=/((?:姓名|名字|联系人|老师|教师|教授|班主任|校长|学校|学院|大学|中学|小学|幼儿园|公司|单位|部门|微信|wechat|qq|微博|抖音|uid|用户[_ -]?id|account[_ -]?id|open[_ -]?id|social[_ -]?id|身份证|护照|passport|ssn|住址|地址|家庭住址|工作地址|full[_ -]?name|phone|telephone|mobile|address)\s*[：:=]\s*["']?)([^\s,"'，。；;]{2,80})/gi;
+const STRICT_CONTEXT_RE=/((?:姓名|名字|联系人|老师|教师|教授|班主任|校长|学校|学院|大学|中学|小学|幼儿园|公司|单位|部门|微信|wechat|qq|微博|抖音|uid|用户[_ -]?id|account[_ -]?id|open[_ -]?id|social[_ -]?id|身份证(?:号)?|护照(?:号)?|passport(?:[ \t]+(?:no|number))?|ssn|住址|地址|家庭住址|工作地址|full[_ -]?name|phone|telephone|mobile|address)\s*[：:=]\s*["']?)([^\s,"'，。；;]{2,80})/gi;
 const REDACTION_METADATA=new Set(['tool_input','input','metadata','file_path','path']);
 const REDACTION_PATH_KEYS=new Set('conversation name title summary chat_messages content text thinking prompt injection_source summaries attachments files file_name filename file_type file_size media_type url uri data value metadata tool_input input path file_path account uuid parent_message_uuid sender type structured_content display_content output created_at updated_at start_timestamp stop_timestamp tool_use_id id model thinking_hidden truncated signature _design _sourcePackage'.split(' '));
 function redactionOptions(options={}){
   const terms=Array.isArray(options.customTerms)?options.customTerms:String(options.customTerms||'').split(/\r?\n/);
   const customTerms=[...new Set(terms.filter(s=>typeof s==='string').map(s=>s.trim()).filter(Boolean))];
   if(customTerms.length>100||customTerms.some(s=>s.length>256)||customTerms.join('\n').length>8192)throw new Error('Custom redaction terms exceed the limit (100 terms, 256 characters each, 8192 total).');
-  return{customTerms};
+  return{customTerms,includeContextCandidates:options.includeContextCandidates===true,customSimilarity:options.customSimilarity===true};
 }
-function redactionState(options){const normalized=redactionOptions(options);return{stats:{},matches:[],total:0,pseudonyms:new Map(),...normalized};}
+function redactionState(options){const normalized=redactionOptions(options);return{stats:{},matches:[],total:0,pseudonyms:new Map(),candidateTotal:0,candidateStats:{},complete:true,compiled:normalized.customSimilarity?contextRules.compile(normalized.customTerms):null,...normalized};}
 function redactionToken(label,value,style,state){
   if(style==='scp')return label==='metadata'?(currentLang==='en'?'[DATA EXPUNGED]':'[数据删除]'):'█'.repeat(Math.max(6,Math.min(24,String(value||'').length)));
   if(style==='pseudonym'&&label!=='metadata'){if(!state.pseudonyms.has(value))state.pseudonyms.set(value,'[ID_'+(state.pseudonyms.size+1)+']');return state.pseudonyms.get(value);}
   return '[REDACTED:'+label+']';
 }
-function addRedactionFinding(state,label,value,path,reason){state.stats[label]=(state.stats[label]||0)+1;state.total++;if(state.matches.length<100)state.matches.push({label,path:path||'conversation',preview:'█'.repeat(Math.max(4,Math.min(12,String(value).length)))+' ('+String(value).length+')',reason});}
-function redactText(text,state,path,style,strict=false){
+function addRedactionFinding(state,label,value,path,reason){state.stats[label]=(state.stats[label]||0)+1;state.total++;if(state.matches.length<100)state.matches.push({label,path:path||'conversation',preview:'█'.repeat(Math.max(4,Math.min(12,String(value).length)))+' ('+String(value).length+')',reason,evidence:'definite',method:'rule',applied:true});}
+function* redactText(text,state,path,style,strict=false){
   text=String(text??'');const spans=[];
-  const add=(start,end,label,reason)=>{if(end>start)spans.push({start,end,label,reason});};
+  const add=(start,end,label,reason)=>{if(end>start)spans.push({start,end,label,reason,evidence:'definite',method:'rule'});};
   const scan=(re,callback)=>{re.lastIndex=0;for(const match of text.matchAll(re))callback(match);};
   scan(CONTEXT_SECRET_RE,m=>{const value=m[2]??m[3]??m[4],start=m.index+m[1].length+(m[2]!==undefined||m[3]!==undefined?1:0),label=/device|fingerprint|\bdid\b/i.test(m[1])?'设备标识':/user|visitor/i.test(m[1])?'用户标识':/session|storage/i.test(m[1])?'会话标识':'凭据或令牌';add(start,start+value.length,label,'敏感字段名与值同时出现');});
   scan(QUERY_SECRET_RE,m=>add(m.index+m[1].length,m.index+m[0].length,'URL 查询令牌','敏感查询参数'));
@@ -1153,15 +1243,25 @@ function redactText(text,state,path,style,strict=false){
   for(const [label,re,validate]of [...SENSITIVE_PATTERNS,...(strict?STRICT_SENSITIVE_PATTERNS:[])])scan(re,m=>{if(label==='邮箱'){while(connections[connectionIndex]?.end<=m.index)connectionIndex++;const connection=connections[connectionIndex];if(connection&&connection.start<m.index+m[0].length)return;}if(!validate||validate(m[0]))add(m.index,m.index+m[0].length,label,strict?'格式匹配；强力规则可能误伤':'敏感格式匹配');});
   if(strict)scan(STRICT_CONTEXT_RE,m=>{const label=/老师|教师|教授|班主任|校长|姓名|名字|联系人|name/i.test(m[1])?'个人姓名':/学校|学院|大学|中学|小学|幼儿园|公司|单位|部门/i.test(m[1])?'学校或单位':/微信|wechat|qq|微博|抖音/i.test(m[1])?'社交账号':/phone|telephone|mobile/i.test(m[1])?'手机号':/uid|用户|account|open|social/i.test(m[1])?'用户标识':/地址|住址|address/i.test(m[1])?'详细地址':'身份证件';add(m.index+m[1].length,m.index+m[0].length,label,'宽泛隐私规则，可能误伤普通文本');});
   for(const term of state.customTerms){let from=0,index;while((index=text.indexOf(term,from))!==-1){add(index,index+term.length,'自定义敏感词','用户指定的精确文本');from=index+term.length;}}
-  spans.sort((a,b)=>a.start-b.start||b.end-a.end);const merged=[];
-  for(const span of spans){const last=merged[merged.length-1];if(last&&span.start<last.end){if(span.end-span.start>last.end-last.start){last.label=span.label;last.reason=span.reason;}last.end=Math.max(last.end,span.end);}else merged.push({...span});}
-  let out='',at=0;for(const span of merged){const value=text.slice(span.start,span.end);addRedactionFinding(state,span.label,value,path,span.reason);out+=text.slice(at,span.start)+redactionToken(span.label,value,style,state);at=span.end;}return out+text.slice(at);
+  yield* contextRules.scan(text,state.compiled,span=>spans.push(span),()=>{state.complete=false;});
+  const merge=items=>{items.sort((a,b)=>a.start-b.start||b.end-a.end);const result=[];for(const span of items){const last=result[result.length-1];if(last&&span.start<last.end){if(last.evidence!=='definite'&&span.evidence==='definite'){last.label=span.label;last.reason=span.reason;last.evidence=span.evidence;last.method=span.method;}last.end=Math.max(last.end,span.end);}else result.push({...span});}return result;};
+  // Formatting/exact rules win over fuzzy supersets (e.g. an adjacent emoji).
+  // Use a binary overlap lookup rather than comparing every fuzzy hit to every rule hit.
+  const fixed=merge(spans.filter(s=>s.evidence!=='candidate'&&s.method!=='similar'));
+  const overlaps=(items,span)=>{let low=0,high=items.length;while(low<high){const mid=(low+high)>>>1;if(items[mid].end<=span.start)low=mid+1;else high=mid;}return low<items.length&&items[low].start<span.end;};
+  const fuzzy=spans.filter(s=>s.method==='similar'&&!overlaps(fixed,s)).sort((a,b)=>a.start-b.start||a.edits-b.edits||b.similarity-a.similarity),selected=[];
+  for(const span of fuzzy){const last=selected[selected.length-1];if(last&&span.start<last.end){if(span.edits<last.edits||span.edits===last.edits&&span.similarity>last.similarity)selected[selected.length-1]=span;}else selected.push(span);}
+  const definite=merge([...fixed,...selected]),candidates=merge(spans.filter(s=>s.evidence==='candidate'));
+  let atDefinite=0;const weak=candidates.filter(span=>{while(definite[atDefinite]?.end<=span.start)atDefinite++;return !definite[atDefinite]||definite[atDefinite].start>=span.end;});
+  if(!state.includeContextCandidates)for(const span of weak){const value=text.slice(span.start,span.end);state.candidateTotal++;state.candidateStats[span.label]=(state.candidateStats[span.label]||0)+1;if(state.matches.length<100)state.matches.push({label:span.label,path,preview:'█'.repeat(Math.max(4,Math.min(12,value.length)))+' ('+value.length+')',reason:span.reason,evidence:'candidate',method:span.method,applied:false});}
+  const merged=state.includeContextCandidates?merge([...definite,...weak]):definite;
+  let out='',at=0;for(const span of merged){const value=text.slice(span.start,span.end),before=state.matches.length;addRedactionFinding(state,span.label,value,path,span.reason);if(state.matches.length>before)Object.assign(state.matches[state.matches.length-1],{evidence:span.evidence,method:span.method,applied:true});out+=text.slice(at,span.start)+redactionToken(span.label,value,style,state);at=span.end;}return out+text.slice(at);
 }
 function* redactionSteps(conv,state,style,strict){
   const stack=[{parent:{value:conv},key:'value',path:'conversation'}];
   while(stack.length){
     const {parent,key,path}=stack.pop(),value=parent[key];
-    if(typeof value==='string')parent[key]=redactText(value,state,path,style,strict);
+    if(typeof value==='string')parent[key]=yield* redactText(value,state,path,style,strict);
     else if(value&&typeof value==='object'){
       // Matches attachments/files arrays at any depth, including content blocks.
       // _redactedMedia is consumed by the PDF renderer to block cached original pixels.
@@ -1172,16 +1272,16 @@ function* redactionSteps(conv,state,style,strict){
       if(value.type==='image'&&value.source){addRedactionFinding(state,'内嵌二进制',JSON.stringify(value.source),path,'二进制内容不做 OCR，安全导出移除原始数据');value.source={type:'redacted'};}
       const entries=Object.keys(value);for(let i=entries.length-1;i>=0;i--){
         let k=entries[i];const safeKey=REDACTION_PATH_KEYS.has(k)?'.'+k:'[field]',p=Array.isArray(value)?path+'['+k+']':path+safeKey;
-        if(!Array.isArray(value)&&!REDACTION_PATH_KEYS.has(k)&&!SECRET_KEY.test(k)){const replacement=redactText(k,state,p,style,strict);if(replacement!==k){let renamed=replacement,n=1;while(Object.hasOwn(value,renamed))renamed=replacement+'_'+n++;Object.defineProperty(value,renamed,{value:value[k],writable:true,enumerable:true,configurable:true});delete value[k];k=renamed;}}
+        if(!Array.isArray(value)&&!REDACTION_PATH_KEYS.has(k)&&!SECRET_KEY.test(k)){const replacement=yield* redactText(k,state,p,style,strict);if(replacement!==k){let renamed=replacement,n=1;while(Object.hasOwn(value,renamed))renamed=replacement+'_'+n++;Object.defineProperty(value,renamed,{value:value[k],writable:true,enumerable:true,configurable:true});delete value[k];k=renamed;}}
         const originalKey=entries[i],label=SECRET_KEY.test(originalKey)?'凭据或令牌':IDENTIFIER_KEY.test(originalKey)?(/device|fingerprint|did/i.test(originalKey)?'设备标识':/session|storage/i.test(originalKey)?'会话标识':'用户标识'):strict&&/^(?:email|phone|telephone|mobile|full_name|address|passport|ssn|account_id)$/i.test(originalKey)?'个人信息字段':null;
-        if(REDACTION_METADATA.has(originalKey)||label){const raw=typeof value[k]==='string'?value[k]:JSON.stringify(value[k]??'');if(raw&&raw!=='null'){if(!label)redactText(raw,state,p,style,strict);addRedactionFinding(state,label||'metadata',raw,p,label?'敏感字段名与值同时出现':'安全导出会移除工具参数、路径或系统元数据');value[k]=redactionToken(label||'metadata',raw,style,state);}}
+        if(REDACTION_METADATA.has(originalKey)||label){const raw=typeof value[k]==='string'?value[k]:JSON.stringify(value[k]??'');if(raw&&raw!=='null'){if(!label)yield* redactText(raw,state,p,style,strict);addRedactionFinding(state,label||'metadata',raw,p,label?'敏感字段名与值同时出现':'安全导出会移除工具参数、路径或系统元数据');value[k]=redactionToken(label||'metadata',raw,style,state);}}
         else stack.push({parent:value,key:k,path:p});
       }
     }
     yield;
   }
 }
-function redactConversation(conv,style='standard',strict=false,options={}){const clone=structuredClone(conv),state=redactionState(options);for(const _ of redactionSteps(clone,state,style,strict)){}return{conv:clone,stats:state.stats,matches:state.matches,total:state.total,style,strict,ruleVersion:REDACTION_RULE_VERSION};}
+function redactConversation(conv,style='standard',strict=false,options={}){const clone=structuredClone(conv),state=redactionState(options);for(const _ of redactionSteps(clone,state,style,strict)){}return{conv:clone,stats:state.stats,matches:state.matches,total:state.total,style,strict,ruleVersion:REDACTION_RULE_VERSION,candidateTotal:state.candidateTotal,candidateStats:state.candidateStats,complete:state.complete};}
 
   const plain=m=>{let s=String(m?.text||'');for(const b of(m?.content||[]))if(b&&typeof b==='object')s+=' '+String(b.text||b.thinking||b.content||'');return s.replace(/\s+/g,' ').trim();};
   const hasType=(m,re)=>((m?.content||[]).some(b=>b&&re.test(String(b.type||'')+' '+String(b.name||''))));
@@ -1346,8 +1446,8 @@ function tree(conv,mode='longest',choices={}){
 }
 async function redactAsync(conv,style,strict,checkpoint,preview=false,options={}){
   const state=redactionState(options);let n=0;
-  for(const _ of redactionSteps(conv,state,style,strict)){if(n++%128===0)await checkpoint({processed:n});}
-  return {...(!preview?{conv}:{}),stats:state.stats,matches:state.matches,total:state.total,style,strict,ruleVersion:REDACTION_RULE_VERSION};
+  for(const _ of redactionSteps(conv,state,style,strict)){await checkpoint({processed:++n});}
+  return {...(!preview?{conv}:{}),stats:state.stats,matches:state.matches,total:state.total,style,strict,ruleVersion:REDACTION_RULE_VERSION,candidateTotal:state.candidateTotal,candidateStats:state.candidateStats,complete:state.complete};
 }
 function messageText(message){const parts=[message?.text||''];for(const b of list(message?.content)){if(typeof b?.text==='string')parts.push(b.text);if(typeof b?.thinking==='string')parts.push(b.thinking);if(typeof b?.content==='string')parts.push(b.content);if(b?.input?.query)parts.push(b.input.query);}return parts.join('\n');}
 function* matches(text,needle){
@@ -1526,7 +1626,7 @@ function taskWorkerMain(){
     if(type==='highlight'){await token.checkpoint();return{html:hljs.getLanguage(payload.language)?hljs.highlight(payload.code,{language:payload.language}).value:core.esc(payload.code)};}
     if(type==='behavior')return core.behavior(token.records(),()=>token.checkpoint({loaded:token.loadedRecords||0,total:token.totalRecords||0}));
     if(type==='preview'){
-      const options=core.redactionOptions(payload),key=JSON.stringify([token.generation,payload.uuid,core.language,payload.style,payload.strict,core.redactionRuleVersion,options.customTerms]);
+      const options=core.redactionOptions(payload),key=JSON.stringify([token.generation,payload.uuid,core.language,payload.style,payload.strict,core.redactionRuleVersion,options.customTerms,options.includeContextCandidates,options.customSimilarity]);
       if(!payload.conversation&&cache.has(key)){const hit=cache.get(key);cache.delete(key);cache.set(key,hit);return hit;}
       const result=await core.redactAsync(await materialize(payload,token),payload.style||'standard',!!payload.strict,token.checkpoint,true,options);
       if(!payload.conversation){cache.set(key,result);while(cache.size>4)cache.delete(cache.keys().next().value);}
@@ -1551,7 +1651,7 @@ function taskWorkerMain(){
     }
     if(type==='pdfPage'&&pdf?.id===payload.pdfId){const start=payload.start||0,messages=pdf.messages.slice(start,start+50).map(message=>core.prepare(message,{},true)),total=pdf.messages.length;if(start+messages.length>=total)pdf=null;return {messages,total};}
     let conversation=await materialize(payload,token);
-    if(payload.safe)conversation=(await core.redactAsync(conversation,payload.style||'standard',!!payload.strict,token.checkpoint,false,payload)).conv;
+    if(payload.safe){const redacted=await core.redactAsync(conversation,payload.style||'standard',!!payload.strict,token.checkpoint,false,payload);if(!redacted.complete)throw new Error(core.t('近似扫描未完成，请关闭近似匹配后重新扫描。'));conversation=redacted.conv;}
     if(type==='export')return{filename:((conversation.name||'conversation').replace(/[\\/:*?"<>|\u0000-\u001f]/g,'_').slice(0,80)||'conversation')+(payload.safe?'_safe':'')+'.md',blob:new Blob([await core.markdown(conversation,payload.mode,payload.choices,token.checkpoint)],{type:'text/markdown;charset=utf-8'})};
     if(type==='pdfPage'){
       const selected=core.tree(conversation,payload.mode,payload.choices),start=payload.start||0;
@@ -1769,7 +1869,7 @@ async function ensureFeature(kind){
   const libraries=kind==='import'?['zip']:kind==='reader'?['markdown','highlight']:['markdown','highlight'];
   const sources=libraries.map(name=>Uint8Array.from(atob(WORKER_LIBRARIES[name].base64),char=>char.charCodeAt(0)));
   const main=kind==='import'?importWorkerMain:kind==='reader'?readerWorkerMain:taskWorkerMain;
-  const url=URL.createObjectURL(new Blob([...sources,'\n',exportFormatCore.toString(),'\n',workerDomainCore.toString(),'\n',featureWorkerRuntime.toString(),'\n('+main.toString()+')()'],{type:'text/javascript'}));
+  const url=URL.createObjectURL(new Blob([...sources,'\n',exportFormatCore.toString(),'\n',redactionRules.toString(),'\n',workerDomainCore.toString(),'\n',featureWorkerRuntime.toString(),'\n('+main.toString()+')()'],{type:'text/javascript'}));
   let worker;try{worker=new Worker(url);}catch(error){URL.revokeObjectURL(url);throw error;}
   state={worker,url,id:kind+':'+(++featureSequence),generation:dataWorkerGeneration,pending:new Map(),port:null};
   state.ready=new Promise((resolve,reject)=>{state.resolveReady=resolve;state.rejectReady=reject;});state.ready.catch(()=>{});featureWorkers.set(kind,state);
@@ -2015,6 +2115,14 @@ function renderExportAccount(){
 document.getElementById('manifest-input').addEventListener('change',async event=>{const file=event.target.files[0];event.target.value='';if(!file)return;try{await openExportManifest(file);}catch(error){exportSession.errors.push(errorMessage(error));renderExportManifest();}});
 
 Object.assign(EN,{
+  '同时遮罩语境候选':'Also redact context candidates','较弱语境默认保留；开启后一起替换，可能误伤。':'Weak context candidates are preserved by default; enabling this may over-redact.',
+  '查找近似写法':'Find similar spellings','仅用于自定义词；包括格式变体与受限的错字匹配。短词只做精确匹配。':'For custom terms only: formatting variants and bounded typo matching. Short terms stay exact.',
+  '精确规则':'Exact rule','归一化匹配':'Normalized match','近似匹配':'Similar spelling','语境匹配':'Context match','格式变体':'Formatting variant','将替换数量':'Replacements','未纳入的语境候选数量':'Excluded context candidates','明确命中':'Definite match','语境候选':'Context candidate','未纳入替换':'Preserved',
+  '近似扫描未完成，请关闭近似匹配后重新扫描。':'Similarity scan incomplete. Disable similar spellings and scan again.',
+  '语境句式与类别结构匹配':'Context phrase and category structure','邮箱混淆写法':'Obfuscated email syntax','号码结构与变体匹配':'Phone structure and formatting variant',
+  '自定义词归一化等值匹配':'Normalized custom-term match','自定义词二元组与编辑距离匹配':'Custom-term bigram and edit-distance match'
+});
+Object.assign(EN,{
   'Webhook 令牌':'Webhook tokens',
   '内嵌二进制':'Embedded binary data','二进制内容不做 OCR，安全导出移除原始数据':'Binary data is not OCR-scanned; original data is omitted from safe exports',
   '一致化名':'Consistent aliases','相同内容使用相同代号，仅在本次导出内有效。':'The same value uses the same alias within this export only.',
@@ -2027,7 +2135,7 @@ Object.assign(EN,{
 function redactConversation(conv,style='standard',strict=false,options={}){const core=workerDomainCore();core.configure({lang:currentLang,labels:EN});return core.redactConversation(conv,style,strict,options);}
 function redactionDialog(conv){
   const host=document.getElementById('redaction-modal'),generation=dataWorkerGeneration,previousFocus=document.activeElement;
-  let style='standard',strict=false,version=0,closed=false,lastScan=null,timer,resolveDialog;
+  let style='standard',strict=false,includeContextCandidates=false,customSimilarity=false,version=0,closed=false,lastScan=null,timer,resolveDialog;
   const promise=new Promise(resolve=>{resolveDialog=resolve;});
   const el=(tag,className,text)=>{const node=document.createElement(tag);if(className)node.className=className;if(text!==undefined)node.textContent=text;return node;};
   const button=(text,action,className)=>{const node=el('button',className,text);node.type='button';if(action)node.dataset.action=action;return node;};
@@ -2036,6 +2144,7 @@ function redactionDialog(conv){
   const styles=el('div','redaction-styles');for(const [value,label,example]of [['standard','标准脱敏','[REDACTED:类型]'],['scp','SCP 档案模式','████ / '+t('数据删除')],['pseudonym','一致化名','[ID_1] / [ID_2]']]){const node=button(undefined,null,'redaction-style');node.dataset.style=value;node.append(el('b',null,t(label)),el('span',null,example));styles.append(node);}
   dialog.append(styles,el('p',null,t('相同内容使用相同代号，仅在本次导出内有效。')));
   const strengthButton=button(undefined,'strength','redaction-strength');strengthButton.append(el('b',null,'⚠️ '+t('强力隐私过滤（可能误伤）')),el('span',null,t('额外匹配姓名、学校、单位、地址、证件、账号等宽泛个人信息。')));dialog.append(strengthButton);
+  for(const [action,label,help]of [['context','同时遮罩语境候选','较弱语境默认保留；开启后一起替换，可能误伤。'],['similarity','查找近似写法','仅用于自定义词；包括格式变体与受限的错字匹配。短词只做精确匹配。']]){const toggle=button(undefined,action,'redaction-strength');toggle.append(el('b',null,t(label)),el('span',null,t(help)));dialog.append(toggle);}
   const custom=el('label','redaction-custom'),input=el('textarea');input.id='redaction-custom';input.rows=3;input.maxLength=8192;input.autocomplete='off';input.spellcheck=false;custom.append(el('b',null,t('自定义敏感词')),input,el('span',null,t('每行一项，区分大小写，按原文精确替换。最多 100 项；仅保留在当前弹窗，不保存。')));
   const statusNode=el('div','redaction-status');statusNode.setAttribute('role','status');const actions=el('div','redaction-actions'),exportButton=button(t('确认安全导出'),'export','primary');exportButton.disabled=true;actions.append(button(t('取消'),'cancel'),exportButton);
   dialog.append(custom,statusNode,el('div','redaction-results'),el('p','redaction-note',t('规则扫描不等于匿名化；图片内容不做 OCR。安全 PDF 不嵌入原始附件图片。')),actions);backdrop.append(dialog);host.replaceChildren(backdrop);host.style.display='';
@@ -2043,15 +2152,16 @@ function redactionDialog(conv){
   const close=value=>{if(closed)return;closed=true;version++;clearTimeout(timer);cancelFeature('task','preview');host.style.display='none';host.replaceChildren();host.removeEventListener('click',click);host.removeEventListener('keydown',key);previousFocus?.focus();resolveDialog(value);};
   const scan=async request=>{
     try{
-      const result=await featureRequest('task','preview',{...conversationTaskPayload(conv),style,strict,customTerms:terms.value});
+      const result=await featureRequest('task','preview',{...conversationTaskPayload(conv),style,strict,includeContextCandidates,customSimilarity,customTerms:terms.value});
       if(closed||request!==version)return;if(generation!==dataWorkerGeneration){close(null);return;}
-      lastScan=result;status.textContent=t('共检测到')+' '+result.total+' '+t('项；导出时将全部替换。');
+      lastScan=result;status.textContent=t('将替换数量')+': '+result.total+' · '+t('未纳入的语境候选数量')+': '+result.candidateTotal+(result.complete?'':' · '+t('近似扫描未完成，请关闭近似匹配后重新扫描。'));
       const summary=el('div','redaction-summary');for(const [label,count]of Object.entries(result.stats))summary.append(el('span','redaction-chip',t(label)+': '+count));
-      const findings=el('div','redaction-findings');for(const m of result.matches){const finding=el('div','redaction-finding'),head=el('div','redaction-finding-head');head.append(el('b',null,t(m.label)),el('span',null,m.path));finding.append(head,el('div','redaction-preview',m.preview),el('div','redaction-reason',t(m.reason)));findings.append(finding);}if(!result.matches.length)findings.append(el('div','redaction-finding',t('未发现异常')));results.replaceChildren(summary,findings);confirm.disabled=false;
+      for(const [label,count]of Object.entries(result.candidateStats))summary.append(el('span','redaction-chip',t('未纳入替换')+' · '+t(label)+': '+count));
+      const findings=el('div','redaction-findings');for(const m of result.matches){const finding=el('div','redaction-finding'),head=el('div','redaction-finding-head');head.append(el('b',null,t(m.label)),el('span',null,m.path+' · '+t(({rule:'精确规则',normalized:'归一化匹配',similar:'近似匹配',context:'语境匹配',format:'格式变体'})[m.method]||'精确规则')+' · '+t(m.evidence==='candidate'?'语境候选':'明确命中')+(m.applied===false?' · '+t('未纳入替换'):'')));finding.append(head,el('div','redaction-preview',m.preview),el('div','redaction-reason',t(m.reason)));findings.append(finding);}if(!result.matches.length)findings.append(el('div','redaction-finding',t('未发现异常')));results.replaceChildren(summary,findings);confirm.disabled=!result.complete;
     }catch(error){if(closed||request!==version)return;if(generation!==dataWorkerGeneration){close(null);return;}status.textContent=error.name==='AbortError'?t('已取消：已选择更新的数据'):error.message;const retry=document.createElement('button');retry.className='export-button';retry.dataset.action='retry';retry.textContent=t('重新扫描');results.replaceChildren(retry);}
   };
-  const queue=(delay=0)=>{const request=++version;clearTimeout(timer);lastScan=null;confirm.disabled=true;cancelFeature('task','preview');status.textContent=t('扫描中…');results.replaceChildren();host.querySelectorAll('[data-style]').forEach(b=>{const active=b.dataset.style===style;b.classList.toggle('active',active);b.setAttribute('aria-pressed',String(active));});const strength=host.querySelector('[data-action="strength"]');strength.classList.toggle('active',strict);strength.setAttribute('aria-pressed',String(strict));timer=setTimeout(()=>void scan(request),delay);};
-  const click=event=>{const button=event.target.closest('button');if(!button)return;if(generation!==dataWorkerGeneration){close(null);return;}if(button.dataset.style){style=button.dataset.style;queue();return;}switch(button.dataset.action){case 'strength':strict=!strict;queue();break;case 'retry':queue();break;case 'cancel':close(null);break;case 'export':if(lastScan&&!confirm.disabled)close({...lastScan,safe:true,style,strict,customTerms:terms.value});break;}};
+  const queue=(delay=0)=>{const request=++version;clearTimeout(timer);lastScan=null;confirm.disabled=true;cancelFeature('task','preview');status.textContent=t('扫描中…');results.replaceChildren();host.querySelectorAll('[data-style]').forEach(b=>{const active=b.dataset.style===style;b.classList.toggle('active',active);b.setAttribute('aria-pressed',String(active));});const strength=host.querySelector('[data-action="strength"]');strength.classList.toggle('active',strict);strength.setAttribute('aria-pressed',String(strict));for(const [action,active]of [['context',includeContextCandidates],['similarity',customSimilarity]]){const node=host.querySelector('[data-action="'+action+'"]');node.classList.toggle('active',active);node.setAttribute('aria-pressed',String(active));}timer=setTimeout(()=>void scan(request),delay);};
+  const click=event=>{const button=event.target.closest('button');if(!button)return;if(generation!==dataWorkerGeneration){close(null);return;}if(button.dataset.style){style=button.dataset.style;queue(250);return;}switch(button.dataset.action){case 'strength':strict=!strict;queue(250);break;case 'context':includeContextCandidates=!includeContextCandidates;queue(250);break;case 'similarity':customSimilarity=!customSimilarity;queue(250);break;case 'retry':queue();break;case 'cancel':close(null);break;case 'export':if(lastScan&&!confirm.disabled)close({...lastScan,safe:true,style,strict,includeContextCandidates,customSimilarity,customTerms:terms.value});break;}};
   const key=event=>{if(event.key==='Escape'){event.preventDefault();close(null);}if(event.key==='Tab'){const focusable=[...host.querySelectorAll('button:not(:disabled),textarea')],first=focusable[0],last=focusable[focusable.length-1];if(event.shiftKey&&document.activeElement===first){event.preventDefault();last.focus();}else if(!event.shiftKey&&document.activeElement===last){event.preventDefault();first.focus();}}};
   terms.addEventListener('input',()=>queue(250));host.addEventListener('click',click);host.addEventListener('keydown',key);queue();host.querySelector('[data-style="standard"]').focus();return promise;
 }
@@ -2374,7 +2484,7 @@ function cleanupDataWorker(reason){
 }
 function ensureDataWorker(){
   if(dataWorker)return dataWorker;
-  dataWorkerUrl=URL.createObjectURL(new Blob([archiveAnalysisCore.toString(),'\n',workerDomainCore.toString(),'\n('+dataWorkerMain.toString()+')()'],{type:'text/javascript'}));
+  dataWorkerUrl=URL.createObjectURL(new Blob([archiveAnalysisCore.toString(),'\n',redactionRules.toString(),'\n',workerDomainCore.toString(),'\n('+dataWorkerMain.toString()+')()'],{type:'text/javascript'}));
   dataWorker=new Worker(dataWorkerUrl);
   dataWorker.onmessage=event=>{
     const message=event.data||{},pending=dataWorkerPending.get(message.requestId);
@@ -3972,7 +4082,7 @@ function renderBlock(block){
 
 async function exportConv(mode){
   if(!currentConv)return;const conv=currentConv,payload=conversationTaskPayload(conv),generation=dataWorkerGeneration;
-  try{let options={};if(mode==='safe'){options=await redactionDialog(conv);if(!options)return;}if(generation!==dataWorkerGeneration)return;const result=await featureRequest('task','export',{...payload,safe:mode==='safe',style:options.style,strict:options.strict,customTerms:options.customTerms});if(generation!==dataWorkerGeneration)return;downloadBlob(result.blob,result.filename);}catch(error){if(error.name!=='AbortError')alert(error.message);}
+  try{let options={};if(mode==='safe'){options=await redactionDialog(conv);if(!options)return;}if(generation!==dataWorkerGeneration)return;const result=await featureRequest('task','export',{...payload,safe:mode==='safe',style:options.style,strict:options.strict,customTerms:options.customTerms,includeContextCandidates:options.includeContextCandidates,customSimilarity:options.customSimilarity});if(generation!==dataWorkerGeneration)return;downloadBlob(result.blob,result.filename);}catch(error){if(error.name!=='AbortError')alert(error.message);}
 }
 function toggleExportMenu(event){if(event)event.stopPropagation();const menu=document.getElementById('export-menu');menu.style.display=menu.style.display==='none'?'':'none';}
 function closeExportMenu(){document.getElementById('export-menu').style.display='none';}
@@ -4019,7 +4129,7 @@ async function exportPDF(mode){
   let conv=currentConv;
   let redaction=null;
   if(!conv)return;
-  if(mode==='safe'){const result=await redactionDialog(conv);if(!result)return;redaction=result;conv={...conv,_redaction:{safe:true,style:result.style,strict:result.strict,customTerms:result.customTerms}};}
+  if(mode==='safe'){const result=await redactionDialog(conv);if(!result)return;redaction=result;conv={...conv,_redaction:{safe:true,style:result.style,strict:result.strict,customTerms:result.customTerms,includeContextCandidates:result.includeContextCandidates,customSimilarity:result.customSimilarity}};}
   const popup=window.open('','_blank');
   if(!popup){alert(t('弹窗被浏览器拦截，请允许弹窗后重试'));return;}
   popup.document.write('<!doctype html><meta charset="utf-8"><title>'+esc(mode==='safe'?(conv._exportTitle||t('安全导出')):(conv.name||t('对话')))+'</title><body style="font-family:system-ui;padding:24px">'+t('正在准备 PDF…')+'</body>');popup.document.close();

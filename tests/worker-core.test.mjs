@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import vm from 'node:vm';
 import {marked} from 'marked';
 import hljs from 'highlight.js';
-const core=vm.runInNewContext(fs.readFileSync(new URL('../src/worker-core.js',import.meta.url),'utf8')+';workerDomainCore()',{marked,hljs,structuredClone,Date,Map,Set,Blob});
+const core=vm.runInNewContext(fs.readFileSync(new URL('../src/redaction-rules.js',import.meta.url),'utf8')+'\n'+fs.readFileSync(new URL('../src/worker-core.js',import.meta.url),'utf8')+';workerDomainCore()',{marked,hljs,structuredClone,Date,Map,Set,Blob});
 core.configure({lang:'en'});
 const root='00000000-0000-4000-8000-000000000000';
 test('iterative tree handles deep chains, duplicate/missing ids, cycles and branch choices',()=>{

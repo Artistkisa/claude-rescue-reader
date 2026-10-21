@@ -31,7 +31,8 @@ const escAttr=s=>esc(s).replace(/"/g,'&quot;').replace(/'/g,'&#39;');
 const fmtDate=iso=>iso?new Date(iso).toLocaleDateString(currentLang==='en'?'en-US':'zh-CN',{year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'}):'';
 const fmtTime=iso=>iso?new Date(iso).toLocaleTimeString(currentLang==='en'?'en-US':'zh-CN',{hour:'2-digit',minute:'2-digit'}):'';
 // Match the original text once; replacements are never scanned as new secrets.
-const REDACTION_RULE_VERSION=2;
+const REDACTION_RULE_VERSION=3;
+const contextRules=redactionRules();
 const SENSITIVE_PATTERNS=[
   ['内嵌二进制',/data:(?:image|audio|video|application)\/[\w.+-]+;base64,[A-Za-z0-9+/]+={0,2}/gi],
   ['私钥',/-----BEGIN (?:RSA |EC |DSA |OPENSSH |ENCRYPTED |PGP )?PRIVATE KEY(?: BLOCK)?-----[\s\S]*?(?:-----END (?:RSA |EC |DSA |OPENSSH |ENCRYPTED |PGP )?PRIVATE KEY(?: BLOCK)?-----|$)/g],
@@ -59,27 +60,27 @@ const STRICT_SENSITIVE_PATTERNS=[
 ];
 const SECRET_KEY=/^(?:password|passwd|pwd|passphrase|secret|client[_ -]?secret|api[_ -]?key|access[_ -]?key|private[_ -]?key|access[_ -]?token|refresh[_ -]?token|auth[_ -]?token|id[_ -]?token|token|authorization|proxy[_ -]?authorization|cookie|set[_ -]?cookie|x[_ -]?api[_ -]?key|aws[_ -]?secret[_ -]?access[_ -]?key|db[_ -]?password|密码|口令|密钥)$/i;
 const IDENTIFIER_KEY=/^(?:device[_ -]?id|user[_ -]?id|visitor[_ -]?id|session[_ -]?id|storage[_ -]?key|fingerprint|did)$/i;
-const CONTEXT_SECRET_RE=/((?:device[_ -]?id|user[_ -]?id|visitor[_ -]?id|fingerprint|session[_ -]?id|storage[_ -]?key|access[_ -]?token|refresh[_ -]?token|auth[_ -]?token|id[_ -]?token|client[_ -]?secret|api[_ -]?key|access[_ -]?key|private[_ -]?key|aws[_ -]?secret[_ -]?access[_ -]?key|db[_ -]?password|password|passwd|pwd|passphrase|token|secret|did|密码|口令|密钥)\s*["']?\s*[:=：]\s*)(?:"([^"\r\n]+)"|'([^'\r\n]+)'|([^\s,"'，。；;<>\]}]+))/gi;
+const CONTEXT_SECRET_RE=/((?:(?:cohere)[ \t]+(?:api[ \t]+)?key|device[_ -]?id|user[_ -]?id|visitor[_ -]?id|fingerprint|session[_ -]?id|storage[_ -]?key|access[_ -]?token|refresh[_ -]?token|auth[_ -]?token|id[_ -]?token|client[_ -]?secret|api[_ -]?key|access[_ -]?key|private[_ -]?key|aws[_ -]?secret[_ -]?access[_ -]?key|db[_ -]?password|password|passwd|pwd|passphrase|token|secret|did|密码|口令|密钥)\s*["']?\s*[:=：]\s*)(?:"([^"\r\n]+)"|'([^'\r\n]+)'|([^\s,"'，。；;<>\]}]+))/gi;
 const QUERY_SECRET_RE=/([?&#](?:token|access_token|refresh_token|id_token|auth|authorization|api[_-]?key|key|sid|session|device_id|did|t|sig|signature|x-amz-signature|x-amz-credential|x-amz-security-token|x-goog-signature|x-goog-credential)=)([^\s&#"'<>）)\]}]+)/gi;
-const STRICT_CONTEXT_RE=/((?:姓名|名字|联系人|老师|教师|教授|班主任|校长|学校|学院|大学|中学|小学|幼儿园|公司|单位|部门|微信|wechat|qq|微博|抖音|uid|用户[_ -]?id|account[_ -]?id|open[_ -]?id|social[_ -]?id|身份证|护照|passport|ssn|住址|地址|家庭住址|工作地址|full[_ -]?name|phone|telephone|mobile|address)\s*[：:=]\s*["']?)([^\s,"'，。；;]{2,80})/gi;
+const STRICT_CONTEXT_RE=/((?:姓名|名字|联系人|老师|教师|教授|班主任|校长|学校|学院|大学|中学|小学|幼儿园|公司|单位|部门|微信|wechat|qq|微博|抖音|uid|用户[_ -]?id|account[_ -]?id|open[_ -]?id|social[_ -]?id|身份证(?:号)?|护照(?:号)?|passport(?:[ \t]+(?:no|number))?|ssn|住址|地址|家庭住址|工作地址|full[_ -]?name|phone|telephone|mobile|address)\s*[：:=]\s*["']?)([^\s,"'，。；;]{2,80})/gi;
 const REDACTION_METADATA=new Set(['tool_input','input','metadata','file_path','path']);
 const REDACTION_PATH_KEYS=new Set('conversation name title summary chat_messages content text thinking prompt injection_source summaries attachments files file_name filename file_type file_size media_type url uri data value metadata tool_input input path file_path account uuid parent_message_uuid sender type structured_content display_content output created_at updated_at start_timestamp stop_timestamp tool_use_id id model thinking_hidden truncated signature _design _sourcePackage'.split(' '));
 function redactionOptions(options={}){
   const terms=Array.isArray(options.customTerms)?options.customTerms:String(options.customTerms||'').split(/\r?\n/);
   const customTerms=[...new Set(terms.filter(s=>typeof s==='string').map(s=>s.trim()).filter(Boolean))];
   if(customTerms.length>100||customTerms.some(s=>s.length>256)||customTerms.join('\n').length>8192)throw new Error('Custom redaction terms exceed the limit (100 terms, 256 characters each, 8192 total).');
-  return{customTerms};
+  return{customTerms,includeContextCandidates:options.includeContextCandidates===true,customSimilarity:options.customSimilarity===true};
 }
-function redactionState(options){const normalized=redactionOptions(options);return{stats:{},matches:[],total:0,pseudonyms:new Map(),...normalized};}
+function redactionState(options){const normalized=redactionOptions(options);return{stats:{},matches:[],total:0,pseudonyms:new Map(),candidateTotal:0,candidateStats:{},complete:true,compiled:normalized.customSimilarity?contextRules.compile(normalized.customTerms):null,...normalized};}
 function redactionToken(label,value,style,state){
   if(style==='scp')return label==='metadata'?(currentLang==='en'?'[DATA EXPUNGED]':'[数据删除]'):'█'.repeat(Math.max(6,Math.min(24,String(value||'').length)));
   if(style==='pseudonym'&&label!=='metadata'){if(!state.pseudonyms.has(value))state.pseudonyms.set(value,'[ID_'+(state.pseudonyms.size+1)+']');return state.pseudonyms.get(value);}
   return '[REDACTED:'+label+']';
 }
-function addRedactionFinding(state,label,value,path,reason){state.stats[label]=(state.stats[label]||0)+1;state.total++;if(state.matches.length<100)state.matches.push({label,path:path||'conversation',preview:'█'.repeat(Math.max(4,Math.min(12,String(value).length)))+' ('+String(value).length+')',reason});}
-function redactText(text,state,path,style,strict=false){
+function addRedactionFinding(state,label,value,path,reason){state.stats[label]=(state.stats[label]||0)+1;state.total++;if(state.matches.length<100)state.matches.push({label,path:path||'conversation',preview:'█'.repeat(Math.max(4,Math.min(12,String(value).length)))+' ('+String(value).length+')',reason,evidence:'definite',method:'rule',applied:true});}
+function* redactText(text,state,path,style,strict=false){
   text=String(text??'');const spans=[];
-  const add=(start,end,label,reason)=>{if(end>start)spans.push({start,end,label,reason});};
+  const add=(start,end,label,reason)=>{if(end>start)spans.push({start,end,label,reason,evidence:'definite',method:'rule'});};
   const scan=(re,callback)=>{re.lastIndex=0;for(const match of text.matchAll(re))callback(match);};
   scan(CONTEXT_SECRET_RE,m=>{const value=m[2]??m[3]??m[4],start=m.index+m[1].length+(m[2]!==undefined||m[3]!==undefined?1:0),label=/device|fingerprint|\bdid\b/i.test(m[1])?'设备标识':/user|visitor/i.test(m[1])?'用户标识':/session|storage/i.test(m[1])?'会话标识':'凭据或令牌';add(start,start+value.length,label,'敏感字段名与值同时出现');});
   scan(QUERY_SECRET_RE,m=>add(m.index+m[1].length,m.index+m[0].length,'URL 查询令牌','敏感查询参数'));
@@ -90,15 +91,25 @@ function redactText(text,state,path,style,strict=false){
   for(const [label,re,validate]of [...SENSITIVE_PATTERNS,...(strict?STRICT_SENSITIVE_PATTERNS:[])])scan(re,m=>{if(label==='邮箱'){while(connections[connectionIndex]?.end<=m.index)connectionIndex++;const connection=connections[connectionIndex];if(connection&&connection.start<m.index+m[0].length)return;}if(!validate||validate(m[0]))add(m.index,m.index+m[0].length,label,strict?'格式匹配；强力规则可能误伤':'敏感格式匹配');});
   if(strict)scan(STRICT_CONTEXT_RE,m=>{const label=/老师|教师|教授|班主任|校长|姓名|名字|联系人|name/i.test(m[1])?'个人姓名':/学校|学院|大学|中学|小学|幼儿园|公司|单位|部门/i.test(m[1])?'学校或单位':/微信|wechat|qq|微博|抖音/i.test(m[1])?'社交账号':/phone|telephone|mobile/i.test(m[1])?'手机号':/uid|用户|account|open|social/i.test(m[1])?'用户标识':/地址|住址|address/i.test(m[1])?'详细地址':'身份证件';add(m.index+m[1].length,m.index+m[0].length,label,'宽泛隐私规则，可能误伤普通文本');});
   for(const term of state.customTerms){let from=0,index;while((index=text.indexOf(term,from))!==-1){add(index,index+term.length,'自定义敏感词','用户指定的精确文本');from=index+term.length;}}
-  spans.sort((a,b)=>a.start-b.start||b.end-a.end);const merged=[];
-  for(const span of spans){const last=merged[merged.length-1];if(last&&span.start<last.end){if(span.end-span.start>last.end-last.start){last.label=span.label;last.reason=span.reason;}last.end=Math.max(last.end,span.end);}else merged.push({...span});}
-  let out='',at=0;for(const span of merged){const value=text.slice(span.start,span.end);addRedactionFinding(state,span.label,value,path,span.reason);out+=text.slice(at,span.start)+redactionToken(span.label,value,style,state);at=span.end;}return out+text.slice(at);
+  yield* contextRules.scan(text,state.compiled,span=>spans.push(span),()=>{state.complete=false;});
+  const merge=items=>{items.sort((a,b)=>a.start-b.start||b.end-a.end);const result=[];for(const span of items){const last=result[result.length-1];if(last&&span.start<last.end){if(last.evidence!=='definite'&&span.evidence==='definite'){last.label=span.label;last.reason=span.reason;last.evidence=span.evidence;last.method=span.method;}last.end=Math.max(last.end,span.end);}else result.push({...span});}return result;};
+  // Formatting/exact rules win over fuzzy supersets (e.g. an adjacent emoji).
+  // Use a binary overlap lookup rather than comparing every fuzzy hit to every rule hit.
+  const fixed=merge(spans.filter(s=>s.evidence!=='candidate'&&s.method!=='similar'));
+  const overlaps=(items,span)=>{let low=0,high=items.length;while(low<high){const mid=(low+high)>>>1;if(items[mid].end<=span.start)low=mid+1;else high=mid;}return low<items.length&&items[low].start<span.end;};
+  const fuzzy=spans.filter(s=>s.method==='similar'&&!overlaps(fixed,s)).sort((a,b)=>a.start-b.start||a.edits-b.edits||b.similarity-a.similarity),selected=[];
+  for(const span of fuzzy){const last=selected[selected.length-1];if(last&&span.start<last.end){if(span.edits<last.edits||span.edits===last.edits&&span.similarity>last.similarity)selected[selected.length-1]=span;}else selected.push(span);}
+  const definite=merge([...fixed,...selected]),candidates=merge(spans.filter(s=>s.evidence==='candidate'));
+  let atDefinite=0;const weak=candidates.filter(span=>{while(definite[atDefinite]?.end<=span.start)atDefinite++;return !definite[atDefinite]||definite[atDefinite].start>=span.end;});
+  if(!state.includeContextCandidates)for(const span of weak){const value=text.slice(span.start,span.end);state.candidateTotal++;state.candidateStats[span.label]=(state.candidateStats[span.label]||0)+1;if(state.matches.length<100)state.matches.push({label:span.label,path,preview:'█'.repeat(Math.max(4,Math.min(12,value.length)))+' ('+value.length+')',reason:span.reason,evidence:'candidate',method:span.method,applied:false});}
+  const merged=state.includeContextCandidates?merge([...definite,...weak]):definite;
+  let out='',at=0;for(const span of merged){const value=text.slice(span.start,span.end),before=state.matches.length;addRedactionFinding(state,span.label,value,path,span.reason);if(state.matches.length>before)Object.assign(state.matches[state.matches.length-1],{evidence:span.evidence,method:span.method,applied:true});out+=text.slice(at,span.start)+redactionToken(span.label,value,style,state);at=span.end;}return out+text.slice(at);
 }
 function* redactionSteps(conv,state,style,strict){
   const stack=[{parent:{value:conv},key:'value',path:'conversation'}];
   while(stack.length){
     const {parent,key,path}=stack.pop(),value=parent[key];
-    if(typeof value==='string')parent[key]=redactText(value,state,path,style,strict);
+    if(typeof value==='string')parent[key]=yield* redactText(value,state,path,style,strict);
     else if(value&&typeof value==='object'){
       // Matches attachments/files arrays at any depth, including content blocks.
       // _redactedMedia is consumed by the PDF renderer to block cached original pixels.
@@ -109,16 +120,16 @@ function* redactionSteps(conv,state,style,strict){
       if(value.type==='image'&&value.source){addRedactionFinding(state,'内嵌二进制',JSON.stringify(value.source),path,'二进制内容不做 OCR，安全导出移除原始数据');value.source={type:'redacted'};}
       const entries=Object.keys(value);for(let i=entries.length-1;i>=0;i--){
         let k=entries[i];const safeKey=REDACTION_PATH_KEYS.has(k)?'.'+k:'[field]',p=Array.isArray(value)?path+'['+k+']':path+safeKey;
-        if(!Array.isArray(value)&&!REDACTION_PATH_KEYS.has(k)&&!SECRET_KEY.test(k)){const replacement=redactText(k,state,p,style,strict);if(replacement!==k){let renamed=replacement,n=1;while(Object.hasOwn(value,renamed))renamed=replacement+'_'+n++;Object.defineProperty(value,renamed,{value:value[k],writable:true,enumerable:true,configurable:true});delete value[k];k=renamed;}}
+        if(!Array.isArray(value)&&!REDACTION_PATH_KEYS.has(k)&&!SECRET_KEY.test(k)){const replacement=yield* redactText(k,state,p,style,strict);if(replacement!==k){let renamed=replacement,n=1;while(Object.hasOwn(value,renamed))renamed=replacement+'_'+n++;Object.defineProperty(value,renamed,{value:value[k],writable:true,enumerable:true,configurable:true});delete value[k];k=renamed;}}
         const originalKey=entries[i],label=SECRET_KEY.test(originalKey)?'凭据或令牌':IDENTIFIER_KEY.test(originalKey)?(/device|fingerprint|did/i.test(originalKey)?'设备标识':/session|storage/i.test(originalKey)?'会话标识':'用户标识'):strict&&/^(?:email|phone|telephone|mobile|full_name|address|passport|ssn|account_id)$/i.test(originalKey)?'个人信息字段':null;
-        if(REDACTION_METADATA.has(originalKey)||label){const raw=typeof value[k]==='string'?value[k]:JSON.stringify(value[k]??'');if(raw&&raw!=='null'){if(!label)redactText(raw,state,p,style,strict);addRedactionFinding(state,label||'metadata',raw,p,label?'敏感字段名与值同时出现':'安全导出会移除工具参数、路径或系统元数据');value[k]=redactionToken(label||'metadata',raw,style,state);}}
+        if(REDACTION_METADATA.has(originalKey)||label){const raw=typeof value[k]==='string'?value[k]:JSON.stringify(value[k]??'');if(raw&&raw!=='null'){if(!label)yield* redactText(raw,state,p,style,strict);addRedactionFinding(state,label||'metadata',raw,p,label?'敏感字段名与值同时出现':'安全导出会移除工具参数、路径或系统元数据');value[k]=redactionToken(label||'metadata',raw,style,state);}}
         else stack.push({parent:value,key:k,path:p});
       }
     }
     yield;
   }
 }
-function redactConversation(conv,style='standard',strict=false,options={}){const clone=structuredClone(conv),state=redactionState(options);for(const _ of redactionSteps(clone,state,style,strict)){}return{conv:clone,stats:state.stats,matches:state.matches,total:state.total,style,strict,ruleVersion:REDACTION_RULE_VERSION};}
+function redactConversation(conv,style='standard',strict=false,options={}){const clone=structuredClone(conv),state=redactionState(options);for(const _ of redactionSteps(clone,state,style,strict)){}return{conv:clone,stats:state.stats,matches:state.matches,total:state.total,style,strict,ruleVersion:REDACTION_RULE_VERSION,candidateTotal:state.candidateTotal,candidateStats:state.candidateStats,complete:state.complete};}
 
   const plain=m=>{let s=String(m?.text||'');for(const b of(m?.content||[]))if(b&&typeof b==='object')s+=' '+String(b.text||b.thinking||b.content||'');return s.replace(/\s+/g,' ').trim();};
   const hasType=(m,re)=>((m?.content||[]).some(b=>b&&re.test(String(b.type||'')+' '+String(b.name||''))));
@@ -283,8 +294,8 @@ function tree(conv,mode='longest',choices={}){
 }
 async function redactAsync(conv,style,strict,checkpoint,preview=false,options={}){
   const state=redactionState(options);let n=0;
-  for(const _ of redactionSteps(conv,state,style,strict)){if(n++%128===0)await checkpoint({processed:n});}
-  return {...(!preview?{conv}:{}),stats:state.stats,matches:state.matches,total:state.total,style,strict,ruleVersion:REDACTION_RULE_VERSION};
+  for(const _ of redactionSteps(conv,state,style,strict)){await checkpoint({processed:++n});}
+  return {...(!preview?{conv}:{}),stats:state.stats,matches:state.matches,total:state.total,style,strict,ruleVersion:REDACTION_RULE_VERSION,candidateTotal:state.candidateTotal,candidateStats:state.candidateStats,complete:state.complete};
 }
 function messageText(message){const parts=[message?.text||''];for(const b of list(message?.content)){if(typeof b?.text==='string')parts.push(b.text);if(typeof b?.thinking==='string')parts.push(b.thinking);if(typeof b?.content==='string')parts.push(b.content);if(b?.input?.query)parts.push(b.input.query);}return parts.join('\n');}
 function* matches(text,needle){
