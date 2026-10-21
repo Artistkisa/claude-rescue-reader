@@ -288,10 +288,10 @@ claude-export/
 如需手动制作离线版，也可以在 `viewer.html` 同目录下放置以下文件并修改引用路径：
 
 ```
-marked.min.js          ← https://cdn.jsdelivr.net/npm/marked/marked.min.js
+marked.umd.js         ← https://cdn.jsdelivr.net/npm/marked@18.0.11/lib/marked.umd.js
 highlight.min.js       ← https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.11.1/build/highlight.min.js
 jszip.min.js           ← https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js
-mermaid.min.js         ← https://cdn.jsdelivr.net/npm/mermaid@11.16.0/dist/mermaid.min.js
+mermaid.min.js         ← https://cdn.jsdelivr.net/npm/mermaid@12.2.0/dist/mermaid.min.js
 github.min.css         ← https://cdn.jsdelivr.net/npm/highlight.js@11.11.1/styles/github.min.css
 github-dark.min.css    ← https://cdn.jsdelivr.net/npm/highlight.js@11.11.1/styles/github-dark.min.css
 ```
