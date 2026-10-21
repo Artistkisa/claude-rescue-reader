@@ -8,7 +8,7 @@ function readerWorkerMain(){
   featureWorkerRuntime(core,async(type,payload,token)=>{
     if(type==='open'){
       if(payload.conversation)conversation=payload.conversation;
-      else{conversation=null;for await(const record of token.records([payload.uuid])){conversation=JSON.parse(record.raw);break;}}
+      else{conversation=null;for await(const record of token.records([payload.uuid])){conversation=JSON.parse(record.raw);if(record.meta._sourcePackage)conversation._sourcePackage=record.meta._sourcePackage;break;}}
       if(!conversation)throw new Error('Conversation not found');selectionKey='';fields=new Map();query='';offsets.clear();core.clearCodes();
       const {chat_messages,...meta}=conversation;select(payload);
       return {meta:{...meta,_summaryHtml:meta.summary?marked.parse(meta.summary):'',message_count:chat_messages?.length||0,_readerBacked:true},total:selection.ids.length};

@@ -22,7 +22,7 @@ async function ensureFeature(kind){
   const libraries=kind==='import'?['zip']:kind==='reader'?['markdown','highlight']:['markdown','highlight'];
   const sources=libraries.map(name=>Uint8Array.from(atob(WORKER_LIBRARIES[name].base64),char=>char.charCodeAt(0)));
   const main=kind==='import'?importWorkerMain:kind==='reader'?readerWorkerMain:taskWorkerMain;
-  const url=URL.createObjectURL(new Blob([...sources,'\n',workerDomainCore.toString(),'\n',featureWorkerRuntime.toString(),'\n('+main.toString()+')()'],{type:'text/javascript'}));
+  const url=URL.createObjectURL(new Blob([...sources,'\n',exportFormatCore.toString(),'\n',workerDomainCore.toString(),'\n',featureWorkerRuntime.toString(),'\n('+main.toString()+')()'],{type:'text/javascript'}));
   let worker;try{worker=new Worker(url);}catch(error){URL.revokeObjectURL(url);throw error;}
   state={worker,url,id:kind+':'+(++featureSequence),generation:dataWorkerGeneration,pending:new Map(),port:null};
   state.ready=new Promise((resolve,reject)=>{state.resolveReady=resolve;state.rejectReady=reject;});state.ready.catch(()=>{});featureWorkers.set(kind,state);
@@ -60,7 +60,7 @@ function initZipMedia(root){
   zipMediaObserver?.disconnect();trimZipMedia();
   const load=async element=>{
     const key=element.dataset.zipMedia,entry=zipEntries.get(key),generation=dataWorkerGeneration;if(!entry)return;
-    try{let cached=LOCAL_MEDIA.get(key);if(cached){LOCAL_MEDIA.delete(key);LOCAL_MEDIA.set(key,cached);}else{let promise=zipMediaPending.get(key);if(!promise){promise=featureRequest('import','attachment',{name:entry});zipMediaPending.set(key,promise);}const {blob}=await promise;zipMediaPending.delete(key);if(generation!==dataWorkerGeneration||!element.isConnected)return;if(blob.size>64*1024*1024){cached={url:URL.createObjectURL(blob),name:entry,size:blob.size};zipUncachedUrls.add(cached.url);}else{cached=LOCAL_MEDIA.get(key)||addLocalMedia(blob,entry);cached.zip=true;cached.size=blob.size;}}
+    try{let cached=LOCAL_MEDIA.get(key);if(cached){LOCAL_MEDIA.delete(key);LOCAL_MEDIA.set(key,cached);}else{let promise=zipMediaPending.get(key);if(!promise){promise=featureRequest('import',typeof entry==='string'?'attachment':'resource',typeof entry==='string'?{name:entry}:entry);zipMediaPending.set(key,promise);}const {blob}=await promise;zipMediaPending.delete(key);if(generation!==dataWorkerGeneration||!element.isConnected)return;if(blob.size>64*1024*1024){cached={url:URL.createObjectURL(blob),name:typeof entry==='string'?entry:entry.path,size:blob.size};zipUncachedUrls.add(cached.url);}else{cached=LOCAL_MEDIA.get(key)||addLocalMedia(blob,typeof entry==='string'?entry:entry.path);if(!cached)throw new Error('Unsupported attachment');if(key!==mediaKey(cached.name)){LOCAL_MEDIA.delete(mediaKey(cached.name));LOCAL_MEDIA.set(key,cached);}cached.zip=true;cached.size=blob.size;}}
       if(!element.isConnected)return;const old=element.querySelector('.file-icon'),image=document.createElement('img');image.src=cached.url;image.alt=cached.name;if(old)old.replaceWith(image);trimZipMedia();
     }catch(error){zipMediaPending.delete(key);if(error.name!=='AbortError'){element.title=error.message;const retry=document.createElement('button');retry.className='fbtn';retry.textContent=t('重试');retry.onclick=()=>{retry.remove();void load(element);};element.appendChild(retry);}}
   };

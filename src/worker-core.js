@@ -113,6 +113,7 @@ async function markdown(conv,mode,choices,checkpoint){  // Build linear thread (
       else if(b.type==='thinking'){md+='<details>\n<summary>💭 '+t('思考过程')+'</summary>\n\n'+(b.thinking||'')+'\n\n</details>\n\n';hasContent=true;}
       else if(b.type==='tool_use'){md+='> ⚙ '+t('工具调用')+': `'+(b.name||'unknown')+'`'+(b.message?' — '+b.message:'')+'\n\n';hasContent=true;}
       else if(b.type==='tool_result'){md+='> ✅ '+t('工具结果')+': `'+(b.name||'')+'`\n\n';hasContent=true;}
+      else if(b.type==='injected_prompt_block'){md+='<details>\n<summary>'+t('注入上下文')+' · '+esc(b.injection_source||'')+'</summary>\n\n'+(b.prompt||'')+'\n\n</details>\n\n';hasContent=true;}
     }
     if(!hasContent&&msg.text)md+=msg.text+'\n\n';
     md+='---\n\n';
@@ -343,5 +344,5 @@ copy._prepared={visuals,files,searchQueries,searchResults};
   return copy;
 }
 
-return {code:id=>codes.get(id)||'',clearCodes:()=>codes.clear(),parseDesignExports,configure(context={}){currentLang=context.lang||'zh';labels=context.labels||{};if(typeof marked!=='undefined')configureMarked();},tree,redactConversation,redactAsync,quality,behavior,markdown,prepare,searchFields,matches,esc,escAttr,t,fmtTime,messageText};
+return {renderMarkdown:text=>marked.parse(String(text||'')),code:id=>codes.get(id)||'',clearCodes:()=>codes.clear(),parseDesignExports,configure(context={}){currentLang=context.lang||'zh';labels=context.labels||{};if(typeof marked!=='undefined')configureMarked();},tree,redactConversation,redactAsync,quality,behavior,markdown,prepare,searchFields,matches,esc,escAttr,t,fmtTime,messageText};
 }
