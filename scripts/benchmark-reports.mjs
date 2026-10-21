@@ -7,6 +7,9 @@ export function validateBenchmarkReports({readme,workers,analytics,zh,en,workerD
   const finite=value=>typeof value==='number'&&Number.isFinite(value);
   const runs=value=>Number.isSafeInteger(value)&&value>0;
   const close=(a,b)=>finite(a)&&finite(b)&&Math.abs(a-b)<=1e-9*Math.max(1,Math.abs(b));
+  for(const [label,report]of [['README',readme],['Workers',workers],['Analytics',analytics]])check(report&&typeof report==='object',label+': report missing');
+  for(const text of [zh,en,workerDoc,analyticsDoc])check(typeof text==='string','Benchmark documentation missing');
+  if(failures.length)return failures;
   function samples(label,rows,count,medians,round=false){
     check(Array.isArray(rows)&&rows.length===count&&runs(count),label+': sample count must equal runs');
     if(!Array.isArray(rows)||!rows.length||!medians||typeof medians!=='object'){check(false,label+': samples/medians missing');return;}
@@ -17,7 +20,8 @@ export function validateBenchmarkReports({readme,workers,analytics,zh,en,workerD
   }
   check(Array.isArray(readme?.results)&&readme.results.length>0,'README benchmark report has no results to check');
   const sizes=new Set();
-  for(const result of readme?.results||[]){
+  for(const result of Array.isArray(readme.results)?readme.results:[]){
+    if(!result||typeof result!=='object'){check(false,'README benchmark scenario missing');continue;}
     check(Number.isSafeInteger(result.sizeMiB)&&result.sizeMiB>0&&!sizes.has(result.sizeMiB),'README benchmark has invalid/duplicate size');sizes.add(result.sizeMiB);
     check(finite(result.cpuThrottle)&&result.cpuThrottle>0,'README benchmark has invalid CPU rate');
     check(result.runs===readme.method?.runs,'README benchmark run count differs from method');
@@ -38,6 +42,13 @@ export function validateBenchmarkReports({readme,workers,analytics,zh,en,workerD
       if(rows?.length&&metrics)for(const row of rows)check(JSON.stringify(Object.keys(row||{}).sort())===JSON.stringify(Object.keys(metrics).sort()),label+': sample/median metric keys differ');
     }
   }
+  check(runs(workers.fixture?.messages),'Workers: fixture.messages missing or invalid');
+  check(runs(workers.samples?.before?.[0]?.mounted),'Workers: baseline mounted count missing or invalid');
+  check(finite(workers.cpuThrottle)&&workers.cpuThrottle>0,'Workers: invalid CPU rate');
+  check(finite(analytics.cpuThrottle)&&analytics.cpuThrottle>0,'Analytics: invalid CPU rate');
+  // Structural errors must remain actionable failures, rather than throwing
+  // while building documentation tokens from missing nested fields.
+  if(failures.length)return failures;
   for(const token of ['--runs='+workers.runs,workers.cpuThrottle+'×',workers.fixture.messages.toLocaleString('en-US')+' messages',workers.samples.before[0].mounted.toLocaleString('en-US')+'-message'])check(workerDoc.includes(token),'Worker documentation is stale: '+token);
   for(const token of [analytics.baseline,analytics.browser,analytics.node,'--runs='+analytics.runs,analytics.cpuThrottle+'×'])check(analyticsDoc.includes(token),'Analytics documentation is stale: '+token);
   const metrics=['first','filtered','firstDrill','nextPage','listIds'];

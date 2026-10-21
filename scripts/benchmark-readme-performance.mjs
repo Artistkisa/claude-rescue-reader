@@ -8,6 +8,8 @@ import {parseSizes} from './benchmark-utils.mjs';
 
 const root=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'..');
 const output=path.join(root,'docs','benchmarks','readme-performance.json');
+// Use installed Playwright Chromium by default on every platform. Windows
+// system Chrome is no longer auto-detected; select it explicitly via CHROME_PATH.
 const executablePath=process.env.CHROME_PATH;
 const runs=Math.max(1,Number(process.argv.find(arg=>arg.startsWith('--runs='))?.split('=')[1]||3));
 let requested;
