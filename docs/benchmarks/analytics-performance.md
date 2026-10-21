@@ -28,3 +28,5 @@ npm run benchmark:analytics -- --runs=3 --output=test-results/analytics-benchmar
 ```
 
 The script prints raw samples, medians, browser/Node versions and counts. `CHROME_PATH` optionally chooses a local Chromium executable; otherwise Playwright's installed Chromium is used. No real exports or runtime network requests are needed. Run the same script against the baseline viewer to compare versions; the command does not overwrite this report.
+
+`--runs` defaults to 3 and must be a positive safe integer. Empty, zero, negative, fractional, nonnumeric and infinite values exit with a clear error before launching Chromium. Even sample counts use the mean of the two central sorted values; odd counts use the central value. The recorded three-run figures above are unchanged. Run `npm run test:benchmark` to check argument validation and aggregation, including invalid CLI input without a browser.

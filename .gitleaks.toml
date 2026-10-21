@@ -1,8 +1,21 @@
 title = "claude-rescue-reader gitleaks configuration"
+minVersion = "v8.25.0"
 
-[allowlist]
+[extend]
+useDefault = true
+
+[[allowlists]]
 description = "Allow documented synthetic examples and privacy-detection patterns"
 paths = [
   '''tests/fixtures/synthetic-export\.mjs''',
   '''scripts/privacy-guard\.mjs'''
 ]
+
+[[allowlists]]
+description = "Exact fake token used by the browser redaction regression; keep other secrets detectable"
+# Scope to the rule so directory scans still inspect this file before applying both conditions.
+targetRules = ["generic-api-key"]
+condition = "AND"
+paths = ['''(^|/)tests/browser-smoke\.spec\.mjs$''']
+regexTarget = "secret"
+regexes = ['''^0123456789abcdef0123456789abcdef$''']

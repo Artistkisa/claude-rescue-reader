@@ -97,6 +97,8 @@ function analyticsWorkerMain(){
     await ensureIndex(token);
     const filters=message.filters||{range:'all'},overrides=message.overrides||{},range=bounds(filters),span=range.start===null?0:range.end-range.start+1;
     const key=matchKey(message,range);
+    // Aggregates retain no matching lists: after A → B → cached A, drilldown A rescans once.
+    // Keep the single-summary memory bound; subsequent pages reuse that rebuilt list.
     if(cache.has(key)){const value=cache.get(key);cache.delete(key);cache.set(key,value);return{...value,cacheKey:key};}
     const previousRange=!range.all&&span?{start:range.start-span,end:range.start-1,all:false}:null,current=emptySummary(),previous=emptySummary(),daily=new Map(),bucketSets=new Map();
     const grain=span<=60?'day':span<=365?'week':'month',buckets=[];

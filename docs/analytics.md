@@ -51,6 +51,10 @@ The compact index stores summaries, projects and message time/model/role/charact
 
 After Explore has opened, the compact index uses memory proportional to all messages and remains resident outside Analytics for reuse. The aggregate cache limit does not cap index size. One additional result holds only the latest matching conversation summaries, with memory proportional to matched conversations rather than 12 copies. Queries collect these summaries during aggregation; pagination and UUID requests reuse them without scanning or sorting. Changing conditions or the selected bucket can rescan and replace that result. Its key includes source, effective date range, normalized project/model/role selections, project/stopword revisions and overrides, excluding pagination and UUID inclusion. Partial canceled scans are never cached; reimport and release clear the result.
 
+条件 A → B → A 时，A 的聚合可能仍在 12 项缓存中，但其下钻摘要已被 B 替换；首次返回 A 的下钻会重新扫描一次，之后翻页复用。这是只保留一组摘要的内存取舍。
+
+For A → B → A, A's aggregate can remain cached after B replaces its matching summaries. The first subsequent drilldown for A rebuilds that one list; later pages reuse it. This deliberately preserves the single-summary memory bound.
+
 现有 2 秒普通对话打开目标继续保留。性能回归还对 12 万条合成消息要求：索引已建立后的筛选少于 2 秒，连续两次缓存下钻合计少于 1 秒。它们是 CI 回归上限，并非所有设备的性能承诺。[统计基准与原始样本](benchmarks/analytics-performance.md)说明测量口径。运行 `npm run benchmark:analytics` 输出 JSON；可加 `-- --output=test-results/analytics-benchmark.json` 保存报告，不修改已有基准。
 
 The existing two-second conversation-open target remains. CI also checks 120,000 synthetic messages: a filter after indexing takes under two seconds, and two cached drilldowns take under one second combined. These are regression budgets, not guarantees for all devices. See the [analytics benchmark and raw samples](benchmarks/analytics-performance.md). Run `npm run benchmark:analytics` for JSON output or add `-- --output=test-results/analytics-benchmark.json` to save a report without changing the recorded baseline.

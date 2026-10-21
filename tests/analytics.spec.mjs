@@ -261,6 +261,29 @@ test('drilldown reuses summaries across pages and invalidates every matching inp
   expect((await request()).rows.map(row=>row.uuid)).toEqual(['replacement']);
 });
 
+test('returning to a cached aggregate rebuilds only the evicted matching summary',async({page})=>{
+  await load(page,[conversation('alternating',[
+    message('a','2026-01-01T20:00:00Z','model-a'),
+    message('b','2026-01-02T20:00:00Z','model-b')
+  ])]);
+  const first=await query(page,{range:'all',models:['model-a']});
+  const original=await page.evaluate(()=>analyticsRequest('drilldown',{filters:{range:'all',models:['model-a']}}));
+  await query(page,{range:'all',models:['model-b']});
+  await page.evaluate(()=>{
+    window.alternatingProgress=[];
+    analyticsWorker.addEventListener('message',event=>{if(event.data.type==='progress')window.alternatingProgress.push(event.data.phase);});
+  });
+  expect((await query(page,{range:'all',models:['model-a']})).cacheKey).toBe(first.cacheKey);
+  expect(await page.evaluate(()=>window.alternatingProgress)).toEqual([]);
+  const rebuilt=await page.evaluate(()=>analyticsRequest('drilldown',{filters:{range:'all',models:['model-a']}}));
+  expect(rebuilt.rows).toEqual(original.rows);
+  const scans=await page.evaluate(()=>window.alternatingProgress.length);
+  expect(scans).toBeGreaterThan(0);
+  const reused=await page.evaluate(()=>analyticsRequest('drilldown',{filters:{range:'all',models:['model-a']},includeIds:true}));
+  expect(reused.uuids).toEqual(['alternating']);
+  expect(await page.evaluate(()=>window.alternatingProgress.length)).toBe(scans);
+});
+
 test('equivalent filter order shares aggregates and drilldown summaries',async({page})=>{
   await load(page,[conversation('ordered',[message('first','2026-01-01T20:00:00Z','model-a'),message('second','2026-01-02T20:00:00Z','model-b')])]);
   const first=await query(page,{range:'all',models:['model-b','model-a','model-a'],roles:['human']});
