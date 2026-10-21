@@ -1,0 +1,103 @@
+{
+  "baseline": "ea4458011ae186445a4599a716abbaeccee2a450",
+  "runs": 3,
+  "cpuThrottle": 4,
+  "fixture": {
+    "conversations": 60,
+    "messages": 15900,
+    "bytes": 5317889
+  },
+  "browser": "151.0.7922.34",
+  "samples": {
+    "before": [
+      {
+        "importMs": 184.0861,
+        "openMs": 318.972,
+        "searchMs": 6186.9697,
+        "mounted": 10000,
+        "longTasks": 3,
+        "longTaskMs": 5220,
+        "maxLongTaskMs": 5053,
+        "mainHeapMiB": 9.234992980957031
+      },
+      {
+        "importMs": 176.14519999999993,
+        "openMs": 278.85679999999957,
+        "searchMs": 5221.9579,
+        "mounted": 10000,
+        "longTasks": 3,
+        "longTaskMs": 4635,
+        "maxLongTaskMs": 4463,
+        "mainHeapMiB": 9.034046173095703
+      },
+      {
+        "importMs": 165.79230000000098,
+        "openMs": 275.90000000000146,
+        "searchMs": 5138.3676,
+        "mounted": 10000,
+        "longTasks": 3,
+        "longTaskMs": 4494,
+        "maxLongTaskMs": 4330,
+        "mainHeapMiB": 9.173175811767578
+      }
+    ],
+    "after": [
+      {
+        "importMs": 170.0658000000003,
+        "openMs": 199.75760000000082,
+        "searchMs": 93.84889999999723,
+        "mounted": 60,
+        "longTasks": 1,
+        "longTaskMs": 53,
+        "maxLongTaskMs": 53,
+        "mainHeapMiB": 3.843982696533203
+      },
+      {
+        "importMs": 168.64389999999912,
+        "openMs": 201.88130000000092,
+        "searchMs": 93.5802999999978,
+        "mounted": 60,
+        "longTasks": 0,
+        "longTaskMs": 0,
+        "maxLongTaskMs": 0,
+        "mainHeapMiB": 3.8387527465820312
+      },
+      {
+        "importMs": 162.85499999999956,
+        "openMs": 188.66379999999845,
+        "searchMs": 93.57410000000164,
+        "mounted": 60,
+        "longTasks": 0,
+        "longTaskMs": 0,
+        "maxLongTaskMs": 0,
+        "mainHeapMiB": 3.838245391845703
+      }
+    ]
+  },
+  "bytes": {
+    "before": 294345,
+    "after": 710153
+  },
+  "medians": {
+    "before": {
+      "importMs": 176.1,
+      "openMs": 278.9,
+      "searchMs": 5222,
+      "mounted": 10000,
+      "longTasks": 3,
+      "longTaskMs": 4635,
+      "maxLongTaskMs": 4463,
+      "mainHeapMiB": 9.2
+    },
+    "after": {
+      "importMs": 168.6,
+      "openMs": 199.8,
+      "searchMs": 93.6,
+      "mounted": 60,
+      "longTasks": 0,
+      "longTaskMs": 0,
+      "maxLongTaskMs": 0,
+      "mainHeapMiB": 3.8
+    }
+  }
+}

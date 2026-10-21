@@ -4,32 +4,21 @@ function dataWorkerMain(){
   const parsedCache=new Map(),PARSED_CACHE_LIMIT=3;
   const list=value=>Array.isArray(value)?value:[];
   const shared=archiveAnalysisCore();
-  let analyticsPort=null,analyticsStream=null;
-  function closeAnalyticsPort(){analyticsStream=null;if(analyticsPort)analyticsPort.close();analyticsPort=null;}
-  function connectAnalytics(port){
-    closeAnalyticsPort();analyticsPort=port;
+  const consumers=new Set();let auxiliaryRecords=[],largestImportChunk=0;
+  let analyticsPort=null,analyticsStream=null,importPort=null;
+  function closeAnalyticsPort(){analyticsStream=null;if(analyticsPort){analyticsPort.close();for(const state of consumers)if(state.port===analyticsPort)consumers.delete(state);}analyticsPort=null;}
+  function connectRecords(port,id){
+    const state={port,id,stream:null};consumers.add(state);
     port.onmessage=event=>{
-      const message=event.data||{};
-      if(message.generation!==generation)return;
-      if(message.type==='streamCancel'){if(analyticsStream?.requestId===message.requestId)analyticsStream=null;return;}
-      if(message.type==='streamStart')analyticsStream={requestId:message.requestId,index:0,awaiting:false,batchId:0};
-      else if(message.type==='batchAck'&&analyticsStream?.requestId===message.requestId&&message.batchId===analyticsStream.batchId)analyticsStream.awaiting=false;
-      else return;
-      const stream=analyticsStream;if(!stream||stream.awaiting)return;
-      try{
-        const items=[];let bytes=0;
-        while(stream.index<records.length&&items.length<4){
-          const record=records[stream.index],size=new TextEncoder().encode(record.raw).byteLength;
-          if(items.length&&bytes+size>512*1024)break;
-          items.push({raw:record.raw,meta:record.meta});bytes+=size;stream.index++;
-          if(bytes>=512*1024)break;
-        }
-        stream.awaiting=true;
-        port.postMessage({type:'batch',generation,requestId:stream.requestId,batchId:++stream.batchId,items,bytes,done:stream.index===records.length,total:records.length,loaded:stream.index});
-      }catch(error){port.postMessage({type:'error',generation,requestId:stream.requestId,error:error.message});analyticsStream=null;}
-    };
-    port.start();
+      const message=event.data||{};if(message.generation!==generation)return;
+      if(message.type==='streamCancel'){if(state.stream?.requestId===message.requestId)state.stream=null;return;}
+      if(message.type==='streamStart')state.stream={requestId:message.requestId,index:0,awaiting:false,batchId:0,source:message.uuids?message.uuids.map(id=>byUuid.get(id)).filter(Boolean):records};
+      else if(message.type==='batchAck'&&state.stream?.requestId===message.requestId&&message.batchId===state.stream.batchId){if(state.stream.index>=state.stream.source.length){state.stream=null;return;}state.stream.awaiting=false;}else return;
+      const stream=state.stream;if(!stream||stream.awaiting)return;
+      try{const items=[];let bytes=0;while(stream.index<stream.source.length&&items.length<4){const record=stream.source[stream.index],size=(record.bytes??=new TextEncoder().encode(record.raw).byteLength);if(items.length&&bytes+size>512*1024)break;items.push({raw:record.raw,meta:record.meta});bytes+=size;stream.index++;if(bytes>=512*1024)break;}stream.awaiting=true;port.postMessage({type:'batch',generation,requestId:stream.requestId,batchId:++stream.batchId,items,bytes,done:stream.index===stream.source.length,total:stream.source.length,loaded:stream.index});}catch(error){port.postMessage({type:'error',generation,requestId:stream.requestId,error:error.message});state.stream=null;}
+    };port.start();return state;
   }
+  function connectAnalytics(port){closeAnalyticsPort();analyticsPort=port;connectRecords(port);}
   const skipWs=(text,index)=>{while(index<text.length&&/\s/.test(text[index]))index++;return index;};
   function stringEnd(text,index){
     if(text[index]!=='"')throw new Error('Invalid JSON string');
@@ -107,25 +96,16 @@ function dataWorkerMain(){
     for(const block of list(message?.content)){if(typeof block?.text==='string')parts.push(block.text);if(typeof block?.thinking==='string')parts.push(block.thinking);if(typeof block?.name==='string')parts.push(block.name);if(typeof block?.file_path==='string')parts.push(block.file_path);if(typeof block?.input?.query==='string')parts.push(block.input.query);}
     return parts.join('\n');
   };
-  function buildSearchIndex(){
-    if(searchIndex)return searchIndex;
-    searchIndex=new Map();
-    for(const record of records){const conversation=materialize(record),text=[record.meta.name,record.meta.summary,...list(conversation.chat_messages).map(messageText)].join('\n').toLowerCase();searchIndex.set(record.meta.uuid,text);}
-    return searchIndex;
-  }
-  function calculateBehavior(){
-    const out={conversations:records.length,messages:0,tools:0,toolResults:0,paired:0,unpairedUse:0,unpairedResult:0,errors:0,approvals:0,mcp:0,structured:0,hiddenResults:0,thinking:0,thinkingHidden:0,thinkingTruncated:0,thinkingCutoff:0,thinkingSummary:0,thinkingSigned:0,thinkingDurationMs:0,quality:{refusal:0,fallback:0,latency:0,empty:0,truncated:0},examples:[]};
-    const stable=value=>{if(Array.isArray(value))return value.map(stable);if(value&&typeof value==='object'){const result={};for(const key of Object.keys(value).sort())result[key]=stable(value[key]);return result;}return value;},different=(a,b)=>JSON.stringify(stable(a))!==JSON.stringify(stable(b));
-    const uses=new Map(),results=new Map(),refusal=/(?:我(?:不能|无法|不可以|不会)(?:帮助|协助|提供|执行|生成|完成)|抱歉[^。！？\n]{0,40}(?:不能|无法)|\b(?:can't|cannot|won't|unable to)\s+(?:help|assist|provide|comply|create|generate|do that)\b)/iu,fallback=/(?:当前模型|这个模型|能力受限|降级模式|只能提供[^。！？\n]{0,18}(?:概括|一般性信息|高层次建议))|\b(?:as an ai|language model|model limitation|not available in this mode)\b/iu;
-    for(const record of records){const conversation=materialize(record),messages=list(conversation.chat_messages);out.messages+=messages.length;let previous=null;for(const message of messages){const text=messageText(message).trim(),time=Date.parse(message.created_at||message.updated_at||'')||0;if(!text&&!list(message.content).some(block=>/tool|thinking|result/i.test(String(block?.type||''))))out.quality.empty++;if(message.sender==='assistant'){if(refusal.test(text))out.quality.refusal++;if(fallback.test(text))out.quality.fallback++;if(/(?:\.\.\.|…|回答未完|to be continued)$/i.test(text))out.quality.truncated++;if(previous?.sender==='human'&&previous.time&&time&&time-previous.time>30*60*1000)out.quality.latency++;}previous={sender:message.sender,time};
-        for(const block of list(message.content)){if(!block||typeof block!=='object')continue;const type=String(block.type||'');if(type==='tool_use'||type==='server_tool_use'){out.tools++;const id=block.id||block.tool_use_id;if(id)uses.set(id,block);if(block.approval_key||block.approval_key_legacy||block.approval_options)out.approvals++;if(block.is_mcp_app||block.mcp_server_url||block.integration_name)out.mcp++;if(out.examples.length<8)out.examples.push({name:block.name||block.tool_identifier||'unknown',status:'调用'});}else if(type==='tool_result'||type==='web_search_tool_result'||type==='web_search_result'){out.toolResults++;const id=block.tool_use_id||block.id;if(id)results.set(id,block);if(block.is_error)out.errors++;if(block.structured_content||block.meta)out.structured++;const hasDisplay=block.display_content!==undefined&&block.display_content!==null,hasContent=block.content!==undefined&&block.content!==null;if((hasDisplay&&hasContent&&different(block.display_content,block.content))||(!hasDisplay&&(block.structured_content||block.meta)))out.hiddenResults++;}else if(type==='thinking'){out.thinking++;if(block.hidden||block.thinking_hidden)out.thinkingHidden++;if(block.truncated||block.cut_off)out.thinkingTruncated++;if(block.cut_off)out.thinkingCutoff++;if(block.summaries||block.alternative_display_type)out.thinkingSummary++;if(block.signature)out.thinkingSigned++;const start=Date.parse(block.start_timestamp),stop=Date.parse(block.stop_timestamp);if(start&&stop&&stop>=start)out.thinkingDurationMs+=stop-start;}}
-      }}
-    for(const id of uses.keys())if(results.has(id))out.paired++;else out.unpairedUse++;for(const id of results.keys())if(!uses.has(id))out.unpairedResult++;return out;
+  let searchPromise=null;
+  async function buildSearchIndex(){
+    if(searchIndex)return searchIndex;if(searchPromise)return searchPromise;
+    const source=records,sourceGeneration=generation;
+    const job=(async()=>{const index=new Map();let processed=0;for(const record of source){const conversation=materialize(record),parts=[record.meta.name,record.meta.summary];for(const message of list(conversation.chat_messages)){if(processed++%128===0){await new Promise(resolve=>setTimeout(resolve,0));if(generation!==sourceGeneration)throw new Error('stale data generation');}parts.push(messageText(message));}index.set(record.meta.uuid,parts.join('\n').toLowerCase());}if(generation!==sourceGeneration)throw new Error('stale data generation');searchIndex=index;return index;})();searchPromise=job;try{return await job;}finally{if(searchPromise===job)searchPromise=null;}
   }
   const responseGeneration=request=>Number(request.generation)||generation;
-  const reply=(request,result)=>self.postMessage({requestId:request.requestId,generation:responseGeneration(request),type:'result',result});
-  const fail=(request,error)=>self.postMessage({requestId:request.requestId,generation:responseGeneration(request),type:'error',error:error?.message||String(error)});
-  function reset(nextGeneration){closeAnalyticsPort();generation=Number(nextGeneration)||generation+1;records=[];byUuid=new Map();decoder=null;textChunks=[];searchIndex=null;parsedCache.clear();}
+  const reply=(request,result)=>(request._port||self).postMessage({requestId:request.requestId,generation:responseGeneration(request),type:'result',result});
+  const fail=(request,error)=>(request._port||self).postMessage({requestId:request.requestId,generation:responseGeneration(request),type:'error',error:error?.message||String(error)});
+  function reset(nextGeneration){closeAnalyticsPort();for(const state of consumers)state.port.close();consumers.clear();auxiliaryRecords=[];largestImportChunk=0;searchPromise=null;generation=Number(nextGeneration)||generation+1;records=[];byUuid=new Map();decoder=null;textChunks=[];searchIndex=null;parsedCache.clear();}
   function cacheDb(){return new Promise((resolve,reject)=>{if(!self.indexedDB){resolve(null);return;}const request=indexedDB.open(CACHE_DB,1);request.onupgradeneeded=()=>{const db=request.result;if(!db.objectStoreNames.contains(CACHE_STORE))db.createObjectStore(CACHE_STORE);};request.onsuccess=()=>resolve(request.result);request.onerror=()=>reject(request.error);});}
   async function cacheGet(key){const db=await cacheDb();if(!db)return null;try{return await new Promise((resolve,reject)=>{const request=db.transaction(CACHE_STORE,'readonly').objectStore(CACHE_STORE).get(key);request.onsuccess=()=>resolve(request.result||null);request.onerror=()=>reject(request.error);});}finally{db.close();}}
   async function cachePut(key,value){const db=await cacheDb();if(!db)return false;try{await new Promise((resolve,reject)=>{const transaction=db.transaction(CACHE_STORE,'readwrite');transaction.objectStore(CACHE_STORE).put(value,key);transaction.oncomplete=()=>resolve();transaction.onerror=()=>reject(transaction.error);transaction.onabort=()=>reject(transaction.error||new Error('cache transaction aborted'));});return true;}finally{db.close();}}
@@ -138,10 +118,14 @@ function dataWorkerMain(){
   self.onmessage=event=>{
     const request=event.data||{};
     Promise.resolve().then(async()=>{
-      if(request.type==='reset'){reset(request.generation);reply(request,{ok:true});return;}
+      if(Number(request.generation)<generation||request._port&&(request._port!==importPort||Number(request.generation)!==generation))throw new Error('stale data generation');
+      if(request.type==='importConnect'){importPort?.close();const port=importPort=request.payload.port;port.onmessage=event=>self.onmessage({data:{...event.data,_port:port}});port.start();reply(request,{ok:true});return;}
+      if(request.type==='reset'){
+importPort?.close();importPort=null;reset(request.generation);reply(request,{ok:true});return;}
       if(request.type==='ingestStart'){reset(request.generation);decoder=new TextDecoder();reply(request,{ok:true});return;}
       if(request.type==='ingestChunk'){
         if(Number(request.generation)!==generation||!decoder)throw new Error('stale data generation');
+        largestImportChunk=Math.max(largestImportChunk,request.payload?.byteLength||0);
         textChunks.push(decoder.decode(request.payload,{stream:true}));reply(request,{received:request.payload?.byteLength||0});return;
       }
       if(request.type==='ingestEnd'){
@@ -152,22 +136,31 @@ function dataWorkerMain(){
       if(request.type==='cacheClear'){reply(request,{cleared:await cacheDeleteAll()});return;}
       if(Number(request.generation)!==generation)throw new Error('stale data generation');
       if(request.type==='cacheLoad'){
-        const cached=await cacheGet(request.payload?.key);if(!cached||cached.schema!==CACHE_SCHEMA||!Array.isArray(cached.records)){reply(request,{hit:false});return;}
+        const cached=await cacheGet(request.payload?.key);if(Number(request.generation)!==generation)throw new Error('stale data generation');if(!cached||cached.schema!==CACHE_SCHEMA||!Array.isArray(cached.records)){reply(request,{hit:false});return;}
         records=cached.records;byUuid=new Map(records.map(record=>[record.meta.uuid,record]));searchIndex=cached.searchIndex?new Map(cached.searchIndex):null;parsedCache.clear();reply(request,{hit:true,...ingestSummary(true)});return;
       }
       if(request.type==='cacheStore'){const key=request.payload?.key;if(!key)throw new Error('cache key missing');reply(request,{stored:await cachePut(key,{schema:CACHE_SCHEMA,createdAt:Date.now(),records,searchIndex:searchIndex?[...searchIndex]:null})});return;}
-      if(request.type==='getConversation'){const record=byUuid.get(request.payload?.uuid);if(!record)throw new Error('conversation not found');reply(request,materialize(record));return;}
+      if(request.type==='recordsDisconnect'){for(const state of consumers)if(state.id===request.payload.id){state.port.close();consumers.delete(state);}reply(request,{ok:true});return;}
+      if(request.type==='recordsConnect'){connectRecords(request.payload.port,request.payload.id);reply(request,{ok:true});return;}
+      if(request.type==='auxiliary'||request.type==='auxiliaryTexts'){
+        const core=workerDomainCore();core.configure(request.context);const values=request.type==='auxiliaryTexts'?core.parseDesignExports(request.payload||[]):request.payload||[];
+        auxiliaryRecords=values.map(value=>{const raw=JSON.stringify(value),{chat_messages,...meta}=value;return{raw,meta:{...meta,message_count:chat_messages?.length||0,_workerBacked:true}};});for(const record of auxiliaryRecords)byUuid.set(record.meta.uuid,record);reply(request,{conversations:auxiliaryRecords.map(r=>r.meta)});return;
+      }
+      if(request.type==='getConversation'){
+const record=byUuid.get(request.payload?.uuid);if(!record)throw new Error('conversation not found');reply(request,materialize(record));return;}
       if(request.type==='releaseConversation'){parsedCache.delete(request.payload?.uuid);reply(request,{ok:true});return;}
       if(request.type==='search'){
         const query=String(request.payload?.query||'').trim().toLowerCase(),matches=[];
-        if(query)for(const [uuid,text]of buildSearchIndex())if(text.includes(query))matches.push(uuid);
-        reply(request,{uuids:matches,indexed:searchIndex.size});return;
+        if(!query){reply(request,{uuids:matches,indexed:searchIndex?.size||0});return;}
+        const index=await buildSearchIndex();
+        if(Number(request.generation)!==generation)throw new Error('stale data generation');
+        for(const [uuid,text]of index)if(text.includes(query))matches.push(uuid);
+        reply(request,{uuids:matches,indexed:index.size});return;
       }
       if(request.type==='analyticsConnect'){connectAnalytics(request.payload.port);reply(request,{ok:true});return;}
       if(request.type==='analyticsDisconnect'){closeAnalyticsPort();reply(request,{ok:true});return;}
-      if(request.type==='behavior'){reply(request,calculateBehavior());return;}
       if(request.type==='projectIndex'){const result=await shared.calculateProjectIndex(records,materialize,request.payload?.projects||[],request.payload?.memoryData||null,()=>new Promise(resolve=>setTimeout(resolve,0)));parsedCache.clear();reply(request,result);return;}
-      if(request.type==='debugState'){reply(request,{records:records.length,parsed:parsedCache.size,indexed:searchIndex?.size||0,lazy:true});return;}
+      if(request.type==='debugState'){reply(request,{records:records.length,parsed:parsedCache.size,indexed:searchIndex?.size||0,consumers:consumers.size,largestImportChunk,lazy:true});return;}
       throw new Error('unknown data worker request: '+request.type);
     }).catch(error=>fail(request,error));
   };

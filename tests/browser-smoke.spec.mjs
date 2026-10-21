@@ -103,8 +103,10 @@ test('optional libraries stay off the initial path and load by feature',async({p
   await page.setInputFiles('#file-input',fixtureDir);await waitLoaded(page);
   expect(await page.evaluate(()=>performance.getEntriesByType('resource').some(entry=>/jszip/i.test(entry.name)))).toBe(false);
   await page.locator('.conv-item').first().click();await expect(page.locator('#messages')).toContainText('synthetic widget');
-  expect(await page.evaluate(()=>typeof marked!=='undefined')).toBe(true);
-  await page.waitForFunction(()=>typeof hljs!=='undefined'&&typeof mermaid!=='undefined');
+  expect(await page.evaluate(()=>featureWorkers.has('reader'))).toBe(true);
+  expect(await page.evaluate(()=>typeof hljs)).toBe('undefined');
+  await page.waitForFunction(()=>typeof mermaid!=='undefined');
+  await expect(page.locator('#messages [class*=hljs-]').first()).toBeVisible();
   await page.waitForFunction(()=>document.querySelector('.mermaid svg'));
   expect(errors).toEqual([]);
 });
@@ -218,6 +220,6 @@ test('aggressive privacy mode covers broad personal data and SCP PDF markings',a
   const errors=await openViewer(page);
   const sample={...conversations[0],name:'Synthetic classified case',chat_messages:[{uuid:'22222222-2222-4222-8222-222222222222',sender:'human',created_at:'2026-01-01T00:00:00Z',content:[{type:'text',text:'姓名：张小明\n学校：星河实验中学\n住址：虚构省星河市新月区测试路88号3栋\nuid: 31415926\n银行卡：6222 0000 0000 1234\n普通长整数：12345678901234567\n主页：https://weibo.com/example_user\n参考：https://docs.example.invalid/private/page'}]}]};
   await page.evaluate(payload=>routeDroppedFiles([new File([JSON.stringify([payload])],'conversations.json',{type:'application/json'})]),sample);await page.waitForFunction(()=>allConvs.length===1&&allConvs[0].name==='Synthetic classified case');await page.locator('.conv-item').first().click();await page.waitForFunction(()=>currentConv&&currentConv.name==='Synthetic classified case');
-  const scan=await page.evaluate(()=>redactConversation(currentConv,'scp',true));const redacted=JSON.stringify(scan.conv);expect(scan.stats['个人姓名']).toBeGreaterThan(0);expect(scan.stats['学校或单位']).toBeGreaterThan(0);expect(scan.stats['详细地址']).toBeGreaterThan(0);expect(scan.stats['用户标识']).toBeGreaterThan(0);expect(scan.stats['银行卡号']).toBeGreaterThan(0);expect(scan.stats['社交账号']).toBeGreaterThan(0);expect(scan.stats['链接']).toBeGreaterThan(0);expect(redacted).not.toContain('6222 0000 0000 1234');expect(redacted).toContain('12345678901234567');expect(redacted).not.toContain('example_user');expect(redacted).not.toContain('docs.example.invalid');
+  const {scan,redacted}=await page.evaluate(async()=>({scan:await featureRequest('task','preview',{...conversationTaskPayload(),style:'scp',strict:true}),redacted:await(await featureRequest('task','export',{...conversationTaskPayload(),safe:true,style:'scp',strict:true})).blob.text()}));expect(scan.stats['个人姓名']).toBeGreaterThan(0);expect(scan.stats['学校或单位']).toBeGreaterThan(0);expect(scan.stats['详细地址']).toBeGreaterThan(0);expect(scan.stats['用户标识']).toBeGreaterThan(0);expect(scan.stats['银行卡号']).toBeGreaterThan(0);expect(scan.stats['社交账号']).toBeGreaterThan(0);expect(scan.stats['链接']).toBeGreaterThan(0);expect(redacted).not.toContain('6222 0000 0000 1234');expect(redacted).toContain('12345678901234567');expect(redacted).not.toContain('example_user');expect(redacted).not.toContain('docs.example.invalid');
   await page.locator('#export-btn').click();await page.locator('#export-menu button').nth(3).click();const modal=page.locator('#redaction-modal');await modal.locator('[data-style="scp"]').click();await modal.locator('[data-action="strength"]').click();const popupPromise=context.waitForEvent('page');await modal.locator('[data-action="export"]').click();const popup=await popupPromise;await popup.waitForLoadState('domcontentloaded');await expect(popup.locator('body')).toContainText('CONFIDENTIAL');await expect(popup.locator('.classified-badge')).toContainText('CLASSIFIED');expect(errors).toEqual([]);
 });

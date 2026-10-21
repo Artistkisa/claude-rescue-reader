@@ -346,7 +346,7 @@ github-dark.min.css    ← https://cdn.jsdelivr.net/npm/highlight.js@11.11.1/sty
 - [highlight.js](https://highlightjs.org/) — 代码语法高亮
 - [JSZip](https://stuk.github.io/jszip/) — ZIP 压缩包直读（免解压）
 
-数据与统计 Worker 的源码分别位于 `src/data-worker.js` 和 `src/analytics-worker.js`，共用总览与项目匹配算法位于 `src/analysis-core.js`。修改后运行 `scripts/build-single-file.ps1`，即可重新内联到 `viewer.html`；普通用户不需要运行构建脚本。
+五类按需 Worker（Data、Import、Task、Reader、Analytics）及共享算法在 `src/` 维护；ZIP 解压、脱敏导出、质量与行为扫描、对话搜索和 Markdown 预处理均在 Worker 中执行。长对话按窗口显示，代码与 Thinking 可搜索，ZIP 图片按需解压。详见 [Worker 性能管线](docs/worker-pipelines.md)。修改后运行 `scripts/build-single-file.ps1` 重新内联到 `viewer.html`；普通用户不需要构建。
 
 ## 参与社区
 
