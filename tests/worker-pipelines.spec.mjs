@@ -180,3 +180,9 @@ test('large compressed ZIP streams progress without delivering raw records to ma
   const opened=await page.evaluate(async()=>{const start=performance.now();await openConv('zip-small');return performance.now()-start;});
   expect(opened).toBeLessThan(2000);expect(await page.locator('#messages .msg-wrap').count()).toBe(2);
 });
+
+
+test('redaction dialog treats translated HTML as text',async({page})=>{
+  await load(page,2);await page.evaluate(()=>{currentLang='en';EN['脱敏预览']='<b data-injected="title">literal title</b>';EN['标准脱敏']='<i data-injected="style">literal style</i>';EN['未发现异常']='<img data-injected="empty" src="invalid">';void redactionDialog({name:'Synthetic',chat_messages:[]});});
+  const modal=page.locator('#redaction-modal');await expect(modal.locator('[data-action="export"]')).toBeEnabled();await expect(modal.locator('[data-injected]')).toHaveCount(0);await expect(modal.locator('h2')).toContainText('<b data-injected="title">');await expect(modal.locator('.redaction-results')).toContainText('<img data-injected="empty"');await page.keyboard.press('Escape');
+});

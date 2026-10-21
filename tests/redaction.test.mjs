@@ -55,3 +55,18 @@ test('new content fields and binary attachments are scanned without retaining or
 test('long unmatched Unicode text and many email hits avoid quadratic scans',()=>{
   const started=performance.now(),body='合成测试文本'.repeat(10000)+'\n'+Array.from({length:10000},(_,i)=>'synthetic'+i+'@example.invalid').join('\n');const result=core.redactConversation(sample(body),'standard',true);assert.equal(result.stats['邮箱'],10000);assert.ok(performance.now()-started<3000);assert.equal(result.matches.length,100);
 });
+
+
+test('custom terms ignore non-string array entries and enforce the combined limit',()=>{
+  const options=core.redactionOptions({customTerms:[null,undefined,123,false,{},'  synthetic  ','synthetic']});
+  assert.equal(JSON.stringify(options.customTerms),JSON.stringify(['synthetic']));
+  assert.equal(text(core.redactConversation(sample('null undefined 123 false synthetic'),'standard',false,options)),'null undefined 123 false [REDACTED:自定义敏感词]');
+  assert.throws(()=>core.redactionOptions({customTerms:Array.from({length:100},(_,i)=>String(i)+'x'.repeat(250))}),/limit/);
+  core.configure({lang:'en'});assert.equal(core.language,'en');core.configure({lang:'zh'});assert.equal(core.language,'zh');
+});
+
+test('nested content attachments are masked and marked for PDF cache isolation',()=>{
+  const conv=sample('ordinary');conv.chat_messages[0].content.push({type:'tool_result',attachments:[{data_url:'synthetic-nested-pixels',source:{data:'synthetic-source-pixels'}}]});
+  const result=core.redactConversation(conv),attachment=result.conv.chat_messages[0].content[1].attachments[0];
+  assert.equal(attachment._redactedMedia,true);assert.ok(!JSON.stringify(result.conv).includes('synthetic-nested-pixels'));assert.ok(!JSON.stringify(result.conv).includes('synthetic-source-pixels'));
+});

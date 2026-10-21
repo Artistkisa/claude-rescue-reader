@@ -66,7 +66,7 @@ const REDACTION_METADATA=new Set(['tool_input','input','metadata','file_path','p
 const REDACTION_PATH_KEYS=new Set('conversation name title summary chat_messages content text thinking prompt injection_source summaries attachments files file_name filename file_type file_size media_type url uri data value metadata tool_input input path file_path account uuid parent_message_uuid sender type structured_content display_content output created_at updated_at start_timestamp stop_timestamp tool_use_id id model thinking_hidden truncated signature _design _sourcePackage'.split(' '));
 function redactionOptions(options={}){
   const terms=Array.isArray(options.customTerms)?options.customTerms:String(options.customTerms||'').split(/\r?\n/);
-  const customTerms=[...new Set(terms.map(s=>String(s).trim()).filter(Boolean))];
+  const customTerms=[...new Set(terms.filter(s=>typeof s==='string').map(s=>s.trim()).filter(Boolean))];
   if(customTerms.length>100||customTerms.some(s=>s.length>256)||customTerms.join('\n').length>8192)throw new Error('Custom redaction terms exceed the limit (100 terms, 256 characters each, 8192 total).');
   return{customTerms};
 }
@@ -100,7 +100,8 @@ function* redactionSteps(conv,state,style,strict){
     const {parent,key,path}=stack.pop(),value=parent[key];
     if(typeof value==='string')parent[key]=redactText(value,state,path,style,strict);
     else if(value&&typeof value==='object'){
-      // Do not reattach unscanned image pixels from the UI's attachment cache.
+      // Matches attachments/files arrays at any depth, including content blocks.
+      // _redactedMedia is consumed by the PDF renderer to block cached original pixels.
       if(/\.(?:attachments|files)\[\d+\]$/.test(path)){
         value._redactedMedia=true;
         for(const binaryKey of ['data','data_url','source'])if(value[binaryKey]!=null){const raw=typeof value[binaryKey]==='string'?value[binaryKey]:JSON.stringify(value[binaryKey]);addRedactionFinding(state,'内嵌二进制',raw,path,'二进制内容不做 OCR，安全导出移除原始数据');value[binaryKey]=redactionToken('内嵌二进制',raw,style,state);}
@@ -404,5 +405,5 @@ copy._prepared={visuals,files,searchQueries,searchResults};
   return copy;
 }
 
-return {redactionOptions,redactionRuleVersion:REDACTION_RULE_VERSION,renderMarkdown:text=>marked.parse(String(text||'')),code:id=>codes.get(id)||'',clearCodes:()=>codes.clear(),parseDesignExports,configure(context={}){currentLang=context.lang||'zh';labels=context.labels||{};if(typeof marked!=='undefined')configureMarked();},tree,redactConversation,redactAsync,quality,behavior,markdown,prepare,searchFields,matches,esc,escAttr,t,fmtTime,messageText};
+return {get language(){return currentLang;},redactionOptions,redactionRuleVersion:REDACTION_RULE_VERSION,renderMarkdown:text=>marked.parse(String(text||'')),code:id=>codes.get(id)||'',clearCodes:()=>codes.clear(),parseDesignExports,configure(context={}){currentLang=context.lang||'zh';labels=context.labels||{};if(typeof marked!=='undefined')configureMarked();},tree,redactConversation,redactAsync,quality,behavior,markdown,prepare,searchFields,matches,esc,escAttr,t,fmtTime,messageText};
 }

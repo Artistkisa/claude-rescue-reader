@@ -10,7 +10,7 @@ function taskWorkerMain(){
     if(type==='highlight'){await token.checkpoint();return{html:hljs.getLanguage(payload.language)?hljs.highlight(payload.code,{language:payload.language}).value:core.esc(payload.code)};}
     if(type==='behavior')return core.behavior(token.records(),()=>token.checkpoint({loaded:token.loadedRecords||0,total:token.totalRecords||0}));
     if(type==='preview'){
-      const options=core.redactionOptions(payload),key=JSON.stringify([token.generation,payload.uuid,core.t('数据删除'),payload.style,payload.strict,core.redactionRuleVersion,options.customTerms]);
+      const options=core.redactionOptions(payload),key=JSON.stringify([token.generation,payload.uuid,core.language,payload.style,payload.strict,core.redactionRuleVersion,options.customTerms]);
       if(!payload.conversation&&cache.has(key)){const hit=cache.get(key);cache.delete(key);cache.set(key,hit);return hit;}
       const result=await core.redactAsync(await materialize(payload,token),payload.style||'standard',!!payload.strict,token.checkpoint,true,options);
       if(!payload.conversation){cache.set(key,result);while(cache.size>4)cache.delete(cache.keys().next().value);}
