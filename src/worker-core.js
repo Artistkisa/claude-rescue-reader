@@ -30,32 +30,94 @@ const esc=s=>String(s??'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>
 const escAttr=s=>esc(s).replace(/"/g,'&quot;').replace(/'/g,'&#39;');
 const fmtDate=iso=>iso?new Date(iso).toLocaleDateString(currentLang==='en'?'en-US':'zh-CN',{year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'}):'';
 const fmtTime=iso=>iso?new Date(iso).toLocaleTimeString(currentLang==='en'?'en-US':'zh-CN',{hour:'2-digit',minute:'2-digit'}):'';
+// Match the original text once; replacements are never scanned as new secrets.
+const REDACTION_RULE_VERSION=2;
 const SENSITIVE_PATTERNS=[
-  ['API 密钥',/\b(?:sk-[A-Za-z0-9_-]{16,}|AIza[0-9A-Za-z_-]{20,}|AKIA[0-9A-Z]{16})\b/g],
-  ['Bearer 令牌',/\bBearer\s+[A-Za-z0-9._~+\/-]+=*/gi],
-  ['私钥',/-----BEGIN (?:RSA |EC |OPENSSH )?PRIVATE KEY-----[\s\S]*?-----END (?:RSA |EC |OPENSSH )?PRIVATE KEY-----/g],
-  ['邮箱',/\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/gi],
-  ['手机号',/(?<!\d)(?:\+?86[- ]?)?1[3-9]\d{9}(?!\d)/g],
-  ['本地路径',/(?:[A-Z]:\\|file:\/\/|\/Users\/|\/home\/|\/mnt\/)[^\s"'<>]+/gi]
+  ['内嵌二进制',/data:(?:image|audio|video|application)\/[\w.+-]+;base64,[A-Za-z0-9+/]+={0,2}/gi],
+  ['私钥',/-----BEGIN (?:RSA |EC |DSA |OPENSSH |ENCRYPTED |PGP )?PRIVATE KEY(?: BLOCK)?-----[\s\S]*?(?:-----END (?:RSA |EC |DSA |OPENSSH |ENCRYPTED |PGP )?PRIVATE KEY(?: BLOCK)?-----|$)/g],
+  ['API 密钥',/\b(?:sk-[A-Za-z0-9_-]{16,}|AIza[0-9A-Za-z_-]{20,}|(?:AKIA|ASIA)[0-9A-Z]{16}|gh[pousr]_[A-Za-z0-9]{20,}|github_pat_[A-Za-z0-9_]{20,}|glpat-[A-Za-z0-9_-]{16,}|xox[baprs]-[A-Za-z0-9-]{10,}|npm_[A-Za-z0-9]{20,}|sk_(?:live|test)_[A-Za-z0-9]{16,})\b/g],
+  ['认证凭据',/\b(?:Bearer|Basic)\s+[A-Za-z0-9._~+\/-]+=*/gi],
+  ['JWT 令牌',/\beyJ[A-Za-z0-9_-]{5,}\.[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\b/g],
+  ['Webhook 令牌',/https:\/\/(?:hooks\.slack\.com\/services\/[^\s"'<>]+|(?:discord\.com|discordapp\.com)\/api\/webhooks\/[^\s"'<>]+|api\.telegram\.org\/bot\d+:[A-Za-z0-9_-]+)/gi],
+  ['邮箱',/(?<![\w.+%-])[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}(?![\w.-])/gi],
+  ['手机号',/(?<!\d)(?:\+?86[- .]?)?1[3-9](?:[- .]?\d){9}(?!\d)/g],
+  ['手机号',/(?<![\w\d])\+[1-9]\d{0,2}(?:[ .()-]?\d){7,12}(?!\d)/g],
+  ['本地路径',/(?:\b[A-Z]:[\\/]|\\\\[A-Za-z0-9_.-]+\\|file:\/\/)[^\s"'<>]+|(?<![\w:/])\/(?:Users|home|mnt|tmp|var|opt|srv|etc|root|workspace|workspaces|data)\/[^\s"'<>]+/gi]
 ];
 const STRICT_SENSITIVE_PATTERNS=[
   ['身份证件',/(?<!\d)\d{6}(?:19|20)\d{2}(?:0[1-9]|1[0-2])(?:0[1-9]|[12]\d|3[01])\d{3}[0-9X](?!\d)/gi],
-  ['银行卡号',/(?:卡号|银行卡|借记卡|信用卡|card(?:\s*(?:no|number))?)\s*[：:=]?\s*(?:\d[ -]?){16,19}(?!\d)/gi],
-  ['网络地址',/(?<!\d)(?:(?:25[0-5]|2[0-4]\d|1?\d?\d)\.){3}(?:25[0-5]|2[0-4]\d|1?\d?\d)(?!\d)/g],
+  ['银行卡号',/(?:卡号|银行卡|借记卡|信用卡|card(?:\s*(?:no|number))?)\s*[：:=]?\s*(?:\d[ -]?){13,19}(?!\d)/gi],
+  ['网络地址',/(?<![\w.])(?:(?:25[0-5]|2[0-4]\d|1?\d?\d)\.){3}(?:25[0-5]|2[0-4]\d|1?\d?\d)(?![\w.])/g],
+  ['网络地址',/(?<![\w:])(?:[\da-f]{0,4}:){2,7}[\da-f]{0,4}(?![\w:])/gi,value=>{const parts=value.split(':');return value.includes('::')?!value.includes(':::')&&value.indexOf('::')===value.lastIndexOf('::')&&parts.filter(Boolean).length<8:parts.length===8&&parts.every(Boolean);}],
+  ['设备标识',/(?<![\w:])(?:[\da-f]{2}[:-]){5}[\da-f]{2}(?![\w:])/gi],
+  ['银行卡号',/(?<![\d-])(?:\d[ -]?){12,18}\d(?![\d-])/g,value=>{const digits=value.replace(/\D/g,'');if(/^(\d)\1+$/.test(digits))return false;let sum=0;for(let i=digits.length-1,even=false;i>=0;i--,even=!even){let n=+digits[i];if(even&&(n*=2)>9)n-=9;sum+=n;}return sum%10===0;}],
   ['车牌号',/[京津沪渝冀豫云辽黑湘皖鲁新苏浙赣鄂桂甘晋蒙陕吉闽贵粤青藏川宁琼][A-Z][·A-Z0-9][A-Z0-9]{4,5}/g],
-  ['社交账号',/https?:\/\/(?:www\.)?(?:weibo\.com|twitter\.com|x\.com|facebook\.com|instagram\.com|tiktok\.com|douyin\.com|bilibili\.com|zhihu\.com|linkedin\.com|github\.com|reddit\.com|t\.me|discord\.gg|youtube\.com)\/[A-Za-z0-9_@?&=.%\/-]+/gi],
-  ['详细地址',/(?:[\u4e00-\u9fff]{2,}(?:省|自治区|市|区|县)){1,3}[\u4e00-\u9fff0-9-]{2,}(?:街道|路|街|巷|小区|村|镇|乡|号|栋|幢|楼|单元|室)/g],
-  ['详细地址',/[\u4e00-\u9fff]{2,}(?:路|街|巷|小区|大道)\d{1,4}号(?:\d{1,3}(?:栋|幢|楼|单元|室))?/g],
-  ['链接',/(?:https?:\/\/|www\.)[^\s<>"'）)\]}]+|\b(?:[A-Za-z0-9-]+\.)+(?:com|net|org|cn|io|dev|app|ai|edu|gov|co|me)(?:\/[A-Za-z0-9_?&=.%+\/-]*)?/gi]
+  ['社交账号',/https?:\/\/(?:www\.)?(?:weibo\.com|twitter\.com|x\.com|facebook\.com|instagram\.com|tiktok\.com|douyin\.com|bilibili\.com|zhihu\.com|linkedin\.com|github\.com|reddit\.com|t\.me|discord\.gg|youtube\.com)\/[^\s<>"'）)\]}]+/gi],
+  ['详细地址',/(?:[\u4e00-\u9fff]{2,20}(?:省|自治区|市|区|县)){1,3}[\u4e00-\u9fff0-9-]{2,80}(?:街道|路|街|巷|小区|村|镇|乡|号|栋|幢|楼|单元|室)/g],
+  ['详细地址',/[\u4e00-\u9fff]{2,40}(?:路|街|巷|小区|大道)\d{1,4}号(?:\d{1,3}(?:栋|幢|楼|单元|室))?/g],
+  ['链接',/(?:https?:\/\/|www\.)[^\s<>"'）)\]}]+|\b(?:[A-Za-z0-9-]+\.)+(?:com|net|org|cn|io|dev|app|ai|edu|gov|co|me)(?:\/[^\s<>"'）)\]}]*)?/gi]
 ];
-const CONTEXT_SECRET_RE=/((?:device[_ -]?id|user[_ -]?id|visitor[_ -]?id|fingerprint|session[_ -]?id|storage[_ -]?key|access[_ -]?token|refresh[_ -]?token|auth[_ -]?token|token|secret|api[_ -]?key|did)\s*["']?\s*[:=]\s*["']?)([A-Za-z0-9_%+\/=.-]{6,})/gi;
-const QUERY_SECRET_RE=/([?&](?:token|access_token|auth|key|sid|session|device_id|did|t)=)([A-Za-z0-9_%+\/=.-]{6,})/gi;
-const STRICT_CONTEXT_RE=/((?:姓名|名字|联系人|老师|教师|教授|班主任|校长|学校|学院|大学|中学|小学|幼儿园|公司|单位|部门|微信|wechat|qq|微博|抖音|uid|用户[_ -]?id|account[_ -]?id|open[_ -]?id|social[_ -]?id|身份证|住址|地址|家庭住址|工作地址)\s*[：:=]\s*["']?)([^\s,"'，。；;]{2,80})/gi;
-function redactionToken(label,value,style){if(style==='scp')return /^metadata$/i.test(label)?(currentLang==='en'?'[DATA EXPUNGED]':'[数据删除]'):'█'.repeat(Math.max(6,Math.min(24,String(value||'').length)));return '[REDACTED:'+label+']';}
-function maskedSecret(value){const s=String(value||'');if(s.length<=6)return '█'.repeat(s.length||4);return s.slice(0,2)+'…'+s.slice(-2)+' ('+s.length+')';}
-function addRedactionFinding(state,label,value,path,reason){state.stats[label]=(state.stats[label]||0)+1;state.total=(state.total||0)+1;if(state.matches.length<100)state.matches.push({label,path:path||'conversation',preview:maskedSecret(value),reason});}
-function redactText(text,state,path,style,strict=false){let out=String(text||'');out=out.replace(CONTEXT_SECRET_RE,(whole,prefix,value)=>{let label=/device|fingerprint|did/i.test(prefix)?'设备标识':/user/i.test(prefix)?'用户标识':/session|storage/i.test(prefix)?'会话标识':'凭据或令牌';addRedactionFinding(state,label,value,path,'敏感字段名与高熵标识值同时出现');return prefix+redactionToken(label,value,style);});out=out.replace(QUERY_SECRET_RE,(whole,prefix,value)=>{addRedactionFinding(state,'URL 查询令牌',value,path,'敏感查询参数');return prefix+redactionToken('URL 查询令牌',value,style);});for(const [label,re] of SENSITIVE_PATTERNS){re.lastIndex=0;out=out.replace(re,value=>{addRedactionFinding(state,label,value,path,'匹配 '+label+' 格式');return redactionToken(label,value,style);});}if(strict){STRICT_CONTEXT_RE.lastIndex=0;out=out.replace(STRICT_CONTEXT_RE,(whole,prefix,value)=>{const label=/老师|教师|教授|班主任|校长|姓名|名字|联系人/i.test(prefix)?'个人姓名':/学校|学院|大学|中学|小学|幼儿园|公司|单位|部门/i.test(prefix)?'学校或单位':/微信|wechat|qq|微博|抖音/i.test(prefix)?'社交账号':/uid|用户|account|open|social/i.test(prefix)?'用户标识':/地址|住址/i.test(prefix)?'详细地址':'身份证件';addRedactionFinding(state,label,value,path,'宽泛隐私规则，可能误伤普通文本');return prefix+redactionToken(label,value,style);});for(const [label,re] of STRICT_SENSITIVE_PATTERNS){re.lastIndex=0;out=out.replace(re,value=>{addRedactionFinding(state,label,value,path,'宽泛隐私规则，可能误伤普通文本');return redactionToken(label,value,style);});}}return out;}
-function redactConversation(conv,style='standard',strict=false){const clone=typeof structuredClone==='function'?structuredClone(conv):JSON.parse(JSON.stringify(conv));const state={stats:{},matches:[]};const metadataKeys=new Set(['tool_input','input','metadata','file_path','path']);const walk=(v,path)=>{if(typeof v==='string')return redactText(v,state,path,style,strict);if(Array.isArray(v))return v.map((item,i)=>walk(item,path+'['+i+']'));if(v&&typeof v==='object'){for(const k of Object.keys(v)){const next=path?path+'.'+k:k;if(metadataKeys.has(k)){const raw=typeof v[k]==='string'?v[k]:JSON.stringify(v[k]??'');redactText(raw,state,next,style,strict);addRedactionFinding(state,'metadata',raw,next,'安全导出会移除工具参数、路径或系统元数据');v[k]=redactionToken('metadata',raw,style);}else v[k]=walk(v[k],next);}}return v;};walk(clone,'conversation');return{conv:clone,stats:state.stats,matches:state.matches,total:state.matches.length,style,strict};}
+const SECRET_KEY=/^(?:password|passwd|pwd|passphrase|secret|client[_ -]?secret|api[_ -]?key|access[_ -]?key|private[_ -]?key|access[_ -]?token|refresh[_ -]?token|auth[_ -]?token|id[_ -]?token|token|authorization|proxy[_ -]?authorization|cookie|set[_ -]?cookie|x[_ -]?api[_ -]?key|aws[_ -]?secret[_ -]?access[_ -]?key|db[_ -]?password|密码|口令|密钥)$/i;
+const IDENTIFIER_KEY=/^(?:device[_ -]?id|user[_ -]?id|visitor[_ -]?id|session[_ -]?id|storage[_ -]?key|fingerprint|did)$/i;
+const CONTEXT_SECRET_RE=/((?:device[_ -]?id|user[_ -]?id|visitor[_ -]?id|fingerprint|session[_ -]?id|storage[_ -]?key|access[_ -]?token|refresh[_ -]?token|auth[_ -]?token|id[_ -]?token|client[_ -]?secret|api[_ -]?key|access[_ -]?key|private[_ -]?key|aws[_ -]?secret[_ -]?access[_ -]?key|db[_ -]?password|password|passwd|pwd|passphrase|token|secret|did|密码|口令|密钥)\s*["']?\s*[:=：]\s*)(?:"([^"\r\n]+)"|'([^'\r\n]+)'|([^\s,"'，。；;<>\]}]+))/gi;
+const QUERY_SECRET_RE=/([?&#](?:token|access_token|refresh_token|id_token|auth|authorization|api[_-]?key|key|sid|session|device_id|did|t|sig|signature|x-amz-signature|x-amz-credential|x-amz-security-token|x-goog-signature|x-goog-credential)=)([^\s&#"'<>）)\]}]+)/gi;
+const STRICT_CONTEXT_RE=/((?:姓名|名字|联系人|老师|教师|教授|班主任|校长|学校|学院|大学|中学|小学|幼儿园|公司|单位|部门|微信|wechat|qq|微博|抖音|uid|用户[_ -]?id|account[_ -]?id|open[_ -]?id|social[_ -]?id|身份证|护照|passport|ssn|住址|地址|家庭住址|工作地址|full[_ -]?name|phone|telephone|mobile|address)\s*[：:=]\s*["']?)([^\s,"'，。；;]{2,80})/gi;
+const REDACTION_METADATA=new Set(['tool_input','input','metadata','file_path','path']);
+const REDACTION_PATH_KEYS=new Set('conversation name title summary chat_messages content text thinking prompt injection_source summaries attachments files file_name filename file_type file_size media_type url uri data value metadata tool_input input path file_path account uuid parent_message_uuid sender type structured_content display_content output created_at updated_at start_timestamp stop_timestamp tool_use_id id model thinking_hidden truncated signature _design _sourcePackage'.split(' '));
+function redactionOptions(options={}){
+  const terms=Array.isArray(options.customTerms)?options.customTerms:String(options.customTerms||'').split(/\r?\n/);
+  const customTerms=[...new Set(terms.map(s=>String(s).trim()).filter(Boolean))];
+  if(customTerms.length>100||customTerms.some(s=>s.length>256)||customTerms.join('\n').length>8192)throw new Error('Custom redaction terms exceed the limit (100 terms, 256 characters each, 8192 total).');
+  return{customTerms};
+}
+function redactionState(options){const normalized=redactionOptions(options);return{stats:{},matches:[],total:0,pseudonyms:new Map(),...normalized};}
+function redactionToken(label,value,style,state){
+  if(style==='scp')return label==='metadata'?(currentLang==='en'?'[DATA EXPUNGED]':'[数据删除]'):'█'.repeat(Math.max(6,Math.min(24,String(value||'').length)));
+  if(style==='pseudonym'&&label!=='metadata'){if(!state.pseudonyms.has(value))state.pseudonyms.set(value,'[ID_'+(state.pseudonyms.size+1)+']');return state.pseudonyms.get(value);}
+  return '[REDACTED:'+label+']';
+}
+function addRedactionFinding(state,label,value,path,reason){state.stats[label]=(state.stats[label]||0)+1;state.total++;if(state.matches.length<100)state.matches.push({label,path:path||'conversation',preview:'█'.repeat(Math.max(4,Math.min(12,String(value).length)))+' ('+String(value).length+')',reason});}
+function redactText(text,state,path,style,strict=false){
+  text=String(text??'');const spans=[];
+  const add=(start,end,label,reason)=>{if(end>start)spans.push({start,end,label,reason});};
+  const scan=(re,callback)=>{re.lastIndex=0;for(const match of text.matchAll(re))callback(match);};
+  scan(CONTEXT_SECRET_RE,m=>{const value=m[2]??m[3]??m[4],start=m.index+m[1].length+(m[2]!==undefined||m[3]!==undefined?1:0),label=/device|fingerprint|\bdid\b/i.test(m[1])?'设备标识':/user|visitor/i.test(m[1])?'用户标识':/session|storage/i.test(m[1])?'会话标识':'凭据或令牌';add(start,start+value.length,label,'敏感字段名与值同时出现');});
+  scan(QUERY_SECRET_RE,m=>add(m.index+m[1].length,m.index+m[0].length,'URL 查询令牌','敏感查询参数'));
+  scan(/(https:\/\/claude\.ai\/export\/[A-Za-z0-9-]+\/download\/)([A-Za-z0-9-]+)/gi,m=>add(m.index+m[1].length,m.index+m[0].length,'下载令牌','官方导出下载令牌'));
+  scan(/\b[a-z][a-z0-9+.-]*:\/\/([^\s/@"'<>]+)@/gi,m=>{if(m[1].includes(':'))add(m.index+m[0].indexOf('://')+3,m.index+m[0].length-1,'连接凭据','连接地址中的用户名与密码');});
+  scan(/\b(?:Authorization|Proxy-Authorization|Cookie|Set-Cookie|X-Api-Key)\s*:\s*([^\r\n]+)/gi,m=>add(m.index+m[0].length-m[1].length,m.index+m[0].length,'认证凭据','认证头或 Cookie'));
+  const connections=spans.filter(s=>s.label==='连接凭据').sort((a,b)=>a.start-b.start);let connectionIndex=0;
+  for(const [label,re,validate]of [...SENSITIVE_PATTERNS,...(strict?STRICT_SENSITIVE_PATTERNS:[])])scan(re,m=>{if(label==='邮箱'){while(connections[connectionIndex]?.end<=m.index)connectionIndex++;const connection=connections[connectionIndex];if(connection&&connection.start<m.index+m[0].length)return;}if(!validate||validate(m[0]))add(m.index,m.index+m[0].length,label,strict?'格式匹配；强力规则可能误伤':'敏感格式匹配');});
+  if(strict)scan(STRICT_CONTEXT_RE,m=>{const label=/老师|教师|教授|班主任|校长|姓名|名字|联系人|name/i.test(m[1])?'个人姓名':/学校|学院|大学|中学|小学|幼儿园|公司|单位|部门/i.test(m[1])?'学校或单位':/微信|wechat|qq|微博|抖音/i.test(m[1])?'社交账号':/phone|telephone|mobile/i.test(m[1])?'手机号':/uid|用户|account|open|social/i.test(m[1])?'用户标识':/地址|住址|address/i.test(m[1])?'详细地址':'身份证件';add(m.index+m[1].length,m.index+m[0].length,label,'宽泛隐私规则，可能误伤普通文本');});
+  for(const term of state.customTerms){let from=0,index;while((index=text.indexOf(term,from))!==-1){add(index,index+term.length,'自定义敏感词','用户指定的精确文本');from=index+term.length;}}
+  spans.sort((a,b)=>a.start-b.start||b.end-a.end);const merged=[];
+  for(const span of spans){const last=merged[merged.length-1];if(last&&span.start<last.end){if(span.end-span.start>last.end-last.start){last.label=span.label;last.reason=span.reason;}last.end=Math.max(last.end,span.end);}else merged.push({...span});}
+  let out='',at=0;for(const span of merged){const value=text.slice(span.start,span.end);addRedactionFinding(state,span.label,value,path,span.reason);out+=text.slice(at,span.start)+redactionToken(span.label,value,style,state);at=span.end;}return out+text.slice(at);
+}
+function* redactionSteps(conv,state,style,strict){
+  const stack=[{parent:{value:conv},key:'value',path:'conversation'}];
+  while(stack.length){
+    const {parent,key,path}=stack.pop(),value=parent[key];
+    if(typeof value==='string')parent[key]=redactText(value,state,path,style,strict);
+    else if(value&&typeof value==='object'){
+      // Do not reattach unscanned image pixels from the UI's attachment cache.
+      if(/\.(?:attachments|files)\[\d+\]$/.test(path)){
+        value._redactedMedia=true;
+        for(const binaryKey of ['data','data_url','source'])if(value[binaryKey]!=null){const raw=typeof value[binaryKey]==='string'?value[binaryKey]:JSON.stringify(value[binaryKey]);addRedactionFinding(state,'内嵌二进制',raw,path,'二进制内容不做 OCR，安全导出移除原始数据');value[binaryKey]=redactionToken('内嵌二进制',raw,style,state);}
+      }
+      if(value.type==='image'&&value.source){addRedactionFinding(state,'内嵌二进制',JSON.stringify(value.source),path,'二进制内容不做 OCR，安全导出移除原始数据');value.source={type:'redacted'};}
+      const entries=Object.keys(value);for(let i=entries.length-1;i>=0;i--){
+        let k=entries[i];const safeKey=REDACTION_PATH_KEYS.has(k)?'.'+k:'[field]',p=Array.isArray(value)?path+'['+k+']':path+safeKey;
+        if(!Array.isArray(value)&&!REDACTION_PATH_KEYS.has(k)&&!SECRET_KEY.test(k)){const replacement=redactText(k,state,p,style,strict);if(replacement!==k){let renamed=replacement,n=1;while(Object.hasOwn(value,renamed))renamed=replacement+'_'+n++;Object.defineProperty(value,renamed,{value:value[k],writable:true,enumerable:true,configurable:true});delete value[k];k=renamed;}}
+        const originalKey=entries[i],label=SECRET_KEY.test(originalKey)?'凭据或令牌':IDENTIFIER_KEY.test(originalKey)?(/device|fingerprint|did/i.test(originalKey)?'设备标识':/session|storage/i.test(originalKey)?'会话标识':'用户标识'):strict&&/^(?:email|phone|telephone|mobile|full_name|address|passport|ssn|account_id)$/i.test(originalKey)?'个人信息字段':null;
+        if(REDACTION_METADATA.has(originalKey)||label){const raw=typeof value[k]==='string'?value[k]:JSON.stringify(value[k]??'');if(raw&&raw!=='null'){if(!label)redactText(raw,state,p,style,strict);addRedactionFinding(state,label||'metadata',raw,p,label?'敏感字段名与值同时出现':'安全导出会移除工具参数、路径或系统元数据');value[k]=redactionToken(label||'metadata',raw,style,state);}}
+        else stack.push({parent:value,key:k,path:p});
+      }
+    }
+    yield;
+  }
+}
+function redactConversation(conv,style='standard',strict=false,options={}){const clone=structuredClone(conv),state=redactionState(options);for(const _ of redactionSteps(clone,state,style,strict)){}return{conv:clone,stats:state.stats,matches:state.matches,total:state.total,style,strict,ruleVersion:REDACTION_RULE_VERSION};}
 
   const plain=m=>{let s=String(m?.text||'');for(const b of(m?.content||[]))if(b&&typeof b==='object')s+=' '+String(b.text||b.thinking||b.content||'');return s.replace(/\s+/g,' ').trim();};
   const hasType=(m,re)=>((m?.content||[]).some(b=>b&&re.test(String(b.type||'')+' '+String(b.name||''))));
@@ -218,12 +280,10 @@ function tree(conv,mode='longest',choices={}){
   }
   return {ids,navigation,messages:ids.map((id,i)=>({...messages[id],_warning:i===0&&warning?{_divider:warning}:i===orphanStart&&orphanCount?{_divider:'orphan',count:orphanCount}:null,_sourceIndex:id,_treeDepth:depths.get(id)||0,_branch:navigation[id]||null}))};
 }
-async function redactAsync(conv,style,strict,checkpoint,preview=false){
-  // Work on the task-owned materialization; never clone the archive on the UI thread.
-  const state={stats:{},matches:[],total:0},metadata=new Set(['tool_input','input','metadata','file_path','path']);
-  const stack=[{parent:{value:conv},key:'value',path:'conversation'}];let n=0;
-  while(stack.length){if(n++%128===0)await checkpoint({processed:n});const {parent,key,path}=stack.pop(),value=parent[key];if(typeof value==='string')parent[key]=redactText(value,state,path,style,strict);else if(value&&typeof value==='object'){const entries=Object.keys(value);for(let i=entries.length-1;i>=0;i--){const k=entries[i],p=Array.isArray(value)?path+'['+k+']':path+'.'+k;if(metadata.has(k)){const raw=typeof value[k]==='string'?value[k]:JSON.stringify(value[k]??'');redactText(raw,state,p,style,strict);addRedactionFinding(state,'metadata',raw,p,'Metadata removed');value[k]=redactionToken('metadata',raw,style);}else stack.push({parent:value,key:k,path:p});}}}
-  return {...(!preview?{conv}:{}),stats:state.stats,matches:state.matches,total:state.total,style,strict};
+async function redactAsync(conv,style,strict,checkpoint,preview=false,options={}){
+  const state=redactionState(options);let n=0;
+  for(const _ of redactionSteps(conv,state,style,strict)){if(n++%128===0)await checkpoint({processed:n});}
+  return {...(!preview?{conv}:{}),stats:state.stats,matches:state.matches,total:state.total,style,strict,ruleVersion:REDACTION_RULE_VERSION};
 }
 function messageText(message){const parts=[message?.text||''];for(const b of list(message?.content)){if(typeof b?.text==='string')parts.push(b.text);if(typeof b?.thinking==='string')parts.push(b.thinking);if(typeof b?.content==='string')parts.push(b.content);if(b?.input?.query)parts.push(b.input.query);}return parts.join('\n');}
 function* matches(text,needle){
@@ -344,5 +404,5 @@ copy._prepared={visuals,files,searchQueries,searchResults};
   return copy;
 }
 
-return {renderMarkdown:text=>marked.parse(String(text||'')),code:id=>codes.get(id)||'',clearCodes:()=>codes.clear(),parseDesignExports,configure(context={}){currentLang=context.lang||'zh';labels=context.labels||{};if(typeof marked!=='undefined')configureMarked();},tree,redactConversation,redactAsync,quality,behavior,markdown,prepare,searchFields,matches,esc,escAttr,t,fmtTime,messageText};
+return {redactionOptions,redactionRuleVersion:REDACTION_RULE_VERSION,renderMarkdown:text=>marked.parse(String(text||'')),code:id=>codes.get(id)||'',clearCodes:()=>codes.clear(),parseDesignExports,configure(context={}){currentLang=context.lang||'zh';labels=context.labels||{};if(typeof marked!=='undefined')configureMarked();},tree,redactConversation,redactAsync,quality,behavior,markdown,prepare,searchFields,matches,esc,escAttr,t,fmtTime,messageText};
 }

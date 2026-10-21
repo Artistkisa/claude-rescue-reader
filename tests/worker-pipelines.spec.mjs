@@ -2,6 +2,7 @@ import {test,expect} from '@playwright/test';
 import {pathToFileURL} from 'node:url';
 import path from 'node:path';
 import JSZip from 'jszip';
+import fs from 'node:fs/promises';
 const viewer=pathToFileURL(path.resolve('viewer.html')).href;
 const root='00000000-0000-4000-8000-000000000000';
 async function load(page,count=10000){
@@ -12,6 +13,26 @@ async function load(page,count=10000){
     await ingestData(JSON.stringify([{uuid:'large',name:'Synthetic giant',chat_messages:messages},{uuid:'small',name:'Synthetic small',chat_messages:messages.slice(0,2)}]),[],null,[],{textContent:''});
   },count);
 }
+test('custom redaction uses consistent aliases, debounces scans and protects exported filenames',async({page})=>{
+  await load(page,2);await page.evaluate(async()=>{const conversation={uuid:'private',name:'synthetic@example.invalid',chat_messages:[{uuid:'one',sender:'human',content:[{type:'text',text:'Alice Alice Bob'}]}]};await ingestData(JSON.stringify([conversation]),[],null,[],{textContent:''});await openConv('private');});
+  await page.evaluate(()=>void exportConv('safe'));const modal=page.locator('#redaction-modal');await expect(modal.locator('[data-action="export"]')).toBeEnabled();await modal.locator('[data-style="pseudonym"]').click();await modal.locator('textarea').fill('Alice\nBob');await expect(modal.locator('[data-action="export"]')).toBeDisabled();await expect(modal.locator('.redaction-results')).toContainText('自定义敏感词');
+  const pending=page.waitForEvent('download');await modal.locator('[data-action="export"]').click();const download=await pending,body=await fs.readFile(await download.path(),'utf8');expect(download.suggestedFilename()).not.toContain('synthetic@example.invalid');expect(body).not.toContain('Alice');expect(body).not.toContain('Bob');expect(body).toMatch(/(\[ID_\d+\]) \1/);
+  await page.evaluate(()=>void redactionDialog(currentConv));await expect(modal.locator('textarea')).toHaveValue('');await modal.locator('textarea').fill(Array.from({length:101},(_,i)=>'term-'+i).join('\n'));await expect(modal.locator('.redaction-status')).toContainText('limit');await expect(modal.locator('[data-action="export"]')).toBeDisabled();await modal.locator('textarea').fill('Alice');await expect(modal.locator('[data-action="export"]')).toBeEnabled();await page.keyboard.press('Escape');await expect(modal).toBeHidden();
+});
+
+test('preview cache includes custom rules and keeps original values out of summaries',async({page})=>{
+  await load(page,2);const result=await page.evaluate(async()=>{const conversation={uuid:'cache',name:'Synthetic',chat_messages:[{uuid:'one',content:[{type:'text',text:'AlphaPerson BetaPerson'}]}]};await ingestData(JSON.stringify([conversation]),[],null,[],{textContent:''});const scans=[];for(const customTerms of ['AlphaPerson','','BetaPerson','AlphaPerson'])scans.push(await featureRequest('task','preview',{uuid:'cache',customTerms}));return scans;});expect(result.map(s=>s.total)).toEqual([1,0,1,1]);expect(JSON.stringify(result)).not.toContain('AlphaPerson');expect(JSON.stringify(result)).not.toContain('BetaPerson');
+});
+
+test('a completed redaction preview cannot confirm an export after the source changes',async({page})=>{
+  await load(page,2);await page.evaluate(()=>{window.staleRedaction=undefined;void redactionDialog({name:'old@example.invalid',chat_messages:[]}).then(value=>window.staleRedaction=value);});await expect(page.locator('#redaction-modal [data-action="export"]')).toBeEnabled();await page.evaluate(()=>newExportArchive());await page.locator('#redaction-modal [data-action="export"]').click();expect(await page.evaluate(()=>window.staleRedaction)).toBeNull();
+});
+
+test('safe PDF redacts its title and omits cached original attachment images',async({page,context})=>{
+  await load(page,2);await page.evaluate(async()=>{const conversation={uuid:'pdf-private',name:'person@example.invalid',chat_messages:[{uuid:'one',sender:'human',attachments:[{file_name:'synthetic.svg',file_type:'image/svg+xml'}],content:[{type:'text',text:'PrivatePerson'}]}]};await ingestData(JSON.stringify([conversation]),[],null,[],{textContent:''});addLocalMedia(new Blob(['<svg xmlns="http://www.w3.org/2000/svg"><text>Private pixels</text></svg>'],{type:'image/svg+xml'}),'synthetic.svg','auto');await openConv('pdf-private');void exportPDF('safe');});
+  const modal=page.locator('#redaction-modal');await modal.locator('textarea').fill('PrivatePerson');await expect(modal.locator('[data-action="export"]')).toBeEnabled();const pending=context.waitForEvent('page');await modal.locator('[data-action="export"]').click();const popup=await pending;await expect(popup.locator('.pdf-title')).toContainText('REDACTED');expect(await popup.title()).not.toContain('person@example.invalid');await expect(popup.locator('.pdf-conversation')).toContainText('附件图片已从安全导出中省略');await expect(popup.locator('.pdf-conversation img')).toHaveCount(0);await expect(popup.locator('body')).not.toContainText('PrivatePerson');await popup.close();
+});
+
 test('workers are lazy; 10k search and cross-page navigation only mount a window',async({page})=>{
   await load(page);
   expect(await page.evaluate(()=>[...featureWorkers.keys()])).toEqual([]);
