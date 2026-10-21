@@ -2,6 +2,8 @@
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-+ToNMv6izKPWIpaVEdjtjT5HB4x5kpOUXmK9V2LNx/A=' 'sha256-tMIvewdj4Er6it91vRKx68b9zhu5Sxm35MV7o9YOuqs=' https://cdn.jsdelivr.net https://unpkg.com https://cdnjs.cloudflare.com blob:; script-src-attr 'none'; style-src 'unsafe-inline' https://cdn.jsdelivr.net https://unpkg.com https://cdnjs.cloudflare.com; img-src blob: data:; font-src data:; connect-src blob:; worker-src blob:; frame-src blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta name="referrer" content="no-referrer">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Claude Rescue Reader — Local Claude Export Viewer</title>
 <style>
@@ -421,30 +423,31 @@ mark.cs.active { background:var(--accent); color:#fff; }
 <div id="sidebar">
   <div id="sidebar-header">
     <h1>💬 Claude Rescue Reader <span id="conv-total">0</span></h1>
-    <button id="load-btn" data-i18n="📂 选择导出文件夹" onclick="document.getElementById('file-input').click()">📂 选择导出文件夹</button>
+    <button id="load-btn" data-i18n="📂 选择导出文件夹" data-ui-click="pick-folder">📂 选择导出文件夹</button>
     <input type="file" id="file-input" webkitdirectory multiple accept=".json">
-    <button id="load-zip-btn" data-i18n="🗜️ 直接选择 ZIP 压缩包（免解压）" onclick="document.getElementById('zip-input').click()">🗜️ 直接选择 ZIP 压缩包（免解压）</button>
+    <button id="load-zip-btn" data-i18n="🗜️ 直接选择 ZIP 压缩包（免解压）" data-ui-click="pick-zip">🗜️ 直接选择 ZIP 压缩包（免解压）</button>
     <input type="file" id="zip-input" accept=".zip,application/zip" style="display:none;">
-    <button id="clear-cache-btn" data-i18n="清除本地解析缓存" onclick="clearLocalDataCache(this)" style="width:100%;margin-top:6px;padding:5px;background:transparent;color:var(--text3);border:1px solid var(--border);border-radius:6px;cursor:pointer;font-size:11px;">清除本地解析缓存</button>
+    <button id="clear-cache-btn" data-i18n="清除本地解析缓存" data-ui-click="clear-cache" style="width:100%;margin-top:6px;padding:5px;background:transparent;color:var(--text3);border:1px solid var(--border);border-radius:6px;cursor:pointer;font-size:11px;">清除本地解析缓存</button>
+    <p data-i18n="解析缓存包含对话原文，关闭浏览器后仍保留；共用设备请在离开前清除。" style="font-size:11px;color:var(--text3);margin:5px 0;">解析缓存包含对话原文，关闭浏览器后仍保留；共用设备请在离开前清除。</p>
     <div id="stats-bar" style="display:none;margin-top:8px;padding:8px 10px;background:var(--bg3);border-radius:8px;font-size:11.5px;color:var(--text3);line-height:1.8;"></div>
-    <input type="text" id="search-box" data-i18n-placeholder="搜索对话…" placeholder="搜索对话…" oninput="filterConvs(this.value)">
+    <input type="text" id="search-box" data-i18n-placeholder="搜索对话…" placeholder="搜索对话…" data-ui-input="search-conversations">
     <div style="display:flex;align-items:center;gap:6px;margin-top:6px;">
       <label style="font-size:11px;color:var(--text3);display:flex;align-items:center;gap:4px;cursor:pointer;">
         <input type="checkbox" id="search-fulltext" style="width:12px;height:12px;"> <span data-i18n="全文搜索">全文搜索</span>
       </label>
       <span style="flex:1"></span>
-      <button class="sort-btn active" data-sort="updated" data-i18n="最新" data-i18n-title="按最近更新时间排序" onclick="setSort('updated')" title="按最近更新时间排序">最新</button>
-      <button class="sort-btn" data-sort="created" data-i18n="最早" data-i18n-title="按最早创建时间排序" onclick="setSort('created')" title="按最早创建时间排序">最早</button>
-      <button class="sort-btn" data-sort="msgs" data-i18n="最多" data-i18n-title="按消息数量排序" onclick="setSort('msgs')" title="按消息数量排序">最多</button>
+      <button class="sort-btn active" data-sort="updated" data-i18n="最新" data-i18n-title="按最近更新时间排序" data-ui-click="sort" data-ui-value="updated" title="按最近更新时间排序">最新</button>
+      <button class="sort-btn" data-sort="created" data-i18n="最早" data-i18n-title="按最早创建时间排序" data-ui-click="sort" data-ui-value="created" title="按最早创建时间排序">最早</button>
+      <button class="sort-btn" data-sort="msgs" data-i18n="最多" data-i18n-title="按消息数量排序" data-ui-click="sort" data-ui-value="msgs" title="按消息数量排序">最多</button>
     </div>
   </div>
   <div id="tabs">
-    <button class="tab-btn active" data-i18n="对话" onclick="switchTab('convs',this)">对话</button>
-    <button class="tab-btn" data-i18n="项目" onclick="switchTab('projects',this)">项目</button>
-    <button class="tab-btn" data-i18n="记忆" onclick="switchTab('memory',this)">记忆</button>
-    <button class="tab-btn" data-i18n="Design" onclick="switchTab('design',this)" style="display:none">Design</button>
-    <button class="tab-btn" data-analytics-tab data-i18n="统计" onclick="switchTab('analytics',this)">统计</button>
-    <button class="tab-btn" data-i18n="Claude 行为实验室" onclick="switchTab('behavior',this)">🧪 行为实验室</button>
+    <button class="tab-btn active" data-i18n="对话" data-ui-click="tab" data-ui-value="convs">对话</button>
+    <button class="tab-btn" data-i18n="项目" data-ui-click="tab" data-ui-value="projects">项目</button>
+    <button class="tab-btn" data-i18n="记忆" data-ui-click="tab" data-ui-value="memory">记忆</button>
+    <button class="tab-btn" data-i18n="Design" data-ui-click="tab" data-ui-value="design" style="display:none">Design</button>
+    <button class="tab-btn" data-analytics-tab data-i18n="统计" data-ui-click="tab" data-ui-value="analytics">统计</button>
+    <button class="tab-btn" data-i18n="Claude 行为实验室" data-ui-click="tab" data-ui-value="behavior">🧪 行为实验室</button>
   </div>
   <div id="conv-list"></div>
 </div>
@@ -455,16 +458,16 @@ mark.cs.active { background:var(--accent); color:#fff; }
     <div id="chat-title" data-i18n="← 选择一个对话" style="color:var(--text3)">← 选择一个对话</div>
     <div id="last-supper-plaque" data-i18n="最后的晚餐" data-i18n-title="这份导出中，时间上最后结束的对话" title="这份导出中，时间上最后结束的对话">最后的晚餐</div>
     <div id="chat-header-meta"></div>
-    <button id="toggle-summary" onclick="toggleSummary()">摘要 ▶</button>
-    <input type="text" id="csearch" data-i18n-placeholder="对话内搜索…" placeholder="对话内搜索…" style="display:none;" oninput="cSearch(this.value)" onkeydown="if(event.key==='Enter'){event.shiftKey?cNav(-1):cNav(1)}">
+    <button id="toggle-summary" data-ui-click="summary">摘要 ▶</button>
+    <input type="text" id="csearch" data-i18n-placeholder="对话内搜索…" placeholder="对话内搜索…" style="display:none;" data-ui-input="search-messages" data-ui-key="search">
     <span id="csearch-count" style="display:none;"></span>
-    <button id="cprev" onclick="cNav(-1)" data-i18n-title="上一个匹配" title="上一个匹配" style="display:none;padding:4px 7px;background:var(--bg3);border:1px solid var(--border);border-radius:6px;color:var(--text2);cursor:pointer;">↑</button>
-    <button id="cnext" onclick="cNav(1)" data-i18n-title="下一个匹配" title="下一个匹配" style="display:none;padding:4px 7px;background:var(--bg3);border:1px solid var(--border);border-radius:6px;color:var(--text2);cursor:pointer;">↓</button>
-    <button id="quality-btn" onclick="toggleQualityPanel()" data-i18n-title="对话质量分析" title="对话质量分析" style="display:none;padding:5px 8px;background:var(--bg3);border:1px solid var(--border);border-radius:6px;color:var(--text2);font-size:12px;cursor:pointer;">🩺</button>
-    <button id="tree-mode-btn" onclick="toggleTreeMode()" data-i18n-title="切换分支显示模式" title="切换分支显示模式" style="display:none;padding:5px 8px;background:var(--bg3);border:1px solid var(--border);border-radius:6px;color:var(--text2);font-size:11px;cursor:pointer;">🌿 <span data-i18n="最长路径">最长路径</span></button>
-    <div class="export-wrap" id="export-wrap" style="display:none"><button id="export-btn" onclick="toggleExportMenu(event)" data-i18n-title="导出当前对话" title="导出当前对话" style="padding:5px 9px;background:var(--bg3);border:1px solid var(--border);border-radius:6px;color:var(--text2);font-size:13px;cursor:pointer;">⬇ 导出</button><div id="export-menu" class="export-menu" style="display:none"><button onclick="exportConv('normal');closeExportMenu()">📝 <span data-i18n="导出 Markdown">导出 Markdown</span></button><button onclick="exportConv('safe');closeExportMenu()">🛡️ <span data-i18n="安全导出">安全导出 Markdown</span></button><button onclick="exportPDF('normal');closeExportMenu()">🖨️ <span data-i18n="导出 PDF">导出 PDF</span></button><button onclick="exportPDF('safe');closeExportMenu()">🛡️ <span data-i18n="安全导出 PDF">安全导出 PDF</span></button></div></div>
-    <button id="lang-btn" onclick="toggleLanguage()" title="Switch UI language" style="padding:5px 9px;background:var(--bg3);border:1px solid var(--border);border-radius:6px;color:var(--text2);font-size:12px;cursor:pointer;line-height:1;">🌐 EN</button>
-    <button id="theme-btn" onclick="toggleTheme()" data-i18n-title="切换明暗主题" title="切换明暗主题" style="padding:5px 9px;background:var(--bg3);border:1px solid var(--border);border-radius:6px;color:var(--text2);font-size:14px;cursor:pointer;line-height:1;">🌙</button>
+    <button id="cprev" data-ui-click="search-prev" data-i18n-title="上一个匹配" title="上一个匹配" style="display:none;padding:4px 7px;background:var(--bg3);border:1px solid var(--border);border-radius:6px;color:var(--text2);cursor:pointer;">↑</button>
+    <button id="cnext" data-ui-click="search-next" data-i18n-title="下一个匹配" title="下一个匹配" style="display:none;padding:4px 7px;background:var(--bg3);border:1px solid var(--border);border-radius:6px;color:var(--text2);cursor:pointer;">↓</button>
+    <button id="quality-btn" data-ui-click="quality" data-i18n-title="对话质量分析" title="对话质量分析" style="display:none;padding:5px 8px;background:var(--bg3);border:1px solid var(--border);border-radius:6px;color:var(--text2);font-size:12px;cursor:pointer;">🩺</button>
+    <button id="tree-mode-btn" data-ui-click="tree" data-i18n-title="切换分支显示模式" title="切换分支显示模式" style="display:none;padding:5px 8px;background:var(--bg3);border:1px solid var(--border);border-radius:6px;color:var(--text2);font-size:11px;cursor:pointer;">🌿 <span data-i18n="最长路径">最长路径</span></button>
+    <div class="export-wrap" id="export-wrap" style="display:none"><button id="export-btn" data-ui-click="export-menu" data-i18n-title="导出当前对话" title="导出当前对话" style="padding:5px 9px;background:var(--bg3);border:1px solid var(--border);border-radius:6px;color:var(--text2);font-size:13px;cursor:pointer;">⬇ 导出</button><div id="export-menu" class="export-menu" style="display:none"><button data-ui-click="export-markdown">📝 <span data-i18n="导出 Markdown">导出 Markdown</span></button><button data-ui-click="export-safe-markdown">🛡️ <span data-i18n="安全导出">安全导出 Markdown</span></button><button data-ui-click="export-pdf">🖨️ <span data-i18n="导出 PDF">导出 PDF</span></button><button data-ui-click="export-safe-pdf">🛡️ <span data-i18n="安全导出 PDF">安全导出 PDF</span></button></div></div>
+    <button id="lang-btn" data-ui-click="language" title="Switch UI language" style="padding:5px 9px;background:var(--bg3);border:1px solid var(--border);border-radius:6px;color:var(--text2);font-size:12px;cursor:pointer;line-height:1;">🌐 EN</button>
+    <button id="theme-btn" data-ui-click="theme" data-i18n-title="切换明暗主题" title="切换明暗主题" style="padding:5px 9px;background:var(--bg3);border:1px solid var(--border);border-radius:6px;color:var(--text2);font-size:14px;cursor:pointer;line-height:1;">🌙</button>
   </div>
   <div id="messages">
     <div id="empty-state">
@@ -517,7 +520,7 @@ mark.cs.active { background:var(--accent); color:#fff; }
 </div>
 <div id="quality-panel" class="quality-panel" style="display:none"></div>
 <div id="redaction-modal" style="display:none"></div>
-<div class="quick-nav" id="quick-nav"><button onclick="jumpMessages('top')" data-i18n-title="跳到顶部" title="跳到顶部">↑</button><button onclick="jumpMessages('bottom')" data-i18n-title="跳到底部" title="跳到底部">↓</button></div>
+<div class="quick-nav" id="quick-nav"><button data-ui-click="jump-top" data-i18n-title="跳到顶部" title="跳到顶部">↑</button><button data-ui-click="jump-bottom" data-i18n-title="跳到底部" title="跳到底部">↓</button></div>
 
 <!-- Summary Panel -->
 <div id="summary" class="hidden">
@@ -554,7 +557,9 @@ const EN={
   '解析中，请稍候…':'Parsing, please wait…','解压中，请稍候…':'Extracting, please wait…',
   '正在解析对话…':'Parsing conversation…','清除本地解析缓存':'Clear local parse cache','缓存已清除':'Cache cleared','缓存清除失败':'Failed to clear cache',
   '未找到 conversations.json':'conversations.json not found','ZIP 中未找到 conversations.json':'conversations.json not found in ZIP',
-  'ZIP 解析库未加载，请联网刷新，或手动解压后选文件夹':'ZIP library unavailable. Refresh online or extract the archive and select its folder.',
+  'ZIP 解析库未加载，请联网后重试，或手动解压后选文件夹':'ZIP library unavailable. Reconnect and retry, or extract the archive and select its folder.',
+  '外部图片不会自动加载':'External images are not loaded automatically',
+  '解析缓存包含对话原文，关闭浏览器后仍保留；共用设备请在离开前清除。':'The parse cache includes conversation text and persists after closing the browser. Clear it before leaving a shared device.',
   '加载失败':'Load failed','ZIP 加载失败':'ZIP load failed','已取消：已选择更新的数据':'Cancelled: a newer dataset was selected','conversations.json 格式不正确':'Invalid conversations.json format',
   '暂无对话':'No conversations','暂无项目':'No projects','暂无记忆':'No memories','无标题':'Untitled','无名称':'Unnamed','无描述':'No description',
   '条':' msgs','条对话':' conversations','条消息':' messages','个项目':' projects','个文档':' documents','条关联对话':' related conversations',
@@ -663,11 +668,24 @@ let highlightObserver=null;
 let visualObserver=null;
 let mermaidInitializedTheme='';
 const optionalLibraryPromises=new Map();
+const optionalLibraryIntegrity={
+  'marked':'sha384-N2BlPYJH0HRuJRIZOGNTL/ymqHb++FCViUqW4rdB5/7fH+KvFTqyCvPPQ8X4nElj',
+  'JSZip':'sha384-+mbV2IY1Zk/X1p/nWllGySJSUN8uMs+gUAN10Or95UBH0fpj6GfKgPmgC5EXieXG',
+  'highlight.js':'sha384-RH2xi4eIQ/gjtbs9fUXM68sLSi99C7ZWBRX1vDrVv6GQXRibxXLbwO2NGZB74MbU',
+  'Mermaid':'sha384-8xUhuLNMjW/cI2Dacg3DR4WliYznvIg0LVG1stctThKD/YVrJFI9TNCFxft5NYgp'
+};
 function loadOptionalScript(name,urls,ready){
   if(ready())return Promise.resolve(true);
   if(optionalLibraryPromises.has(name))return optionalLibraryPromises.get(name);
-  const promise=(async()=>{for(const url of urls){try{await new Promise((resolve,reject)=>{const script=document.createElement('script');script.src=url;script.async=true;if(/^https?:/i.test(url))script.crossOrigin='anonymous';script.onload=resolve;script.onerror=()=>{script.remove();reject(new Error('Failed to load '+name));};document.head.appendChild(script);});if(ready())return true;}catch(error){}}console.warn(name+' unavailable; using plain fallback');return false;})();
-  optionalLibraryPromises.set(name,promise);return promise;
+  const promise=(async()=>{for(const url of urls){try{await new Promise((resolve,reject)=>{
+    const script=document.createElement('script');let timer;
+    const finish=ok=>{clearTimeout(timer);script.onload=null;script.onerror=null;if(ok)resolve();else{script.remove();reject(new Error('Failed to load '+name));}};
+    script.src=url;script.async=true;if(/^https?:/i.test(url)){script.crossOrigin='anonymous';script.integrity=optionalLibraryIntegrity[name];}
+    script.onload=()=>finish(ready());script.onerror=()=>finish(false);timer=setTimeout(()=>finish(false),15000);document.head.appendChild(script);
+  });if(ready())return true;}catch(error){}}console.warn(name+' unavailable; using plain fallback');return false;})();
+  optionalLibraryPromises.set(name,promise);
+  promise.then(ok=>{if(!ok&&optionalLibraryPromises.get(name)===promise)optionalLibraryPromises.delete(name);});
+  return promise;
 }
 function ensureMarked(){return loadOptionalScript('marked',['https://cdn.jsdelivr.net/npm/marked@18.0.11/lib/marked.umd.js','https://unpkg.com/marked@18.0.11/lib/marked.umd.js'],()=>typeof marked!=='undefined').then(ok=>{if(ok)configureMarked();return ok;});}
 function ensureJSZip(){return loadOptionalScript('JSZip',['https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js','https://unpkg.com/jszip@3.10.1/dist/jszip.min.js'],()=>typeof JSZip!=='undefined');}
@@ -716,7 +734,7 @@ document.getElementById('zip-input').addEventListener('change',async e=>{
   // yield to browser to render spinner before blocking ZIP parsing
   await new Promise(r=>setTimeout(r,30));
   try{
-    if(!await ensureJSZip()){btn.textContent='⚠️ '+t('ZIP 解析库未加载，请联网刷新，或手动解压后选文件夹');return;}
+  if(!await ensureJSZip()){btn.textContent='⚠️ '+t('ZIP 解析库未加载，请联网后重试，或手动解压后选文件夹');return;}
     const zip=await JSZip.loadAsync(file);
     // 官方 ZIP 可能多一层顶层目录，且 macOS 压缩会带 __MACOSX 垃圾条目，统一按路径后缀匹配
     const entries=Object.keys(zip.files).filter(n=>!n.startsWith('__MACOSX/')&&!zip.files[n].dir);
@@ -886,10 +904,10 @@ async function ingestData(convSource,projTexts,memText,designTexts,btn){
   renderConvList(getSortedConvs());
   if(allConvs.length)warmMarkdownAfterList();
   // hide tabs with no data
-  document.querySelector('.tab-btn[onclick*="projects"]').style.display=allProjects.length?'':'none';
-  document.querySelector('.tab-btn[onclick*="memory"]').style.display=memoryData?'':'none';
-  document.querySelector('.tab-btn[onclick*="design"]').style.display=allDesigns.length?'':'none';
-  if(!allConvs.length&&allDesigns.length){const designTab=document.querySelector('.tab-btn[onclick*="design"]');switchTab('design',designTab);}
+  document.querySelector('.tab-btn[data-ui-value="projects"]').style.display=allProjects.length?'':'none';
+  document.querySelector('.tab-btn[data-ui-value="memory"]').style.display=memoryData?'':'none';
+  document.querySelector('.tab-btn[data-ui-value="design"]').style.display=allDesigns.length?'':'none';
+  if(!allConvs.length&&allDesigns.length){const designTab=document.querySelector('.tab-btn[data-ui-value="design"]');switchTab('design',designTab);}
   convProjectMap={};
   convProjectEvidence={};
   projectIndexStats={};
@@ -1578,11 +1596,11 @@ async function loadAnalyticsDrilldown(page=0,includeIds=false){
 async function showAnalyticsInList(){
   const result=await loadAnalyticsDrilldown(analyticsPage,true);if(!result)return;
   analyticsListFilter=new Set(result.uuids);document.getElementById('search-box').value='';fullTextSearchGeneration++;
-  switchTab('convs',document.querySelector('.tab-btn[onclick*="convs"]'));
+  switchTab('convs',document.querySelector('.tab-btn[data-ui-value="convs"]'));
 }
 function clearAnalyticsListFilter(){analyticsListFilter=null;renderConvList(getSortedConvs());}
 function openAnalyticsConversation(uuid){
-  switchTab('convs',document.querySelector('.tab-btn[onclick*="convs"]'));void openConv(uuid);
+  switchTab('convs',document.querySelector('.tab-btn[data-ui-value="convs"]'));void openConv(uuid);
 }
 function retryAnalytics(){resetAnalytics(true);renderAnalyticsPage();}
 window.addEventListener('pagehide',()=>cleanupAnalyticsWorker());
@@ -1597,7 +1615,7 @@ function updateAnalyticsProgress(){
 }
 function renderAnalyticsPage(){
   currentView='analytics';
-  const side=document.getElementById('conv-list');if(side&&!side.querySelector('#custom-stopwords-input'))side.insertAdjacentHTML('afterbegin','<div class="analytics-side"><b>'+t('自定义中文停用词')+'</b><br><span>'+t('加载 TXT 词表，一行一个词，也支持空格或逗号分隔')+'</span><br><button type="button" style="margin-top:7px;padding:6px 9px;border:1px solid var(--border);border-radius:6px;background:var(--bg3);color:var(--text2);cursor:pointer" onclick="document.getElementById(\'custom-stopwords-input\').click()">'+t('导入停用词 TXT')+'</button><input id="custom-stopwords-input" type="file" accept=".txt,text/plain" onchange="loadCustomStopwords(this)"><div id="custom-stopwords-status" style="margin-top:5px;color:var(--text3)">'+(analyticsCustomStopZh.length?t('已加载 {count} 个词',{count:analyticsCustomStopZh.length}):t('尚未加载自定义词表'))+'</div></div>');
+  const side=document.getElementById('conv-list');if(side&&!side.querySelector('#custom-stopwords-input'))side.insertAdjacentHTML('afterbegin','<div class="analytics-side"><b>'+t('自定义中文停用词')+'</b><br><span>'+t('加载 TXT 词表，一行一个词，也支持空格或逗号分隔')+'</span><br><button type="button" style="margin-top:7px;padding:6px 9px;border:1px solid var(--border);border-radius:6px;background:var(--bg3);color:var(--text2);cursor:pointer" data-ui-click="pick-stopwords">'+t('导入停用词 TXT')+'</button><input id="custom-stopwords-input" type="file" accept=".txt,text/plain" data-ui-change="stopwords"><div id="custom-stopwords-status" style="margin-top:5px;color:var(--text3)">'+(analyticsCustomStopZh.length?t('已加载 {count} 个词',{count:analyticsCustomStopZh.length}):t('尚未加载自定义词表'))+'</div></div>');
   document.getElementById('chat-title').textContent='📊 '+t('历史统计');document.getElementById('chat-title').style.color='';
   document.getElementById('chat-header-meta').textContent=t('在本机按需计算，不上传任何对话内容');
   document.getElementById('chat-header').classList.remove('last-supper');document.getElementById('messages').classList.remove('last-supper-gallery');
@@ -1617,7 +1635,7 @@ function renderAnalyticsPage(){
   renderAnalyticsDashboard(analyticsResult);
 }
 function analyticsToolbar(){
-  return '<div class="analytics-toolbar"><button type="button" data-analytics-view="explore" aria-pressed="'+(analyticsView==='explore')+'" onclick="setAnalyticsView(\'explore\')">'+t('探索分析')+'</button><button type="button" data-analytics-view="overview" aria-pressed="'+(analyticsView==='overview')+'" onclick="setAnalyticsView(\'overview\')">'+t('全档案总览')+'</button></div>';
+  return '<div class="analytics-toolbar"><button type="button" data-analytics-view="explore" aria-pressed="'+(analyticsView==='explore')+'" data-ui-click="analytics-view" data-ui-value="explore">'+t('探索分析')+'</button><button type="button" data-analytics-view="overview" aria-pressed="'+(analyticsView==='overview')+'" data-ui-click="analytics-view" data-ui-value="overview">'+t('全档案总览')+'</button></div>';
 }
 function analyticsLoading(){
   return '<div class="analytics-progress" style="margin:18px 0"><b>'+t('正在准备统计数据…')+'</b><div class="analytics-progress-track"><div class="analytics-progress-fill" style="width:'+Math.round(analyticsProgress*100)+'%"></div></div><div id="analytics-progress-label" aria-live="polite"></div></div>';
@@ -1636,7 +1654,7 @@ function analyticsChart(result){
   buckets.forEach((bucket,index)=>{
     const horizontalPosition=left+index*step,selected=analyticsSelection?.start===bucket.start&&analyticsSelection?.end===bucket.end;
     const label=bucket.start+' — '+bucket.end+': '+bucket[metric]+'; '+t('7 日移动平均')+': '+(bucket.ma7?.[metric]?.toFixed(2)??'—')+'; '+t('30 日移动平均')+': '+(bucket.ma30?.[metric]?.toFixed(2)??'—');
-    svg+='<rect data-analytics-bucket="'+index+'" tabindex="0" role="button" aria-label="'+escAttr(label)+'" onclick="selectAnalyticsBucket('+index+')" onkeydown="if(event.key===\'Enter\'||event.key===\' \'){event.preventDefault();selectAnalyticsBucket('+index+')}" x="'+horizontalPosition+'" y="'+top+'" width="'+step+'" height="'+(bottom-top)+'" fill="transparent"><title>'+esc(label)+'</title></rect>';
+    svg+='<rect data-analytics-bucket="'+index+'" tabindex="0" role="button" aria-label="'+escAttr(label)+'" data-ui-click="analytics-bucket" data-ui-value="'+index+'" data-ui-key="activate" x="'+horizontalPosition+'" y="'+top+'" width="'+step+'" height="'+(bottom-top)+'" fill="transparent"><title>'+esc(label)+'</title></rect>';
     svg+='<rect pointer-events="none" x="'+(horizontalPosition+step*.12)+'" y="'+verticalPosition(bucket[metric])+'" width="'+Math.max(.5,step*.76)+'" height="'+Math.max(bucket[metric]?1:0,bottom-verticalPosition(bucket[metric]))+'" fill="'+(selected?'var(--blue)':'var(--accent)')+'" opacity=".7"/>';
     if(index%Math.max(1,Math.ceil(buckets.length/7))===0)svg+='<text x="'+horizontalPosition+'" y="236" fill="var(--text3)" font-size="11">'+esc(bucket.start)+'</text>';
   });
@@ -1650,12 +1668,12 @@ function analyticsChart(result){
 function renderAnalyticsExploration(){
   const result=analyticsExploreResult,options=analyticsOptions||{models:[],roles:[],projects:[{uuid:'',name:''}]},filters=analyticsFilters;
   const projectNames=new Map(options.projects.map(project=>[project.uuid,project.name||t(project.uuid?'无名称':'未归属')]));
-  const select=(field,label,values,labeler)=>'<label>'+t(label)+'<select id="analytics-'+field+'" multiple size="3" onchange="analyticsSelectFilter(\''+field+'\',this)">'+analyticsFilterOptions(values,filters[field],labeler)+'</select></label>';
+  const select=(field,label,values,labeler)=>'<label>'+t(label)+'<select id="analytics-'+field+'" multiple size="3" data-ui-change="analytics-select" data-ui-value="'+field+'">'+analyticsFilterOptions(values,filters[field],labeler)+'</select></label>';
   let html='<div class="analytics-page">'+analyticsToolbar()+'<h2>'+t('探索分析')+'</h2><div class="analytics-sub">'+t('本地时区')+': '+esc(Intl.DateTimeFormat().resolvedOptions().timeZone)+' · '+t('周一为周起点，日期含首尾两天')+'</div>';
-  html+='<div class="analytics-filters"><label>'+t('时间范围')+'<select id="analytics-range" onchange="changeAnalyticsFilter(\'range\',this.value)">'+analyticsFilterOptions(['all','7','30','90','custom'],[filters.range],value=>t({all:'全部历史',7:'最近 7 天',30:'最近 30 天',90:'最近 90 天',custom:'自定义日期'}[value]))+'</select></label>';
-  if(filters.range==='custom')html+='<label>'+t('开始日期')+'<input id="analytics-start" type="date" value="'+escAttr(filters.start)+'" onchange="changeAnalyticsFilter(\'start\',this.value)"></label><label>'+t('结束日期')+'<input id="analytics-end" type="date" value="'+escAttr(filters.end)+'" onchange="changeAnalyticsFilter(\'end\',this.value)"></label>';
+  html+='<div class="analytics-filters"><label>'+t('时间范围')+'<select id="analytics-range" data-ui-change="analytics-filter" data-ui-value="range">'+analyticsFilterOptions(['all','7','30','90','custom'],[filters.range],value=>t({all:'全部历史',7:'最近 7 天',30:'最近 30 天',90:'最近 90 天',custom:'自定义日期'}[value]))+'</select></label>';
+  if(filters.range==='custom')html+='<label>'+t('开始日期')+'<input id="analytics-start" type="date" value="'+escAttr(filters.start)+'" data-ui-change="analytics-filter" data-ui-value="start"></label><label>'+t('结束日期')+'<input id="analytics-end" type="date" value="'+escAttr(filters.end)+'" data-ui-change="analytics-filter" data-ui-value="end"></label>';
   html+=select('projects','项目',options.projects.map(project=>project.uuid),value=>projectNames.get(value))+select('models','模型',options.models,value=>value||t('未提供'))+select('roles','角色',options.roles,value=>value==='human'?t('你'):value==='assistant'?'Claude':value);
-  html+='<button type="button" onclick="clearAnalyticsFilters()">'+t('清除筛选')+'</button></div><div class="analytics-note">'+t('多选条件可组合；未选择表示全部。快捷范围以档案最新消息为终点。')+'</div>';
+  html+='<button type="button" data-ui-click="analytics-clear">'+t('清除筛选')+'</button></div><div class="analytics-note">'+t('多选条件可组合；未选择表示全部。快捷范围以档案最新消息为终点。')+'</div>';
   if(!result){
     const incomplete=filters.range==='custom'&&(!filters.start||!filters.end||filters.end<filters.start);
     html+=incomplete?'<p role="status">'+t('请选择有效的起止日期')+'</p>':analyticsLoading();
@@ -1668,7 +1686,7 @@ function renderAnalyticsExploration(){
     html+='<div class="metric-card" data-analytics-metric="'+metric+'"><div class="metric-value">'+result.current[metric].toLocaleString()+'</div><div class="metric-label">'+t(label)+'</div>'+(comparison?'<div class="analytics-note" data-analytics-comparison>'+t('上一周期')+': '+result.previous[metric].toLocaleString()+' · '+esc(change)+'</div>':'')+'</div>';
   }
   html+='</div><div class="analytics-note">'+(result.previousRange?t('上一周期')+': '+esc(result.previousRange.start+' — '+result.previousRange.end):t(result.range.all?'全部历史不比较上一周期；选择日期范围可查看对比':'暂无可比较周期'))+'<br>'+t('无效时间消息')+': '+result.current.invalidTime+' · '+t('无效时间仅计入全部历史，不进入趋势或日期范围')+'</div>';
-  html+='<div class="chart-card"><label>'+t('时间趋势')+' <select id="analytics-metric" onchange="analyticsMetricName=this.value;renderAnalyticsExploration()">'+analyticsFilterOptions(['messages','conversations','characters'],[analyticsMetricName],value=>t({messages:'消息数',conversations:'活跃对话数',characters:'字符'}[value]))+'</select></label><div class="analytics-note">'+t({day:'日粒度',week:'周粒度',month:'月粒度'}[result.grain])+' · <span style="color:var(--blue)">'+t('7 日移动平均')+'</span> / <span style="color:var(--text)">'+t('30 日移动平均')+'</span> · '+t('移动平均按日计算，完整窗口后绘制；点击趋势下钻')+'<br>'+t('左轴：桶总量；右轴：日均移动平均（独立刻度）')+'</div>'+analyticsChart(result)+'</div>';
+  html+='<div class="chart-card"><label>'+t('时间趋势')+' <select id="analytics-metric" data-ui-change="analytics-metric">'+analyticsFilterOptions(['messages','conversations','characters'],[analyticsMetricName],value=>t({messages:'消息数',conversations:'活跃对话数',characters:'字符'}[value]))+'</select></label><div class="analytics-note">'+t({day:'日粒度',week:'周粒度',month:'月粒度'}[result.grain])+' · <span style="color:var(--blue)">'+t('7 日移动平均')+'</span> / <span style="color:var(--text)">'+t('30 日移动平均')+'</span> · '+t('移动平均按日计算，完整窗口后绘制；点击趋势下钻')+'<br>'+t('左轴：桶总量；右轴：日均移动平均（独立刻度）')+'</div>'+analyticsChart(result)+'</div>';
   html+='<div id="analytics-drilldown" class="chart-card"></div></div>';
   document.getElementById('messages').innerHTML=html;renderAnalyticsDrilldown();
 }
@@ -1678,22 +1696,22 @@ function clearAnalyticsFilters(){
 function renderAnalyticsDrilldown(){
   const element=document.getElementById('analytics-drilldown');if(!element)return;
   const result=analyticsDrillResult;
-  let html='<div class="analytics-toolbar"><b>'+t('匹配对话')+'</b><span>'+esc(analyticsSelection?analyticsSelection.start+' — '+analyticsSelection.end:t('当前筛选'))+'</span><button type="button" onclick="analyticsSelection=null;analyticsDrillResult=null;loadAnalyticsDrilldown(0);renderAnalyticsExploration()">'+t('查看整个范围')+'</button><button type="button" onclick="showAnalyticsInList()"'+(!result?' disabled':'')+'>'+t('在对话列表中查看')+'</button></div>';
+  let html='<div class="analytics-toolbar"><b>'+t('匹配对话')+'</b><span>'+esc(analyticsSelection?analyticsSelection.start+' — '+analyticsSelection.end:t('当前筛选'))+'</span><button type="button" data-ui-click="analytics-entire-range">'+t('查看整个范围')+'</button><button type="button" data-ui-click="analytics-list"'+(!result?' disabled':'')+'>'+t('在对话列表中查看')+'</button></div>';
   if(!result){element.innerHTML=html+'<p>'+t('正在准备统计数据…')+'</p>';return;}
   html+='<p>'+result.total+' '+t('条对话')+'</p><div class="analytics-table-scroll"><table class="analytics-table"><thead><tr><th>'+t('对话标题')+'</th><th>'+t('命中消息数')+'</th><th>'+t('命中字符数')+'</th><th>'+t('最近命中时间')+'</th></tr></thead><tbody>';
   for(const row of result.rows)html+='<tr><td><button type="button" data-analytics-conversation="'+escAttr(row.uuid)+'">'+esc(row.title||t('无标题'))+'</button></td><td>'+row.messages+'</td><td>'+row.characters+'</td><td>'+esc(row.latest===null?t('未提供'):fmtDate(new Date(row.latest).toISOString()))+'</td></tr>';
-  html+='</tbody></table></div><div class="analytics-toolbar"><button type="button" onclick="analyticsDrillResult=null;loadAnalyticsDrilldown('+(result.page-1)+');renderAnalyticsDrilldown()"'+(result.page===0?' disabled':'')+'>'+t('上一页')+'</button><span>'+(result.page+1)+' / '+Math.max(1,Math.ceil(result.total/50))+'</span><button type="button" onclick="analyticsDrillResult=null;loadAnalyticsDrilldown('+(result.page+1)+');renderAnalyticsDrilldown()"'+((result.page+1)*50>=result.total?' disabled':'')+'>'+t('下一页')+'</button></div>';
+  html+='</tbody></table></div><div class="analytics-toolbar"><button type="button" data-ui-click="analytics-page" data-ui-value="'+(result.page-1)+'"'+(result.page===0?' disabled':'')+'>'+t('上一页')+'</button><span>'+(result.page+1)+' / '+Math.max(1,Math.ceil(result.total/50))+'</span><button type="button" data-ui-click="analytics-page" data-ui-value="'+(result.page+1)+'"'+((result.page+1)*50>=result.total?' disabled':'')+'>'+t('下一页')+'</button></div>';
   element.innerHTML=html;element.querySelectorAll('[data-analytics-conversation]').forEach(button=>button.addEventListener('click',()=>openAnalyticsConversation(button.dataset.analyticsConversation)));
 }
 function analyticsMetric(icon,value,label){return '<div class="metric-card"><div class="metric-icon">'+icon+'</div><div class="metric-value">'+esc(value)+'</div><div class="metric-label">'+t(label)+'</div></div>';}
 function analyticsBars(data,labeler,maxRows=12){
   const rows=data.slice(0,maxRows),max=Math.max(1,...rows.map(x=>x[1]));
-  return rows.map(([key,value])=>'<div class="bar-row"><div class="bar-label" title="'+esc(key)+'">'+esc(labeler?labeler(key):key)+'</div><div class="bar-track"><div class="bar-fill" style="width:'+(value===0?0:Math.max(1,value/max*100)).toFixed(1)+'%"></div></div><div class="bar-value">'+value.toLocaleString(currentLang==='en'?'en-US':'zh-CN')+'</div></div>').join('');
+  return rows.map(([key,value])=>'<div class="bar-row"><div class="bar-label" title="'+escAttr(key)+'">'+esc(labeler?labeler(key):key)+'</div><div class="bar-track"><div class="bar-fill" style="width:'+(value===0?0:Math.max(1,value/max*100)).toFixed(1)+'%"></div></div><div class="bar-value">'+value.toLocaleString(currentLang==='en'?'en-US':'zh-CN')+'</div></div>').join('');
 }
 function analyticsWordCloud(words){
   if(!words||!words.length)return '<div class="analytics-note">'+t('暂无词频数据')+'</div>';
   const max=words[0][1]||1,min=words[words.length-1][1]||0;
-  return '<div class="word-cloud">'+words.map(([word,count])=>'<span title="'+esc(word+': '+count)+'" style="font-size:'+(12+20*(count-min)/Math.max(1,max-min)).toFixed(1)+'px;opacity:'+(0.62+0.38*count/max).toFixed(2)+'">'+esc(word)+'</span>').join('')+'</div>';
+  return '<div class="word-cloud">'+words.map(([word,count])=>'<span title="'+escAttr(word+': '+count)+'" style="font-size:'+(12+20*(count-min)/Math.max(1,max-min)).toFixed(1)+'px;opacity:'+(0.62+0.38*count/max).toFixed(2)+'">'+esc(word)+'</span>').join('')+'</div>';
 }
 function analyticsDuration(ms){
   if(!ms)return '—';
@@ -1741,7 +1759,7 @@ function renderAnalyticsDashboard(s){
   document.getElementById('messages').innerHTML=h;
 }
 function renderAnalyticsError(err){
-  document.getElementById('messages').innerHTML='<div class="analytics-page">'+analyticsToolbar()+'<div class="analytics-progress">❌ '+t('统计计算失败')+'<div class="analytics-note">'+esc(errorMessage(err))+'</div><button style="margin-top:12px" onclick="retryAnalytics()">'+t('重新计算')+'</button></div></div>';
+  document.getElementById('messages').innerHTML='<div class="analytics-page">'+analyticsToolbar()+'<div class="analytics-progress">❌ '+t('统计计算失败')+'<div class="analytics-note">'+esc(errorMessage(err))+'</div><button style="margin-top:12px" data-ui-click="analytics-retry">'+t('重新计算')+'</button></div></div>';
 }
 function renderBehaviorSide(){document.getElementById('conv-list').innerHTML='<div class="analytics-side">🧪 <b>Claude 行为实验室</b><br>按需在本地分析工具、Thinking 和回答证据链。<br><br>🔒 不上传对话内容</div>';}
 async function startBehaviorLab(){
@@ -1756,12 +1774,12 @@ function renderBehaviorPage(){currentView='behavior';document.getElementById('ch
 function renderConvList(convs){
   if(analyticsListFilter)convs=convs.filter(conversation=>analyticsListFilter.has(conversation.uuid));
   const el=document.getElementById('conv-list');
-  const marker=analyticsListFilter?'<div class="analytics-side"><b>'+t('统计筛选')+' · '+analyticsListFilter.size+'</b><br><button type="button" onclick="clearAnalyticsListFilter()">'+t('清除筛选')+'</button> <button type="button" onclick="switchTab(\'analytics\',document.querySelector(\'[data-analytics-tab]\'))">'+t('返回统计')+'</button></div>':'';
+  const marker=analyticsListFilter?'<div class="analytics-side"><b>'+t('统计筛选')+' · '+analyticsListFilter.size+'</b><br><button type="button" data-ui-click="analytics-list-clear">'+t('清除筛选')+'</button> <button type="button" data-ui-click="analytics-return">'+t('返回统计')+'</button></div>':'';
   if(!convs.length){el.innerHTML=marker+'<div style="padding:20px;text-align:center;color:var(--text3)">'+t('暂无对话')+'</div>';return;}
   el.innerHTML=marker+convs.map(c=>{
     const ac=currentConv&&currentConv.uuid===c.uuid?' active':'';
     const last=c.uuid===lastConversationUuid;
-    return '<div class="conv-item'+ac+(last?' last-supper':'')+'" data-conv-uuid="'+c.uuid+'" role="button" tabindex="0">'
+    return '<div class="conv-item'+ac+(last?' last-supper':'')+'" data-conv-uuid="'+escAttr(c.uuid)+'" role="button" tabindex="0">'
       +'<div class="conv-title">'+esc(c.name||'('+t('无标题')+')')+(last?'<span class="last-supper-badge">'+t('最后的晚餐')+'</span>':'')+'</div>'
       +'<div class="conv-meta"><span>'+fmtDate(c.updated_at)+'</span><span class="conv-count">'+(Number.isFinite(c.message_count)?c.message_count:(c.chat_messages||[]).length)+t('条')+'</span></div></div>';
   }).join('');
@@ -1770,7 +1788,7 @@ function renderConvList(convs){
 function renderDesignList(){
   const el=document.getElementById('conv-list');
   if(!allDesigns.length){el.innerHTML='<div style="padding:20px;text-align:center;color:var(--text3)">'+t('暂无 Design 对话')+'</div>';return;}
-  el.innerHTML=allDesigns.map(c=>'<div class="conv-item'+(currentConv&&currentConv.uuid===c.uuid?' active':'')+'" data-design-uuid="'+esc(c.uuid)+'" role="button" tabindex="0"><div class="conv-title">✒️ '+esc(c.name||t('Design'))+'</div><div class="conv-meta"><span>'+fmtDate(c.updated_at)+'</span><span class="conv-count">'+(c.chat_messages||[]).length+t('条')+'</span></div></div>').join('');
+  el.innerHTML=allDesigns.map(c=>'<div class="conv-item'+(currentConv&&currentConv.uuid===c.uuid?' active':'')+'" data-design-uuid="'+escAttr(c.uuid)+'" role="button" tabindex="0"><div class="conv-title">✒️ '+esc(c.name||t('Design'))+'</div><div class="conv-meta"><span>'+fmtDate(c.updated_at)+'</span><span class="conv-count">'+(c.chat_messages||[]).length+t('条')+'</span></div></div>').join('');
   el.querySelectorAll('[data-design-uuid]').forEach(item=>item.addEventListener('click',()=>openConv(item.dataset.designUuid,'design')));
 }
 
@@ -1831,7 +1849,7 @@ function findLastConversationUuid(convs){
 function renderProjectList(){
   const el=document.getElementById('conv-list');
   if(!allProjects.length){el.innerHTML='<div style="padding:20px;text-align:center;color:var(--text3)">'+t('暂无项目')+'</div>';return;}
-  el.innerHTML=allProjects.map(p=>'<div class="proj-card" data-proj-uuid="'+p.uuid+'" role="button" tabindex="0">'
+  el.innerHTML=allProjects.map(p=>'<div class="proj-card" data-proj-uuid="'+escAttr(p.uuid)+'" role="button" tabindex="0">'
     +'<div class="proj-card-name">'+esc(p.name||t('无名称'))+'</div>'
     +'<div class="proj-card-desc">'+esc((p.description||'').slice(0,80)||t('无描述'))+'</div></div>').join('');
   el.querySelectorAll('[data-proj-uuid]').forEach(item=>item.addEventListener('click',()=>openProject(item.dataset.projUuid)));
@@ -1884,7 +1902,7 @@ function renderMemoryTab(){
     const bodyHtml=typeof marked!=='undefined'?marked.parse(content):esc(content);
     const preview=content.replace(/[*_#\[\]]/g,'').replace(/\n+/g,' ').slice(0,90);
     return '<div class="mem-card">'
-      +'<div class="mem-card-header'+(open?' open':'')+'" onclick="toggleMemCard(this)">'
+      +'<div class="mem-card-header'+(open?' open':'')+'" data-ui-click="memory-toggle">'
       +'<span class="mem-card-icon">'+icon+'</span>'
       +'<div style="flex:1;min-width:0;">'
       +'<div class="mem-card-title">'+esc(title)+'</div>'
@@ -1922,7 +1940,7 @@ function renderMemoryTab(){
       const totalChars=mem.length;
       // project container card
       h+='<div class="mem-card" style="margin-bottom:12px;">';
-      h+='<div class="mem-card-header" onclick="toggleMemCard(this)">'
+      h+='<div class="mem-card-header" data-ui-click="memory-toggle">'
         +'<span class="mem-card-icon">📁</span>'
         +'<div style="flex:1;min-width:0;">'
         +'<div class="mem-card-title">'+esc(projName)+'</div>'
@@ -2109,7 +2127,7 @@ let projectOverrides=loadProjectOverrides();
 function saveProjectOverrides(){try{localStorage.setItem(PROJECT_OVERRIDE_KEY,JSON.stringify(projectOverrides));}catch(e){console.warn('project overrides',e);}}
 function effectiveProjectUuid(convUuid){if(Object.prototype.hasOwnProperty.call(projectOverrides,convUuid)){const value=projectOverrides[convUuid];if(value===null||allProjects.some(p=>p.uuid===value))return value;}return convProjectMap[convUuid];}
 function setProjectOverride(convUuid,projectUuid){if(projectUuid==='__auto__')delete projectOverrides[convUuid];else projectOverrides[convUuid]=projectUuid||null;saveProjectOverrides();analyticsProjectVersion++;analyticsExploreResult=null;analyticsDrillResult=null;if(currentView==='analytics'){cancelAnalytics();renderAnalyticsPage();}if(currentProjectUuid)void openProject(currentProjectUuid);}
-function projectAssignmentOptions(convUuid){const current=effectiveProjectUuid(convUuid),hasOverride=Object.prototype.hasOwnProperty.call(projectOverrides,convUuid);return '<select class="project-assign" aria-label="'+esc(t('手动修正项目归属'))+'" onchange="setProjectOverride(\''+convUuid+'\',this.value)"><option value="__auto__"'+(!hasOverride?' selected':'')+'>'+esc(t('使用自动推断'))+'</option><option value=""'+(hasOverride&&!current?' selected':'')+'>'+esc(t('保持未归属'))+'</option>'+allProjects.map(p=>'<option value="'+p.uuid+'"'+(hasOverride&&current===p.uuid?' selected':'')+'>'+esc(p.name||t('无名称'))+'</option>').join('')+'</select>';}
+function projectAssignmentOptions(convUuid){const current=effectiveProjectUuid(convUuid),hasOverride=Object.prototype.hasOwnProperty.call(projectOverrides,convUuid);return '<select class="project-assign" aria-label="'+escAttr(t('手动修正项目归属'))+'" data-ui-change="project-override" data-ui-value="'+escAttr(convUuid)+'"><option value="__auto__"'+(!hasOverride?' selected':'')+'>'+esc(t('使用自动推断'))+'</option><option value=""'+(hasOverride&&!current?' selected':'')+'>'+esc(t('保持未归属'))+'</option>'+allProjects.map(p=>'<option value="'+escAttr(p.uuid)+'"'+(hasOverride&&current===p.uuid?' selected':'')+'>'+esc(p.name||t('无名称'))+'</option>').join('')+'</select>';}
 function normalizeProjectFilename(value){return String(value||'').trim().replace(/^\/mnt\/project\//,'').toLowerCase().replace(/[?#].*/,'');}
 function projectList(value){return Array.isArray(value)?value:(value&&typeof value==='object'?Object.values(value):[]);}
 function projectKeywordAppears(text,keyword){
@@ -2227,7 +2245,7 @@ async function openProject(uuid){
   const el=document.getElementById('messages');
   let h='<div style="max-width:860px;margin:0 auto;padding:24px;">';
 
-  h+='<div class="project-tools"><input type="search" placeholder="'+esc(t('搜索当前项目对话'))+'" oninput="filterProjectConversations(\''+p.uuid+'\',this.value)"><button onclick="exportProject(\''+p.uuid+'\')">⬇ '+t('导出项目')+'</button></div>';
+  h+='<div class="project-tools"><input type="search" placeholder="'+escAttr(t('搜索当前项目对话'))+'" data-ui-input="project-search" data-ui-value="'+escAttr(p.uuid)+'"><button data-ui-click="project-export" data-ui-value="'+escAttr(p.uuid)+'">⬇ '+t('导出项目')+'</button></div>';
   h+='<div class="project-stat-grid"><div class="project-stat"><b>'+stats.conversations+'</b>'+t('条对话')+'</div><div class="project-stat"><b>'+stats.messages+'</b>'+t('条消息')+'</div><div class="project-stat"><b>'+stats.chars.toLocaleString()+'</b>'+t('字')+'</div><div class="project-stat"><b style="font-size:12px">'+esc(stats.range)+'</b>'+t('时间范围')+'</div></div>';
   h+='<div style="font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.08em;margin-bottom:8px;">🕸 '+t('项目记忆与对话引用关系图')+'</div>'+renderProjectGraph(p,relatedConvs);
 
@@ -2236,7 +2254,7 @@ async function openProject(uuid){
     h+='<div style="background:var(--bg3);border:1px solid var(--border);border-radius:10px;padding:14px 18px;margin-bottom:20px;font-size:14px;color:var(--text2);line-height:1.6;">'+esc(p.description)+'</div>';
   }
   const prompt=projectPrompt(p);
-  if(prompt){const promptKey='prompt-'+p.uuid;PROJECT_TEXT_STORE.set(promptKey,prompt);h+='<section class="project-prompt"><div class="project-prompt-head"><b>🧭 '+t('项目自定义指令')+'</b><button class="fbtn primary" type="button" onclick="copyProjectText(\''+esc(promptKey)+'\',this)">📋 '+t('复制指令')+'</button></div><pre>'+esc(prompt)+'</pre></section>';}
+  if(prompt){const promptKey='prompt-'+p.uuid;PROJECT_TEXT_STORE.set(promptKey,prompt);h+='<section class="project-prompt"><div class="project-prompt-head"><b>🧭 '+t('项目自定义指令')+'</b><button class="fbtn primary" type="button" data-ui-click="project-copy" data-ui-value="'+escAttr(promptKey)+'">📋 '+t('复制指令')+'</button></div><pre>'+esc(prompt)+'</pre></section>';}
 
   // Docs section
   if((p.docs||[]).length){
@@ -2245,9 +2263,9 @@ async function openProject(uuid){
       const id='doc_'+doc.uuid;
       h+='<div style="border:1px solid var(--border);border-radius:10px;margin-bottom:10px;overflow:hidden;">'
         +'<div class="project-doc-head" style="padding:10px 16px;background:var(--bg3);">'
-        +'<span style="font-size:13px;font-weight:600;cursor:pointer;flex:1" onclick="toggleDoc(this.parentElement)">📄 '+esc(doc.filename||t('未命名'))+'</span>'
+        +'<span style="font-size:13px;font-weight:600;cursor:pointer;flex:1" data-ui-click="document-toggle">📄 '+esc(doc.filename||t('未命名'))+'</span>'
         +'<span style="font-size:11px;color:var(--text3);">'+((doc.content||'').length)+t('字')+'</span>'
-        +'<button class="fbtn" type="button" onclick="downloadProjectDoc(\''+esc(p.uuid)+'\',\''+esc(doc.uuid)+'\')">⬇ '+t('下载原始文件')+'</button><span style="cursor:pointer" onclick="toggleDoc(this.parentElement)">'+ICON+'</span>'
+        +'<button class="fbtn" type="button" data-ui-click="project-document" data-ui-value="'+escAttr(p.uuid)+'" data-ui-doc="'+escAttr(doc.uuid)+'">⬇ '+t('下载原始文件')+'</button><span style="cursor:pointer" data-ui-click="document-toggle">'+ICON+'</span>'
         +'</div>'
         +'<div id="'+id+'" style="display:none;padding:16px 18px;font-size:13.5px;line-height:1.7;color:var(--text);">'
         +(doc.content?(typeof marked!=='undefined'?marked.parse(doc.content):esc(doc.content)):'<span style="color:var(--text3)">'+t('无内容')+'</span>')
@@ -2264,10 +2282,10 @@ async function openProject(uuid){
     +'<b style="color:var(--text2);">'+t('结果仅供参考')+'</b>. '+t('可能存在遗漏或误判。')
     +'</div>';
   if(relatedConvs.length){
-    h+=relatedConvs.map(c=>'<div class="conv-item" data-project-conv="'+c.uuid+'" data-project-uuid="'+p.uuid+'" role="button" tabindex="0" style="border:1px solid var(--border);border-radius:10px;margin-bottom:8px;padding:10px 14px;">'
+    h+=relatedConvs.map(c=>'<div class="conv-item" data-project-conv="'+escAttr(c.uuid)+'" data-project-uuid="'+escAttr(p.uuid)+'" role="button" tabindex="0" style="border:1px solid var(--border);border-radius:10px;margin-bottom:8px;padding:10px 14px;">'
       +'<div class="conv-title">'+esc(c.name||'('+t('无标题')+')')+'</div>'
       +'<div class="conv-meta"><span>'+fmtDate(c.updated_at)+'</span><span class="conv-count">'+(Number.isFinite(c.message_count)?c.message_count:(c.chat_messages||[]).length)+t('条')+'</span></div>'
-      +projectMatchExplanation(c)+'<button type="button" onclick="openConvAndSwitch(\''+c.uuid+'\')">'+t('打开对话')+'</button></div>').join('');
+      +projectMatchExplanation(c)+'<button type="button" data-ui-click="open-conversation" data-ui-value="'+escAttr(c.uuid)+'">'+t('打开对话')+'</button></div>').join('');
   } else {
     h+='<div style="color:var(--text3);font-size:13px;padding:12px 0;">'+t('未能从对话名称/摘要中自动识别关联对话')+'</div>';
   }
@@ -2460,7 +2478,7 @@ function renderMessages(msgs,opts){
   messageRenderState={convUuid,linear,start};
   const scrollPos=(opts&&opts.keepScroll)?container.scrollTop:null;
   let h='',lastDate='';
-  if(start>0)h+='<div class="load-earlier-wrap"><button class="load-earlier-btn" type="button" onclick="loadEarlierMessages()">↑ '+t('加载更早消息')+' ('+t('剩余')+' '+start+t('条')+')</button></div>';
+  if(start>0)h+='<div class="load-earlier-wrap"><button class="load-earlier-btn" type="button" data-ui-click="load-earlier">↑ '+t('加载更早消息')+' ('+t('剩余')+' '+start+t('条')+')</button></div>';
   for(const msg of linear.slice(start)){
     if(!msg||typeof msg!=='object')continue;
     if(msg._divider==='linear'){h+='<div class="date-divider"><span>⚠️ '+t('对话分支结构异常，已按时间顺序展示全部消息')+'</span></div>';lastDate='';continue;}
@@ -2513,11 +2531,29 @@ function readArtifact(b){
 }
 let _vid=0;
 const VISUALDOCS={},VISUALURLS={};
+const artifactBootstrap=String.raw`
+// Runs only in an opaque-origin Artifact frame.
+function runLocalScript(source,node){
+  const url=URL.createObjectURL(new Blob([source],{type:'text/javascript'})),script=document.createElement('script');
+  script.src=url;script.async=false;script.onload=script.onerror=()=>URL.revokeObjectURL(url);
+  if(node)node.replaceWith(script);else document.body.appendChild(script);
+}
+for(const node of document.querySelectorAll('script[type="text/x-viewer-local"]'))runLocalScript(node.textContent,node);
+const handlers=[];let index=0;
+for(const node of document.querySelectorAll('*')){
+  const id=String(index++);node.setAttribute('data-frame-handler',id);
+  for(const attribute of [...node.attributes])if(/^on/i.test(attribute.name)){
+    handlers.push('document.querySelector(\'[data-frame-handler="'+id+'"]\').addEventListener('+JSON.stringify(attribute.name.slice(2))+',function(event){const result=(function(event){'+attribute.value+'\n}).call(this,event);if(result===false)event.preventDefault();});');
+    node.removeAttribute(attribute.name);
+  }
+}
+if(handlers.length)runLocalScript(handlers.join('\n'));
+`;
 function renderVisual(v){
   const id='v'+(_vid++);
   const showCap=v.title&&!(/^[a-z0-9]+(_[a-z0-9]+)+$/.test(v.title));
   const cap='<div class="vcap"><span class="vtitle">'+esc(showCap?v.title:(v.kind==='mermaid'?t('流程图'):v.kind==='svg'?t('图表'):t('交互预览')))+'</span>'
-    +'<button class="vdl" type="button" onclick="downloadVisualPng(\''+id+'\',this)">'+t('下载 PNG')+'</button></div>';
+    +'<button class="vdl" type="button" data-ui-click="visual-download" data-ui-value="'+id+'">'+t('下载 PNG')+'</button></div>';
   const src='<details class="vsrc"><summary>'+t('查看源码')+'</summary><pre><code>'+esc(v.code)+'</code></pre></details>';
   let body;
   if(v.kind==='mermaid')body='<div class="mermaid">'+esc(v.code)+'</div>';
@@ -2529,17 +2565,39 @@ function renderVisual(v){
     VISUALDOCS[id]=visualDocument(v);
     body='<iframe class="vhtml"'+sandbox+ratio+' loading="lazy" data-visual-doc="'+id+'"></iframe>';
   }
-  return '<div class="visual" id="'+id+'" data-vkind="'+v.kind+'" data-vcode="'+esc(encodeURIComponent(v.code))+'" data-vtitle="'+esc(v.title||v.kind)+'">'+cap+body+src+'</div>';
+  return '<div class="visual" id="'+id+'" data-vkind="'+v.kind+'" data-vcode="'+escAttr(encodeURIComponent(v.code))+'" data-vtitle="'+escAttr(v.title||v.kind)+'">'+cap+body+src+'</div>';
 }
 function visualDocument(v){
-  if(v.kind!=='svg')return v.code;
-  return '<!doctype html><html><head><style>'
+  if(v.kind!=='svg')return sandboxHtmlDocument(v.code);
+  return '<!doctype html><html><head>'+sandboxPolicyMeta()+'<style>'
     +'html,body{margin:0;padding:0;background:transparent;color:#2c2c2a;font-family:ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif}'
     +'body{--color-text-primary:#2c2c2a;--color-text-secondary:#5f5e5a;--color-text-tertiary:#888780;--color-text-accent:#185fa5;--color-background-primary:#fff;--color-background-secondary:#f7f7f5;--color-background-tertiary:#efefec;--color-border-primary:#b4b2a9;--color-border-secondary:#d3d1c7;--color-border-tertiary:#e8e6df}'
     +'svg{width:100%;height:auto;display:block}.node rect{fill:#f7f7f5;stroke:#888780}.node text,.th{fill:#2c2c2a}.ts{fill:#5f5e5a}.th{font-size:13px;font-weight:600}.ts{font-size:11px}'
     +'.c-purple rect{fill:#eeedfe;stroke:#534ab7}.c-blue rect{fill:#e6f1fb;stroke:#185fa5}.c-amber rect{fill:#faeeda;stroke:#854f0b}.c-teal rect{fill:#e1f5ee;stroke:#0f6e56}.c-red rect,.c-coral rect{fill:#fcebeb;stroke:#a32d2d}.c-gray rect{fill:#f1efe8;stroke:#5f5e5a}'
     +'.c-purple .th{fill:#3c3489}.c-blue .th{fill:#0c447c}.c-amber .th{fill:#633806}.c-teal .th{fill:#085041}.c-red .th,.c-coral .th{fill:#791f1f}'
     +'</style></head><body>'+sanitizeSvg(v.code)+'</body></html>';
+}
+function sandboxPolicyMeta(){
+  const parent=document.querySelector('meta[http-equiv="Content-Security-Policy"]').content;
+  const hashes=(parent.match(/'sha256-[^']+'/g)||[]).join(' ');
+  return '<meta http-equiv="Content-Security-Policy" content="'+escAttr("default-src 'none'; script-src "+hashes+" blob:; script-src-attr 'none'; style-src 'unsafe-inline'; img-src blob: data:; connect-src 'none'; frame-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'")+'">';
+}
+function sandboxHtmlDocument(code){
+  const doc=new DOMParser().parseFromString(String(code),'text/html');
+  doc.querySelectorAll('base,meta[http-equiv],iframe,object,embed,link').forEach(node=>node.remove());
+  doc.head.insertAdjacentHTML('afterbegin',sandboxPolicyMeta());
+  // The fixed bootstrap creates script URLs inside the frame's own opaque origin.
+  for(const script of doc.querySelectorAll('script')){
+    if(script.hasAttribute('src')||!/^$|^(?:text|application)\/javascript$/i.test(script.type)){script.remove();continue;}
+    script.type='text/x-viewer-local';
+  }
+  for(const node of doc.querySelectorAll('*')){
+    for(const attribute of [...node.attributes]){
+      if(/^(?:src|href|xlink:href|action|formaction|poster|srcset)$/i.test(attribute.name)&&!attribute.value.startsWith('#')&&!safeImageUrl(attribute.value))node.removeAttribute(attribute.name);
+    }
+  }
+  const bootstrap=doc.createElement('script');bootstrap.textContent=artifactBootstrap;doc.body.appendChild(bootstrap);
+  return '<!doctype html>'+doc.documentElement.outerHTML;
 }
 function sanitizeSvg(code){
   try{
@@ -2601,7 +2659,7 @@ async function downloadVisualPng(id,button){
       temp=document.createElement('div');temp.style.cssText='position:fixed;left:-10000px;top:0;width:1000px;background:#fff';temp.innerHTML=sanitizeSvg(decodeURIComponent(el.dataset.vcode||''));document.body.appendChild(temp);target=temp.querySelector('svg');
     }
     if(!target&&el.dataset.vkind==='html'){
-      temp=document.createElement('div');temp.style.cssText='position:fixed;left:-10000px;top:0;width:1000px;background:#fff';const doc=new DOMParser().parseFromString(decodeURIComponent(el.dataset.vcode||''),'text/html');doc.querySelectorAll('script,iframe,object,embed').forEach(n=>n.remove());doc.querySelectorAll('*').forEach(n=>[...n.attributes].forEach(a=>{if(a.name.toLowerCase().startsWith('on'))n.removeAttribute(a.name);}));temp.innerHTML=[...doc.head.querySelectorAll('style')].map(s=>s.outerHTML).join('')+doc.body.innerHTML;document.body.appendChild(temp);target=temp;
+      throw new Error('HTML previews stay inside their sandbox; download the source instead');
     }
     if(!target)throw new Error('Artifact is not ready');
     await elementToPng(target,el.dataset.vtitle||'artifact');
@@ -2680,19 +2738,18 @@ function renderFileCards(files){
       return '<div class="filerow"><span>📄</span><span class="fname">'+esc(f.name)+'</span><span class="fsize nocontent">'+t('内容未包含在导出中')+'</span></div>';
     }
     const id=registerFile(f.name,f.content);
-    const openable=/\.(html?|svg)$/i.test(f.name);
+    const preview=/\.(html?|svg)$/i.test(f.name)?renderVisual({kind:/\.svg$/i.test(f.name)?'svg':'html',code:String(f.content),title:f.name}):'';
     return '<div class="filerow"><span>📄</span><span class="fname">'+esc(f.name)+'</span>'
       +'<span class="fsize">'+(f.content.length/1024).toFixed(1)+' KB</span>'
       +'<span class="fbtns">'
-      +(openable?'<a class="fbtn" href="'+FILESTORE[id].url+'" target="_blank" rel="noopener">'+t('打开')+'</a>':'')
-      +'<a class="fbtn primary" href="'+FILESTORE[id].url+'" download="'+esc(f.name)+'">'+t('下载')+'</a>'
-      +'</span></div>';
+      +'<a class="fbtn primary" href="'+FILESTORE[id].url+'" download="'+escAttr(f.name)+'">'+t('下载')+'</a>'
+      +'</span></div>'+(preview?'<details><summary>'+t('交互预览')+'</summary>'+preview+'</details>':'');
   }).join('');
   return '<div class="files"><div class="filehd">📦 '+t('此回复生成的文件')+' ('+files.length+')</div>'+rows+'</div>';
 }
 
 function renderMsg(msg){
-  const role=msg.sender||'human';
+  const role=msg.sender==='human'?'human':'assistant';
   const time=fmtTime(msg.created_at);
   const content=msg.content||[];
   // 第一遍：提取 artifact / 生成文件 / 网页搜索，标记已消费块
@@ -2751,18 +2808,18 @@ function renderMsg(msg){
     const label=name||type||(att.file_uuid?t('文件')+' ('+att.file_uuid.slice(0,8)+'…)':t('附件'));
     const mediaId='media-'+(msg.uuid||'message')+'-'+attIndex,media=isImageFileName(name,type)?attachmentMedia(att,mediaId):null;
     if(isImageFileName(name,type)){
-      inner+='<div class="attachment-block attachment-preview" data-attachment-media="'+esc(mediaId)+'">'
-        +(media?'<img src="'+esc(media.url)+'" alt="'+esc(label)+'">':'<span class="file-icon" style="font-size:28px">🖼️</span>')
+      inner+='<div class="attachment-block attachment-preview" data-attachment-media="'+escAttr(mediaId)+'">'
+        +(media&&safeImageUrl(media.url)?'<img src="'+escAttr(safeImageUrl(media.url))+'" alt="'+escAttr(label)+'">':'<span class="file-icon" style="font-size:28px">🖼️</span>')
         +'<div class="attachment-info"><b>'+esc(label)+'</b><span style="color:var(--text3)">'+(media?t(media.source==='manual'?'手动绑定':'自动匹配'):t('图片未包含在导出中，可按文件名自动匹配或手动选择。'))+'</span>'
-        +'<div class="attachment-actions">'+(media?'<a class="fbtn" href="'+esc(media.url)+'" target="_blank" rel="noopener">'+t('打开')+'</a>':'')
-        +'<button class="fbtn primary" type="button" onclick="chooseAttachmentMedia(\''+esc(mediaId)+'\')">'+t(media?'更换图片':'选择本地图片')+'</button></div></div></div>';
+        +'<div class="attachment-actions">'+(media?importedLink(media.url,t('打开')):'')
+        +'<button class="fbtn primary" type="button" data-ui-click="attachment" data-ui-value="'+escAttr(mediaId)+'">'+t(media?'更换图片':'选择本地图片')+'</button></div></div></div>';
     }else inner+='<div class="attachment-block"><span class="file-icon">📎</span>'+esc(label)+'</div>';
   }
   // 搜索面板（折叠展示查询与来源）
   if(searchQueries.length||searchResults.length){
     let sp='<div class="searchpanel"><div class="collapsible-header sp-hd" style="cursor:pointer;">'+ICON+' 🔍 '+t('搜索了网页')
       +(searchQueries.length?'：'+esc(searchQueries.join('；')):'')+'</div><div style="display:none;">';
-    for(const r of searchResults)sp+='<div class="sp-row">🔗 <a href="'+esc(r.url)+'" target="_blank" rel="noopener">'+esc(r.title)+'</a></div>';
+    for(const r of searchResults)sp+='<div class="sp-row">🔗 '+importedLink(r.url,r.title)+'</div>';
     inner+=sp+'</div></div>';
   }
   // 第二遍：正文渲染（跳过已消费块）
@@ -2781,16 +2838,16 @@ function renderMsg(msg){
   const br=brMeta[msg.uuid];
   if(br){
     brNav='<span class="brnav" title="'+t('此处有多个版本（编辑或重新生成），切换后后续对话随之改变')+'">'
-      +'<button onclick="switchBranch(\''+esc(br.key)+'\','+(br.index-1)+',event)" '+(br.index<=0?'disabled':'')+'>‹</button>'
+      +'<button data-ui-click="branch" data-ui-value="'+escAttr(br.key)+'" data-ui-index="'+(br.index-1)+'" '+(br.index<=0?'disabled':'')+'>‹</button>'
       +'<span class="brcount">'+(br.index+1)+'/'+br.count+'</span>'
-      +'<button onclick="switchBranch(\''+esc(br.key)+'\','+(br.index+1)+',event)" '+(br.index>=br.count-1?'disabled':'')+'>›</button>'
+      +'<button data-ui-click="branch" data-ui-value="'+escAttr(br.key)+'" data-ui-index="'+(br.index+1)+'" '+(br.index>=br.count-1?'disabled':'')+'>›</button>'
       +'</span>';
   }
   // 纯文本复制
   const cid='m'+(_mid++);
   const plain=content.filter(b=>b&&b.type==='text').map(b=>b.text||'').join('\n\n')||msg.text||'';
   MSGTEXT[cid]=plain;
-  const copyBtn=plain?'<button class="msgcopy" onclick="copyMsg(\''+cid+'\',this)" title="'+t('复制这条消息')+'">📋</button>':'';
+  const copyBtn=plain?'<button class="msgcopy" data-ui-click="copy-message" data-ui-value="'+cid+'" title="'+t('复制这条消息')+'">📋</button>':'';
   const avatarLabel=role==='human'?t('你'):'✦';
   const nameLabel=role==='human'?t('你'):'Claude';
   return '<div class="msg-wrap '+role+'">'
@@ -2826,7 +2883,7 @@ function renderBlock(block){
     for(const c of content){
       if(c.type==='text')body+='<div style="white-space:pre-wrap;word-break:break-word;">'+esc(c.text||'')+'</div>';
       else if(c.type==='image')body+='<div class="img-placeholder">🖼 '+t('图片')+' ('+esc(c.file_uuid||'')+')</div>';
-      else if(c.type==='knowledge')body+='<div class="attachment-block">📚 <a href="'+esc(c.url||'')+'" target="_blank" style="color:var(--blue);text-decoration:none;">'+esc(c.title||t('知识引用'))+'</a></div>';
+      else if(c.type==='knowledge')body+='<div class="attachment-block">📚 '+importedLink(c.url,c.title||t('知识引用'))+'</div>';
       else if(c.type==='local_resource')body+='<div class="attachment-block"><span class="file-icon">📄</span>'+esc(c.name||c.file_path||t('文件'))+' <span style="color:var(--text3);font-size:11px;">('+esc(c.mime_type||'')+')</span></div>';
       else body+='<div style="color:var(--text3)">['+esc(c.type)+']</div>';
     }
@@ -2841,10 +2898,10 @@ function renderBlock(block){
   if(blockType==='rich_content'||blockType==='rich_link'||blockType==='webpage_metadata'){
     const url=block.url||(block.metadata&&block.metadata.url)||'';
     const title=block.title||(block.metadata&&block.metadata.title)||blockType;
-    return '<div class="attachment-block">🔗 <a href="'+esc(url)+'" target="_blank" style="color:var(--blue);text-decoration:none;">'+esc(title)+'</a></div>';
+    return '<div class="attachment-block">🔗 '+importedLink(url,title)+'</div>';
   }
   if(blockType==='web_search_citation')return '<div class="attachment-block" style="font-size:11px;color:var(--text3)">🔍 '+esc(block.title||block.url||t('搜索引用'))+'</div>';
-  if(blockType==='knowledge')return '<div class="attachment-block">📚 <a href="'+esc(block.url||'')+'" target="_blank" style="color:var(--blue);text-decoration:none;">'+esc(block.title||t('知识引用'))+'</a></div>';
+  if(blockType==='knowledge')return '<div class="attachment-block">📚 '+importedLink(block.url,block.title||t('知识引用'))+'</div>';
   if(blockType==='local_resource')return '<div class="attachment-block"><span class="file-icon">📄</span>'+esc(block.name||block.file_path||t('文件'))+'</div>';
   return '<div style="font-size:11px;color:var(--text3);padding:4px 0">['+esc(blockType)+']</div>';
 }
@@ -2972,7 +3029,7 @@ async function exportPDF(mode){
     const styles=[...document.querySelectorAll('style')].map(s=>s.textContent).join('\n');
     const title=esc(conv.name||t('对话')),meta=esc(fmtDate(conv.created_at)+' · '+(conv.chat_messages||[]).length+t('条消息'));
     const scp=redaction&&redaction.style==='scp';const scpCss=scp?'body:before{content:"CONFIDENTIAL";position:fixed;z-index:0;left:8%;top:43%;font:900 72px/1 system-ui;color:rgba(125,0,0,.075);transform:rotate(-28deg);letter-spacing:.12em;pointer-events:none}.classified-badge{position:fixed;z-index:20;right:24px;top:20px;padding:9px 13px;border:3px double #790000;border-radius:8px;color:#790000;background:#fff;font:800 11px/1.25 system-ui;letter-spacing:.12em;text-align:center;transform:rotate(3deg)}':'';const badge=scp?'<div class="classified-badge">🔒 CLASSIFIED<br>CONFIDENTIAL</div>':'';
-    popup.document.open();popup.document.write('<!doctype html><html><head><meta charset="utf-8"><title>'+title+'</title><style>'+styles+'\nbody{display:block!important;background:#fff!important;color:#222!important;overflow:visible!important}.pdf-page{position:relative;z-index:1;max-width:820px;margin:0 auto;padding:24px}.pdf-title{font-size:22px;margin:0 0 4px}.pdf-meta{font-size:12px;color:#666;margin-bottom:20px}.pdf-actions{margin-bottom:16px}.pdf-conversation .msg-wrap{break-inside:avoid;page-break-inside:avoid}.pdf-conversation .msg-content{max-width:none}.pdf-conversation iframe.vhtml{width:100%;min-height:240px}.pdf-conversation .vdl,.pdf-conversation .msgcopy,.pdf-conversation .brnav,.pdf-conversation .load-earlier-wrap{display:none!important}'+scpCss+'@media print{.pdf-actions{display:none}.pdf-page{padding:0}.pdf-conversation details.vsrc{display:none}}<\/style></head><body>'+badge+'<main class="pdf-page"><h1 class="pdf-title">'+title+'</h1><div class="pdf-meta">'+meta+'</div><button class="pdf-actions" onclick="window.print()">'+t('打印 / 另存为 PDF')+'</button><div class="pdf-conversation">'+conversationHtml+'</div></main><script>setTimeout(()=>window.print(),900)<\/script></body></html>');popup.document.close();
+    popup.document.open();popup.document.write('<!doctype html><html><head><meta charset="utf-8"><title>'+title+'</title><style>'+styles+'\nbody{display:block!important;background:#fff!important;color:#222!important;overflow:visible!important}.pdf-page{position:relative;z-index:1;max-width:820px;margin:0 auto;padding:24px}.pdf-title{font-size:22px;margin:0 0 4px}.pdf-meta{font-size:12px;color:#666;margin-bottom:20px}.pdf-actions{margin-bottom:16px}.pdf-conversation .msg-wrap{break-inside:avoid;page-break-inside:avoid}.pdf-conversation .msg-content{max-width:none}.pdf-conversation iframe.vhtml{width:100%;min-height:240px}.pdf-conversation .vdl,.pdf-conversation .msgcopy,.pdf-conversation .brnav,.pdf-conversation .load-earlier-wrap{display:none!important}'+scpCss+'@media print{.pdf-actions{display:none}.pdf-page{padding:0}.pdf-conversation details.vsrc{display:none}}<\/style></head><body>'+badge+'<main class="pdf-page"><h1 class="pdf-title">'+title+'</h1><div class="pdf-meta">'+meta+'</div><button class="pdf-actions" id="pdf-print">'+t('打印 / 另存为 PDF')+'</button><div class="pdf-conversation">'+conversationHtml+'</div></main></body></html>');popup.document.close();popup.document.getElementById('pdf-print').addEventListener('click',()=>popup.print());setTimeout(()=>{if(!popup.closed)popup.print();},900);
   }catch(err){popup.close();console.error('PDF export',err);alert(errorMessage(err));}
 }
 
@@ -2980,6 +3037,19 @@ function renderMd(text){
   if(!text)return '';
   try{return typeof marked!=='undefined'?marked.parse(text):esc(text).replace(/\n/g,'<br>');}
   catch(e){return esc(text).replace(/\n/g,'<br>');}
+}
+function safeLinkUrl(value){
+  const raw=String(value||'').trim();
+  if(!raw||/[\u0000-\u0020\u007f]/.test(raw))return '';
+  try{const url=new URL(raw);return /^(https?:|mailto:|tel:|blob:)$/.test(url.protocol)?url.href:'';}catch{return '';}
+}
+function safeImageUrl(value){
+  const raw=String(value||'');
+  return /^blob:/i.test(raw)||/^data:image\/(?:png|jpeg|gif|webp|avif|bmp);base64,[a-z0-9+/=\s]+$/i.test(raw)?raw:'';
+}
+function importedLink(url,label){
+  const href=safeLinkUrl(url);
+  return href?'<a href="'+escAttr(href)+'" target="_blank" rel="noopener noreferrer" referrerpolicy="no-referrer">'+esc(label)+'</a>':esc(label);
 }
 function esc(s){
   const d=document.createElement('div');
@@ -3014,6 +3084,15 @@ function configureMarked(){
     const raw=html&&typeof html==='object'?html.text:html;
     return esc(raw==null?'':raw);
   };
+  renderer.link=function(token){
+    const label=this.parser.parseInline(token.tokens||[]),href=safeLinkUrl(token.href);
+    return href?'<a href="'+escAttr(href)+'" target="_blank" rel="noopener noreferrer" referrerpolicy="no-referrer"'+(token.title?' title="'+escAttr(token.title)+'"':'')+'>'+label+'</a>':label;
+  };
+  renderer.image=function(token){
+    const src=safeImageUrl(token.href),label=token.text||t('图片');
+    if(src)return '<img src="'+escAttr(src)+'" alt="'+escAttr(label)+'"'+(token.title?' title="'+escAttr(token.title)+'"':'')+'>';
+    return '<span class="img-placeholder">🖼 '+esc(t('外部图片不会自动加载'))+' · '+importedLink(token.href,label)+'</span>';
+  };
   renderer.code=function(code,lang){
     // marked v5+ passes a token object {text,lang,escaped}; older versions pass (code,lang) directly
     let rawCode, l;
@@ -3024,18 +3103,19 @@ function configureMarked(){
       rawCode=String(code||'');
       l=(lang||'').trim();
     }
-    const safeCode=rawCode.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    l=String(l).split(/\s/,1)[0];
+    const safeCode=esc(rawCode);
     if(l==='mermaid')return '<div class="visual"><div class="mermaid">'+safeCode+'</div><details class="vsrc"><summary>'+t('查看 Mermaid 源码')+'</summary><pre><code>'+safeCode+'</code></pre></details></div>';
     const id='cb_'+Math.random().toString(36).slice(2);
     const highlighted=typeof hljs!=='undefined'&&l&&hljs.getLanguage(l)
-      ?hljs.highlight(safeCode,{language:l}).value
+      ?hljs.highlight(rawCode,{language:l}).value
       :safeCode;
     return '<div class="code-block">'
       +'<div class="code-block-header">'
-      +'<span class="code-lang">'+l+'</span>'
-      +'<button class="copy-btn" onclick="copyCode(this,\''+id+'\')">'+t('复制')+'</button>'
+      +'<span class="code-lang">'+esc(l)+'</span>'
+      +'<button class="copy-btn" data-ui-click="copy-code" data-ui-value="'+id+'">'+t('复制')+'</button>'
       +'</div>'
-      +'<pre><code id="'+id+'" class="'+(l?'language-'+l:'')+'">'+highlighted+'</code></pre>'
+      +'<pre><code id="'+id+'" class="'+(l?'language-'+escAttr(l):'')+'">'+highlighted+'</code></pre>'
       +'</div>';
   };
   marked.setOptions({renderer});
@@ -3143,6 +3223,75 @@ function applyTheme(theme){
   });
 })();
 
+// Keep actions in code; imported values are data attributes, never JavaScript source.
+document.addEventListener('click',event=>{
+  const el=event.target.closest('[data-ui-click]');if(!el||el.disabled)return;
+  const value=el.dataset.uiValue;
+  switch(el.dataset.uiClick){
+    case 'pick-folder':document.getElementById('file-input').click();break;
+    case 'pick-zip':document.getElementById('zip-input').click();break;
+    case 'clear-cache':void clearLocalDataCache(el);break;
+    case 'sort':setSort(value);break;
+    case 'tab':switchTab(value,el);break;
+    case 'summary':toggleSummary();break;
+    case 'search-prev':cNav(-1);break;
+    case 'search-next':cNav(1);break;
+    case 'quality':void toggleQualityPanel();break;
+    case 'tree':toggleTreeMode();break;
+    case 'export-menu':toggleExportMenu(event);break;
+    case 'export-markdown':void exportConv('normal');closeExportMenu();break;
+    case 'export-safe-markdown':void exportConv('safe');closeExportMenu();break;
+    case 'export-pdf':void exportPDF('normal');closeExportMenu();break;
+    case 'export-safe-pdf':void exportPDF('safe');closeExportMenu();break;
+    case 'language':toggleLanguage();break;
+    case 'theme':toggleTheme();break;
+    case 'jump-top':jumpMessages('top');break;
+    case 'jump-bottom':jumpMessages('bottom');break;
+    case 'pick-stopwords':document.getElementById('custom-stopwords-input').click();break;
+    case 'analytics-view':setAnalyticsView(value);break;
+    case 'analytics-bucket':selectAnalyticsBucket(Number(value));break;
+    case 'analytics-clear':clearAnalyticsFilters();break;
+    case 'analytics-entire-range':analyticsSelection=null;analyticsDrillResult=null;void loadAnalyticsDrilldown(0);renderAnalyticsExploration();break;
+    case 'analytics-list':void showAnalyticsInList();break;
+    case 'analytics-page':analyticsDrillResult=null;void loadAnalyticsDrilldown(Number(value));renderAnalyticsDrilldown();break;
+    case 'analytics-retry':retryAnalytics();break;
+    case 'analytics-list-clear':clearAnalyticsListFilter();break;
+    case 'analytics-return':switchTab('analytics',document.querySelector('[data-analytics-tab]'));break;
+    case 'memory-toggle':toggleMemCard(el);break;
+    case 'document-toggle':toggleDoc(el.parentElement);break;
+    case 'project-export':void exportProject(value);break;
+    case 'project-copy':void copyProjectText(value,el);break;
+    case 'project-document':downloadProjectDoc(value,el.dataset.uiDoc);break;
+    case 'open-conversation':void openConvAndSwitch(value);break;
+    case 'load-earlier':loadEarlierMessages();break;
+    case 'visual-download':void downloadVisualPng(value,el);break;
+    case 'attachment':chooseAttachmentMedia(value);break;
+    case 'branch':switchBranch(value,Number(el.dataset.uiIndex),event);break;
+    case 'copy-message':copyMsg(value,el);break;
+    case 'copy-code':copyCode(el,value);break;
+  }
+});
+document.addEventListener('input',event=>{
+  const el=event.target;
+  if(el.dataset.uiInput==='search-conversations')filterConvs(el.value);
+  else if(el.dataset.uiInput==='search-messages')cSearch(el.value);
+  else if(el.dataset.uiInput==='project-search')filterProjectConversations(el.dataset.uiValue,el.value);
+});
+document.addEventListener('change',event=>{
+  const el=event.target,value=el.dataset.uiValue;
+  switch(el.dataset.uiChange){
+    case 'stopwords':void loadCustomStopwords(el);break;
+    case 'analytics-select':analyticsSelectFilter(value,el);break;
+    case 'analytics-filter':changeAnalyticsFilter(value,el.value);break;
+    case 'analytics-metric':analyticsMetricName=el.value;renderAnalyticsExploration();break;
+    case 'project-override':setProjectOverride(value,el.value);break;
+  }
+});
+document.addEventListener('keydown',event=>{
+  const el=event.target.closest('[data-ui-key]');if(!el)return;
+  if(el.dataset.uiKey==='search'&&event.key==='Enter')cNav(event.shiftKey?-1:1);
+  else if(el.dataset.uiKey==='activate'&&(event.key==='Enter'||event.key===' ')){event.preventDefault();el.dispatchEvent(new MouseEvent('click',{bubbles:true}));}
+});
 function navigateConv(dir){
   const items=[...document.querySelectorAll('#conv-list [data-conv-uuid]')];
   if(!items.length)return;

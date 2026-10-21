@@ -37,7 +37,7 @@ try{
   await page.evaluate(()=>{if(!document.getElementById('summary').classList.contains('hidden'))toggleSummary();document.getElementById('summary').style.display='none';});
 
   await page.setViewportSize({width:1440,height:1600});
-  await page.locator('.tab-btn[onclick*="projects"]').click();
+  await page.locator('.tab-btn[data-ui-value="projects"]').click();
   await page.waitForFunction(()=>convProjectMapReady);
   await page.locator('.proj-card').first().click();
   await page.waitForFunction(()=>document.querySelectorAll('.match-panel').length>=3);
@@ -47,7 +47,7 @@ try{
   await page.screenshot({path:path.join(imageDir,'project-associations.png')});
 
   await page.setViewportSize({width:1440,height:900});
-  await page.locator('.tab-btn[onclick*="memory"]').click();
+  await page.locator('.tab-btn[data-ui-value="memory"]').click();
   await page.waitForFunction(()=>document.getElementById('conv-list').textContent.includes('工作背景')&&document.getElementById('conv-list').textContent.includes('北辰咖啡'));
   await page.screenshot({path:path.join(imageDir,'memory-view.png')});
   console.log(`README screenshots written to ${path.relative(root,imageDir)}`);
