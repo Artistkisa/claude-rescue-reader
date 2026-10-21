@@ -1,5 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
+import {validateBenchmarkReports} from './benchmark-reports.mjs';
 
 const failures=[],warnings=[];
 for(const file of['CODE_OF_CONDUCT.md','CONTRIBUTING.md','SECURITY.md','.github/PULL_REQUEST_TEMPLATE.md','.github/ISSUE_TEMPLATE/bug_report.yml','.github/ISSUE_TEMPLATE/feature_request.yml','.github/ISSUE_TEMPLATE/config.yml'])if(!fs.existsSync(file))failures.push(`community health file missing: ${file}`);
@@ -26,7 +27,8 @@ for(const [file,text] of [['README.md',zh],['README.en.md',en]]){
   if(text.includes('releases/latest/download/claude-rescue-reader.zip'))failures.push(`${file}: redundant standard ZIP link should stay out of the README hero`);
 }
 const benchmark=JSON.parse(fs.readFileSync('docs/benchmarks/readme-performance.json','utf8'));
-for(const result of benchmark.results){
+failures.push(...validateBenchmarkReports({readme:benchmark,workers:JSON.parse(fs.readFileSync('docs/benchmarks/worker-pipelines.json','utf8')),analytics:JSON.parse(fs.readFileSync('docs/benchmarks/analytics-performance.json','utf8')),zh,en,workerDoc:fs.readFileSync('docs/worker-pipelines.md','utf8'),analyticsDoc:fs.readFileSync('docs/benchmarks/analytics-performance.md','utf8')}));
+for(const result of benchmark.results||[]){
   const expected=[result.sizeMiB,result.cpuThrottle,result.median.initialListMs,result.median.openConversationMs,result.median.searchMs];
   if(expected.some(value=>typeof value!=='number'||!Number.isFinite(value)))failures.push(`benchmark report has invalid values for ${result.sizeMiB} MiB`);
   const rowEn=`| ${result.sizeMiB} MiB | ${result.cpuThrottle}× | ${(result.median.initialListMs/1000).toFixed(2)} s | ${(result.median.openConversationMs/1000).toFixed(2)} s | ${(result.median.searchMs/1000).toFixed(2)} s |`;

@@ -2,7 +2,8 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {spawnSync} from 'node:child_process';
 import {fileURLToPath} from 'node:url';
-import {parseRuns,median} from '../scripts/benchmark-utils.mjs';
+import {parseRuns,parseSizes,median,readmeBenchmarkOutput} from '../scripts/benchmark-utils.mjs';
+import path from 'node:path';
 
 test('run counts default to three and require positive safe integers',()=>{
   assert.equal(parseRuns(undefined),3);
@@ -37,4 +38,29 @@ test('invalid CLI run count fails before trying to launch Chromium',()=>{
     assert.match(result.stderr,/Invalid --runs/);
     assert.doesNotMatch(result.stderr,/browserType.launch|TypeError|executable doesn't exist/);
   }
+});
+
+
+test('size lists reject empty, malformed, partial and duplicate scenarios',()=>{
+  assert.deepEqual(parseSizes(undefined),[50,150,300]);assert.deepEqual(parseSizes('50,150'),[50,150]);
+  for(const input of ['','abc','0','abc,def','50,abc','50,','-1','1.5','Infinity','50,50','9007199254740992'])assert.throws(()=>parseSizes(input),/Invalid --sizes/);
+});
+
+test('invalid CLI sizes fail before launching a browser',()=>{
+  const script=new URL('../scripts/benchmark-readme-performance.mjs',import.meta.url);
+  for(const input of ['','abc','0','50,abc','50,','-1','1.5','Infinity']){
+    const result=spawnSync(process.execPath,[fileURLToPath(script),'--sizes='+input],{encoding:'utf8',env:{...process.env,CHROME_PATH:'invalid-synthetic-browser-path'},timeout:10000});
+    assert.ifError(result.error);assert.equal(result.status,1);assert.match(result.stderr,/Invalid --sizes/);assert.doesNotMatch(result.stderr,/browserType.launch/);
+  }
+});
+
+test('custom benchmark scenarios cannot overwrite the published report',()=>{
+  const root=path.resolve('.');
+  assert.equal(readmeBenchmarkOutput(root,[300,50,150]),path.join(root,'docs/benchmarks/readme-performance.json'));
+  assert.equal(readmeBenchmarkOutput(root,[1],'test-results/custom.json'),path.join(root,'test-results/custom.json'));
+  for(const output of [undefined,'docs/benchmarks/readme-performance.json','docs/benchmarks/../benchmarks/readme-performance.json'])assert.throws(()=>readmeBenchmarkOutput(root,[50],output),/Custom --sizes require --output/);
+  assert.throws(()=>readmeBenchmarkOutput(root,[50],''),/Invalid --output/);
+  const script=new URL('../scripts/benchmark-readme-performance.mjs',import.meta.url);
+  const result=spawnSync(process.execPath,[fileURLToPath(script),'--sizes=50'],{encoding:'utf8',env:{...process.env,CHROME_PATH:'invalid-synthetic-browser-path'},timeout:10000});
+  assert.ifError(result.error);assert.equal(result.status,1);assert.match(result.stderr,/Custom --sizes require --output/);assert.doesNotMatch(result.stderr,/browserType.launch/);
 });

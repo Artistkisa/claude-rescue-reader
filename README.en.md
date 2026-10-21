@@ -261,7 +261,7 @@ claude-export/
 | 150 MiB | 6× | 1.69 s | 0.90 s | 0.10 s |
 | 300 MiB | 6× | 3.19 s | 1.02 s | 0.23 s |
 
-Results are medians of three fresh-browser runs on Chromium `150.0.7871.187` with Playwright `1.62.0`. CDP CPU throttling is applied before import. Each exact-size fixture is generated locally from fictional ASCII conversations with 100 alternating human/assistant messages; search uses one shared synthetic needle. No real history, title, local path, account data, or hardware model is read or published.
+Results are medians of three fresh-browser runs on Chromium `150.0.7871.187` with Playwright `1.62.0` (legacy hardcoded field; actual version was not recorded). CDP CPU throttling is applied before import. Each exact-size fixture is generated locally from fictional ASCII conversations with 100 alternating human/assistant messages; search uses one shared synthetic needle. No real history, title, local path, account data, or hardware model is read or published.
 
 Reproduce with `npm run benchmark:readme`. The [benchmark script](scripts/benchmark-readme-performance.mjs) and [raw report](docs/benchmarks/readme-performance.json) are committed beside the table. These numbers are comparative evidence, not a promise for every disk, browser, archive shape, or thermal state. Large single-line Claude exports causing editors or ordinary pages to stall are a recurring community pain point; [this ClaudeAI discussion](https://www.reddit.com/r/ClaudeAI/comments/1oee39d/built_a_tool_to_view_claude_conversation_exports/) is one public example.
 

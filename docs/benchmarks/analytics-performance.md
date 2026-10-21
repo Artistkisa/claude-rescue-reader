@@ -2,7 +2,7 @@
 
 The workload contains 1,200 synthetic conversations with 100 short text messages each, two alternating models and 60 valid calendar dates. Three fresh browser pages run the same sequence. Ingestion is excluded from the timings; the first query includes building the Analytics Worker index. The model filter then selects 60,000 messages. The first drilldown changes back to all models, so it must rescan. The next page and UUID request reuse those conditions.
 
-Baseline: main commit `e9b127f`. Candidate: time-budgeted Analytics Worker checkpoints and one reusable matching-summary result. Chromium `151.0.7922.34`, Node `v24.16.0`, same local environment. CDP requests 4× page CPU throttling; this does not guarantee throttling of all Worker threads. Timer clamping, scheduler load and browser versions affect these values; this short-text workload does not represent every export shape.
+Baseline: main commit `e9b127ff3a4ebe1315d429efe36a7212a651f81e`. Candidate: time-budgeted Analytics Worker checkpoints and one reusable matching-summary result. Chromium `151.0.7922.34`, Node `v24.16.0`, same local environment. CDP requests 4× page CPU throttling; this does not guarantee throttling of all Worker threads. Timer clamping, scheduler load and browser versions affect these values; this short-text workload does not represent every export shape.
 
 ## Raw samples (milliseconds)
 
@@ -30,3 +30,7 @@ npm run benchmark:analytics -- --runs=3 --output=test-results/analytics-benchmar
 The script prints raw samples, medians, browser/Node versions and counts. `CHROME_PATH` optionally chooses a local Chromium executable; otherwise Playwright's installed Chromium is used. No real exports or runtime network requests are needed. Run the same script against the baseline viewer to compare versions; the command does not overwrite this report.
 
 `--runs` defaults to 3 and must be a positive safe integer. Empty, zero, negative, fractional, nonnumeric and infinite values exit with a clear error before launching Chromium. Even sample counts use the mean of the two central sorted values; odd counts use the central value. The recorded three-run figures above are unchanged. Run `npm run test:benchmark` to check argument validation and aggregation, including invalid CLI input without a browser.
+
+Machine-readable transcription of the historical table: [analytics-performance.json](analytics-performance.json). It preserves the published observations; no new measurements or missing tool versions are inferred. `npm run docs` verifies samples, computed medians and the table together.
+
+README benchmarks can use custom sizes with an explicit separate output, for example `npm run benchmark:readme -- --runs=1 --sizes=1 --output=test-results/readme-custom.json`. The published README report requires all three 50/150/300 MiB scenarios. Windows system Chrome is no longer auto-detected; set `CHROME_PATH` to select it instead of the installed Playwright Chromium.

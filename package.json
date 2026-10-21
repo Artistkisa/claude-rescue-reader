@@ -15,10 +15,11 @@
     "capture:readme": "node scripts/capture-readme-screenshots.mjs",
     "capture:demo-gif": "node scripts/capture-readme-demo-gif.mjs",
     "benchmark:readme": "node scripts/benchmark-readme-performance.mjs",
+    "benchmark:workers": "node scripts/benchmark-worker-pipelines.mjs",
     "benchmark:analytics": "node scripts/benchmark-analytics-performance.mjs",
     "build:demo": "node scripts/build-synthetic-demo.mjs",
     "test:smoke": "npm run test:benchmark && npm run test:policy && npm run test:worker-core && playwright test tests/browser-smoke.spec.mjs tests/analytics.spec.mjs tests/worker-performance.spec.mjs tests/rendering-recovery.spec.mjs tests/worker-pipelines.spec.mjs tests/export-packages.spec.mjs",
-    "test:benchmark": "node --test tests/benchmark-utils.test.mjs",
+    "test:benchmark": "node --test tests/benchmark-utils.test.mjs tests/benchmark-reports.test.mjs",
     "test:policy": "node --test tests/viewer-policy.test.mjs",
     "test:offline": "playwright test tests/offline-release.spec.mjs",
     "test:worker-core": "node --test tests/worker-core.test.mjs tests/export-format.test.mjs tests/redaction.test.mjs"

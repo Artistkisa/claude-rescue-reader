@@ -261,7 +261,7 @@ claude-export/
 | 150 MiB | 6× | 1.69 秒 | 0.90 秒 | 0.10 秒 |
 | 300 MiB | 6× | 3.19 秒 | 1.02 秒 | 0.23 秒 |
 
-结果取 3 次全新浏览器运行的中位数，使用 Chromium `150.0.7871.187`、Playwright `1.62.0`，并在导入前通过 CDP 设置 CPU 限速。每份文件都由脚本在本地生成到精确体积，只含虚构 ASCII 对话；每条完整记录包含 100 条人类 / Claude 交替消息，搜索使用统一的合成标记词。测试不会读取或公布真实历史、真实标题、本地路径、账号数据或硬件型号。
+结果取 3 次全新浏览器运行的中位数，使用 Chromium `150.0.7871.187`、Playwright `1.62.0`（旧脚本硬编码，实际版本未记录），并在导入前通过 CDP 设置 CPU 限速。每份文件都由脚本在本地生成到精确体积，只含虚构 ASCII 对话；每条完整记录包含 100 条人类 / Claude 交替消息，搜索使用统一的合成标记词。测试不会读取或公布真实历史、真实标题、本地路径、账号数据或硬件型号。
 
 运行 `npm run benchmark:readme` 即可复现；[基准脚本](scripts/benchmark-readme-performance.mjs)和[原始报告](docs/benchmarks/readme-performance.json)与表格一同提交。数字用于说明不同体积下的相对表现，不承诺所有磁盘、浏览器、导出结构和散热状态都得到相同结果。大型单行 Claude 导出让编辑器或普通页面卡顿，是社区反复出现的实际痛点；[这条 ClaudeAI 讨论](https://www.reddit.com/r/ClaudeAI/comments/1oee39d/built_a_tool_to_view_claude_conversation_exports/)就是一个公开案例。
 
