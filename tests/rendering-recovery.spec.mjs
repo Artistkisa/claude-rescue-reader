@@ -67,6 +67,8 @@ for(const mode of ['file','http'])test(mode+' artifact scripts stay interactive 
     activateVisualFrame(document.querySelector('iframe'));
   });
   const frame=page.frameLocator('iframe');await expect(frame.locator('body')).toHaveAttribute('data-ran','true');await expect(frame.locator('body')).toHaveAttribute('data-isolated','true');
+  // Opaque iframe input routing can lag its script execution until the first compositor frames.
+  await frame.locator('body').evaluate(()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve))));
   await frame.locator('#inside').click();await expect(frame.locator('#inside')).toHaveText('clicked');expect(await page.title()).not.toBe('escaped');expect(network).toEqual([]);
 });
 

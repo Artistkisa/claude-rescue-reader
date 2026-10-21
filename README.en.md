@@ -4,6 +4,8 @@
 
 **A local Claude Export History Viewer**
 
+Supports new `manifest-*.json` download checklists, partitioned ZIPs, standalone memory ZIPs, and Artifact versions. [Import guide](docs/new-export-import.md)
+
 > **Turn Claude's official export ZIP into a searchable, analyzable, privacy-safe local archive.**
 
 No installation · one file · ZIP without extraction · local-only · built for large histories

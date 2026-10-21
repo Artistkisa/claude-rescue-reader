@@ -4,6 +4,8 @@
 
 **本地 Claude 导出历史查看器**
 
+支持新版 `manifest-*.json` 下载清单、多个 ZIP 分包、独立记忆 ZIP 和 Artifact 历史版本。[新版导入说明](docs/new-export-import.md)
+
 > **把 Claude 官方导出的 ZIP，变成可搜索、可分析、可安全分享的本地对话档案。**
 
 无需安装 · 单文件打开 · ZIP 免解压 · 纯本地处理 · 支持大型历史
