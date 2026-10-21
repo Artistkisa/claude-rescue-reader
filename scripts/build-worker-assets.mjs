@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import {createHash} from 'node:crypto';
 
-export const featureSources=['export-format','worker-core','worker-runtime','task-worker','reader-worker','import-worker','feature-client','export-client'];
+export const featureSources=['export-format','worker-core','worker-runtime','task-worker','reader-worker','import-worker','feature-client','export-client','redaction-client'];
 const dependencies={zip:['jszip','dist/jszip.min.js','3.10.1'],markdown:['marked','lib/marked.umd.js','18.0.11'],highlight:['@highlightjs/cdn-assets','highlight.min.js','11.11.1']};
 export function workerNotices(){
   return [['JSZip 3.10.1 (MIT option)','jszip/LICENSE.markdown'],['Marked 18.0.11 (MIT)','marked/LICENSE'],['highlight.js 11.11.1 (BSD-3-Clause)','@highlightjs/cdn-assets/LICENSE']].map(([name,file])=>name+'\n'+fs.readFileSync(new URL('../node_modules/'+file,import.meta.url),'utf8').replace(/\r\n/g,'\n').split('\nGPL version 3')[0].trim()).join('\n\n');

@@ -30,6 +30,7 @@ test('offline bundle loads all optional features without network',async({page})=
   expect(await page.evaluate(()=>document.querySelector('meta[http-equiv="Content-Security-Policy"]').content)).not.toMatch(/https?:/);
   const blocked=await page.evaluate(()=>marked.parse('[blocked](javascript:window.offlineProbe=1)\n\n![remote](https://archive.example.invalid/image.png)'));
   expect(blocked).not.toContain('href="javascript:');expect(blocked).not.toContain('<img');
+  const safe=await page.evaluate(async()=>{const payload={uuid:allConvs[0].uuid,style:'pseudonym',customTerms:'Synthetic'},scan=await featureRequest('task','preview',payload),exported=await featureRequest('task','export',{...payload,safe:true});return{count:scan.stats['自定义敏感词'],text:await exported.blob.text()};});expect(safe.count).toBeGreaterThan(0);expect(safe.text).not.toContain('Synthetic');expect(safe.text).toContain('[ID_');
   expect(await page.evaluate(()=>analyticsWorker)).toBeNull();
   await page.locator('[data-analytics-tab]').click();await page.waitForFunction(()=>analyticsExploreResult?.current.messages===5&&analyticsDrillResult?.total===1);
   await expect(page.locator('[data-analytics-comparison]')).toHaveCount(0);
