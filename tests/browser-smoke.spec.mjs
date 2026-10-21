@@ -59,13 +59,13 @@ test('committed synthetic demo ZIP exercises a mature archive shape',async({page
   const errors=await openViewer(page);await page.setInputFiles('#zip-input',path.join(root,'docs','demo','claude-rescue-reader-synthetic-demo.zip'));
   await page.waitForFunction(()=>allConvs.length===40&&allProjects.length===4);
   expect(await page.evaluate(()=>({summaries:allConvs.filter(c=>c.summary).length,projects:Object.keys(memoryData?.project_memories||{}).length}))).toEqual({summaries:40,projects:4});
-  await page.locator('.tab-btn[onclick*="projects"]').click();await page.waitForFunction(()=>convProjectMapReady);await page.locator('.proj-card').first().click();await page.waitForFunction(()=>document.querySelectorAll('.match-panel').length>=3);
+  await page.locator('.tab-btn[data-ui-value="projects"]').click();await page.waitForFunction(()=>convProjectMapReady);await page.locator('.proj-card').first().click();await page.waitForFunction(()=>document.querySelectorAll('.match-panel').length>=3);
   expect(await page.evaluate(()=>[...new Set(Object.values(convProjectEvidence).map(item=>item.method))].sort())).toEqual(expect.arrayContaining(['file','knowledge','keyword']));expect(errors).toEqual([]);
 });
 
 test('Claude behavior lab audits tools, hidden results and thinking integrity',async({page})=>{
   const errors=await openViewer(page);await page.setInputFiles('#file-input',fixtureDir);await waitLoaded(page);
-  await page.locator('.tab-btn[onclick*="behavior"]').click();await page.waitForFunction(()=>behaviorResult!==null,{timeout:15_000});
+  await page.locator('.tab-btn[data-ui-value="behavior"]').click();await page.waitForFunction(()=>behaviorResult!==null,{timeout:15_000});
   await expect(page.locator('#messages')).toContainText('工具调用时间线');
   await expect(page.locator('#messages')).toContainText('隐藏结果探针');
   await expect(page.locator('#messages')).toContainText('Thinking 完整性');
@@ -76,7 +76,7 @@ test('Claude behavior lab audits tools, hidden results and thinking integrity',a
 
 test('project association explanations, local corrections, search, stats and export',async({page})=>{
   const errors=await openViewer(page);await page.setInputFiles('#file-input',fixtureDir);await waitLoaded(page);
-  await page.locator('.tab-btn[onclick*="projects"]').click();await page.waitForFunction(()=>convProjectMapReady);
+  await page.locator('.tab-btn[data-ui-value="projects"]').click();await page.waitForFunction(()=>convProjectMapReady);
   await page.locator('.proj-card').first().click();
   await expect(page.locator('.project-prompt')).toContainText('Always use synthetic evidence');
   await expect(page.locator('.match-panel')).toContainText(/\d+%/);
@@ -173,6 +173,27 @@ test('IndexedDB parse cache hits only for the same source fingerprint',async({pa
     return{first:first.cacheHit||false,second:second.cacheHit||false,third:third.cacheHit||false};
   },payload);
   expect(result).toEqual({first:false,second:true,third:false});expect(errors).toEqual([]);
+});
+
+test('cache disclosure matches persisted raw records and explicit clearing',async({page})=>{
+  await openViewer(page);await expect(page.getByText('解析缓存包含对话原文，关闭浏览器后仍保留；共用设备请在离开前清除。',{exact:true})).toBeVisible();
+  await page.evaluate(async text=>{
+    const generation=nextDataWorkerGeneration();await dataWorkerRequest('cacheClear',null,[],generation);
+    await loadConversationSourceToWorker(new File([text],'conversations.json',{lastModified:1000}),generation);await dataWorkerCachePromise;
+    localStorage.setItem('claude-rescue-reader-project-overrides-v1',JSON.stringify({'synthetic-conversation':null}));
+  },JSON.stringify(conversations));
+  await page.reload();
+  expect(await page.evaluate(async text=>{
+    const generation=nextDataWorkerGeneration();return(await loadConversationSourceToWorker(new File([text],'conversations.json',{lastModified:1000}),generation)).cacheHit;
+  },JSON.stringify(conversations))).toBe(true);
+  const raw=await page.evaluate(()=>new Promise((resolve,reject)=>{
+    const request=indexedDB.open('claude-rescue-reader-data-v1',1);request.onerror=()=>reject(request.error);request.onsuccess=()=>{const db=request.result,query=db.transaction('conversation-cache').objectStore('conversation-cache').getAll();query.onsuccess=()=>{db.close();resolve(query.result[0].records[0].raw);};};
+  }));expect(raw).toContain('Explain the synthetic widget.');
+  await page.locator('#clear-cache-btn').click();await expect(page.locator('#clear-cache-btn')).toContainText('已清除');
+  expect(await page.evaluate(async text=>{
+    const generation=nextDataWorkerGeneration();return(await loadConversationSourceToWorker(new File([text],'conversations.json',{lastModified:1000}),generation)).cacheHit||false;
+  },JSON.stringify(conversations))).toBe(false);
+  expect(await page.evaluate(()=>localStorage.getItem('claude-rescue-reader-project-overrides-v1'))).toBe('{"synthetic-conversation":null}');
 });
 
 test('drag import and safe exports',async({page})=>{

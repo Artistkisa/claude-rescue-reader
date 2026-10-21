@@ -54,18 +54,18 @@ try{
   await page.waitForFunction(()=>currentConv&&document.querySelectorAll('.msg-wrap').length>=5);await pause(2100);
 
   await caption(demoLang==='en'?'3 / 5  Inspect the project evidence graph':'3 / 5  检查项目证据链 · Inspect the project graph');
-  await click(page.locator('.tab-btn[onclick*="projects"]'));
+  await click(page.locator('.tab-btn[data-ui-value="projects"]'));
   await page.waitForFunction(()=>convProjectMapReady,{timeout:15_000});
   await click(page.locator('.proj-card').first());
   await page.waitForFunction(()=>document.querySelector('.project-graph'));
   await page.locator('.project-graph').scrollIntoViewIfNeeded();await pause(2800);
 
   await caption(demoLang==='en'?'4 / 5  Explore your usage analytics':'4 / 5  浏览使用画像 · Explore analytics');
-  await click(page.locator('.tab-btn[onclick*="analytics"]'));
+  await click(page.locator('.tab-btn[data-ui-value="analytics"]'));
   await page.waitForFunction(()=>document.querySelector('.word-cloud'),{timeout:15_000});await pause(3000);
 
   await caption(demoLang==='en'?'5 / 5  Preview a privacy-safe export':'5 / 5  预览安全脱敏 · Preview a safe export');
-  await click(page.locator('.tab-btn[onclick*="convs"]'));
+  await click(page.locator('.tab-btn[data-ui-value="convs"]'));
   await click(page.locator('.conv-item').first());await page.waitForFunction(()=>currentConv);
   await click(page.locator('#export-btn'));await click(page.locator('#export-menu button').nth(1));
   await page.waitForSelector('#redaction-modal .redaction-dialog');await pause(2800);
