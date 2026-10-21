@@ -7,10 +7,11 @@ import http from 'node:http';
 const root=path.resolve(import.meta.dirname,'..');
 let server,origin;
 test.beforeAll(async()=>{
-  server=http.createServer(async(req,res)=>{res.setHeader('Content-Type','text/html');res.end(await fs.readFile(path.join(root,'viewer.html')));});
-  await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));origin='http://127.0.0.1:'+server.address().port;
+  const viewer=await fs.readFile(path.join(root,'viewer.html'));
+  server=http.createServer((req,res)=>{res.setHeader('Content-Type','text/html');res.end(viewer);});
+  await new Promise((resolve,reject)=>{server.once('error',reject);server.listen(0,'127.0.0.1',resolve);});origin='http://127.0.0.1:'+server.address().port;
 });
-test.afterAll(async()=>{await new Promise(resolve=>server.close(resolve));});
+test.afterAll(async()=>{if(server?.listening)await new Promise(resolve=>server.close(resolve));});
 
 for(const mode of ['file','http'])test(mode+' viewer keeps imported rendering inert and remote images local',async({page})=>{
   const requests=[];await page.route('https://archive.example.invalid/**',route=>{requests.push(route.request().url());return route.abort();});
