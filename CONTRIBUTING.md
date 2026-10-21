@@ -49,9 +49,9 @@ npm ci
 npx playwright install chromium
 ```
 
-The distributable application is `viewer.html`. Maintainable Worker sources live in `src/data-worker.js` and `src/analytics-worker.js`, with shared algorithms in `src/analysis-core.js`. After changing these sources, rebuild the embedded single file:
+The distributable application is `viewer.html`. Maintain the five Worker roles and shared pure algorithms in `src/`; see [Worker pipelines](docs/worker-pipelines.md) for file ownership, protocols, pinned dependencies and regression tests. After changing these sources, rebuild the embedded single file:
 
-发布应用是 `viewer.html`。Worker 可维护源码位于 `src/data-worker.js` 和 `src/analytics-worker.js`，共享算法位于 `src/analysis-core.js`。修改这些文件后必须重新生成内联单文件：
+发布应用是 `viewer.html`。五类 Worker 及共享纯函数在 `src/` 维护；文件职责、协议、固定依赖和测试见 [Worker 性能管线](docs/worker-pipelines.md)。修改后必须重新生成内联单文件：
 
 ```powershell
 ./scripts/build-single-file.ps1

@@ -346,7 +346,7 @@ This tool parses the Claude export format (as of 2026):
 - [highlight.js](https://highlightjs.org/) — Code syntax highlighting
 - [JSZip](https://stuk.github.io/jszip/) — Direct ZIP archive loading (no unzipping)
 
-The data and analytics Workers live in `src/data-worker.js` and `src/analytics-worker.js`, with shared overview and project-matching algorithms in `src/analysis-core.js`. After editing these sources, run `scripts/build-single-file.ps1` to embed them back into `viewer.html`; regular users do not need the build script.
+Five lazy Workers (Data, Import, Task, Reader, Analytics) and their shared algorithms live in `src/`. ZIP decompression, redacted exports, quality/behavior scans, conversation search and Markdown preparation run in workers. Long conversations use bounded windows; search includes code and Thinking, and ZIP images decompress on demand. See [Worker pipelines](docs/worker-pipelines.md). After editing these sources, run `scripts/build-single-file.ps1` to regenerate `viewer.html`; regular users do not need the build script.
 
 ## Community
 

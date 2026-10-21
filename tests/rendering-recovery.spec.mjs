@@ -41,14 +41,14 @@ test('optional dependency failure can retry, shares concurrent attempts and enfo
   expect(await page.evaluate(()=>document.querySelector('script[src*="jszip"]').integrity)).toMatch(/^sha384-/);
 });
 
-test('ZIP selection recovers in the same page and falls back to the second CDN',async({page})=>{
-  let offline=true,attempts=0;const bytes=await fs.readFile(path.join(root,'node_modules/jszip/dist/jszip.min.js'));
-  await page.route(/https:\/\/(?:cdn\.jsdelivr\.net|unpkg\.com)\/(?:npm\/)?jszip@/,route=>{
-    attempts++;return offline||route.request().url().includes('jsdelivr')?route.abort():route.fulfill({body:bytes,contentType:'application/javascript',headers:{'access-control-allow-origin':'*'}});
-  });
-  await page.goto(origin);const zip=path.join(root,'docs/demo/claude-rescue-reader-synthetic-demo.zip');
-  await page.setInputFiles('#zip-input',zip);await expect(page.locator('#load-zip-btn')).toContainText('重试');expect(attempts).toBe(2);
-  offline=false;await page.setInputFiles('#zip-input',zip);await page.waitForFunction(()=>allConvs.length===40);expect(attempts).toBe(4);
+test('embedded ZIP import works offline and retries a damaged selection without refresh',async({page})=>{
+  let attempts=0;await page.route(/https:\/\/(?:cdn\.jsdelivr\.net|unpkg\.com)\/(?:npm\/)?jszip@/,route=>{attempts++;return route.abort();});
+  await page.goto(origin);
+  await page.setInputFiles('#zip-input',{name:'synthetic-broken.zip',mimeType:'application/zip',buffer:Buffer.from('synthetic invalid zip')});
+  await expect(page.locator('#load-zip-btn')).toContainText('ZIP');
+  await page.waitForFunction(()=>!document.querySelector('#load-zip-btn .spinner'));
+  await page.setInputFiles('#zip-input',path.join(root,'docs/demo/claude-rescue-reader-synthetic-demo.zip'));
+  await page.waitForFunction(()=>allConvs.length===40);expect(attempts).toBe(0);
 });
 
 test('tampered optional scripts fail integrity and can recover without refresh',async({page})=>{
