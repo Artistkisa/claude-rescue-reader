@@ -2,7 +2,7 @@
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8">
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-QETtLmnNZXVhdpeP47LBZXLqSecMxWNxn0kPUhegU6M=' 'sha256-tMIvewdj4Er6it91vRKx68b9zhu5Sxm35MV7o9YOuqs=' https://cdn.jsdelivr.net https://unpkg.com https://cdnjs.cloudflare.com blob:; script-src-attr 'none'; style-src 'unsafe-inline' https://cdn.jsdelivr.net https://unpkg.com https://cdnjs.cloudflare.com; img-src blob: data:; font-src data:; connect-src blob:; worker-src blob:; frame-src blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-EM9uCrZ2NuoZ2NitNZ/rIQ2LRrgUd+6vvaWGgx2DRwI=' 'sha256-tMIvewdj4Er6it91vRKx68b9zhu5Sxm35MV7o9YOuqs=' https://cdn.jsdelivr.net https://unpkg.com https://cdnjs.cloudflare.com blob:; script-src-attr 'none'; style-src 'unsafe-inline' https://cdn.jsdelivr.net https://unpkg.com https://cdnjs.cloudflare.com; img-src blob: data:; font-src data:; connect-src blob:; worker-src blob:; frame-src blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="referrer" content="no-referrer">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Claude Rescue Reader — Local Claude Export Viewer</title>
@@ -2347,7 +2347,7 @@ function analyticsWorkerMain(){
   function cancel(){
     if(!active)return;
     active.canceled=true;
-    if(stream){port.postMessage({type:'streamCancel',generation,requestId:stream.requestId});stream.reject?.(canceled());stream=null;}
+    if(stream){port?.postMessage({type:'streamCancel',generation,requestId:stream.requestId});stream.reject?.(canceled());stream=null;}
     emit('canceled',active.requestId,{});active=null;
   }
   async function* records(token){

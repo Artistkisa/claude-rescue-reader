@@ -25,7 +25,7 @@ function analyticsWorkerMain(){
   function cancel(){
     if(!active)return;
     active.canceled=true;
-    if(stream){port.postMessage({type:'streamCancel',generation,requestId:stream.requestId});stream.reject?.(canceled());stream=null;}
+    if(stream){port?.postMessage({type:'streamCancel',generation,requestId:stream.requestId});stream.reject?.(canceled());stream=null;}
     emit('canceled',active.requestId,{});active=null;
   }
   async function* records(token){
