@@ -6,7 +6,8 @@ function dataWorkerMain(){
   const shared=archiveAnalysisCore();
   const consumers=new Set();let auxiliaryRecords=[],largestImportChunk=0;
   let analyticsPort=null,analyticsStream=null,importPort=null;
-  function closeAnalyticsPort(){analyticsStream=null;if(analyticsPort){analyticsPort.close();for(const state of consumers)if(state.port===analyticsPort)consumers.delete(state);}analyticsPort=null;}
+  function closeRecordPort(state){state.port.postMessage({type:'sourceChanged',generation,requestId:state.stream?.requestId});state.port.close();consumers.delete(state);}
+  function closeAnalyticsPort(){analyticsStream=null;if(analyticsPort){for(const state of consumers)if(state.port===analyticsPort)closeRecordPort(state);analyticsPort.close();}analyticsPort=null;}
   function connectRecords(port,id){
     const state={port,id,stream:null};consumers.add(state);
     port.onmessage=event=>{
@@ -138,14 +139,18 @@ function dataWorkerMain(){
         const accounts=new Set(stage.accounts||[]);
         for(const record of stage.records){const id=record.meta.accountUuid;if(id)accounts.add(id);}
         if(accounts.size>1||archiveAccounts.size&&[...accounts].some(id=>!archiveAccounts.has(id)))throw new Error('Account mismatch: open as a new archive');
-        const additions=[],conflicts=[];const next=new Map(byUuid);
+        const additions=[],conflicts=[],sourceGeneration=generation,revision=contentRevision;let yieldedAt=performance.now();const next=new Map(byUuid);
         for(const record of stage.records){
+          // Semantic dedup can parse large records. Yield between records so a batch
+          // of conflicts cannot monopolize Data Worker, and retire stale transactions.
+          if(performance.now()-yieldedAt>=8){await new Promise(resolve=>setTimeout(resolve,0));yieldedAt=performance.now();}
+          if(packageStage!==stage||generation!==sourceGeneration||contentRevision!==revision)throw new Error('Canceled package transaction');
           const previous=next.get(record.meta.uuid);if(previous){if(previous.raw===record.raw||JSON.stringify(JSON.parse(previous.raw))===JSON.stringify(JSON.parse(record.raw)))continue;
             const original=record.meta.uuid,alias=original+'~'+stage.id;const value=JSON.parse(record.raw);value.uuid=alias;record.raw=JSON.stringify(value);record.meta={...record.meta,uuid:alias,name:record.meta.name+' ['+stage.filename+']',original_uuid:original};conflicts.push(original);
           }
           record.meta.source=stage.filename;record.meta._sourcePackage=stage.id;next.set(record.meta.uuid,record);additions.push(record);
         }
-        records=records.concat(additions);byUuid=next;for(const id of accounts)archiveAccounts.add(id);packageIds.add(stage.id);packageStage=null;contentRevision++;searchIndex=null;searchPromise=null;parsedCache.clear();closeAnalyticsPort();for(const consumer of consumers)consumer.port.close();consumers.clear();
+        records=records.concat(additions);byUuid=next;for(const id of accounts)archiveAccounts.add(id);packageIds.add(stage.id);packageStage=null;contentRevision++;searchIndex=null;searchPromise=null;parsedCache.clear();closeAnalyticsPort();for(const consumer of consumers)closeRecordPort(consumer);
         reply(request,{...ingestSummary(false),revision:contentRevision,conflicts});return;
       }
       if(request.type==='reset'){

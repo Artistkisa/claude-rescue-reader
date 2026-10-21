@@ -168,7 +168,7 @@ function analyticsWorkerMain(){
     const message=event.data||{};
     if(message.type==='init'){
       cancel();port?.close();generation=message.generation;settings=message;index=null;drillCache=null;cache.clear();port=message.port;
-      port.onmessage=event=>{const batch=event.data||{};if(batch.generation!==generation||!stream||batch.requestId!==stream.requestId)return;if(batch.type==='error'){stream.reject?.(new Error(batch.error));return;}if(stream.resolve)stream.resolve(batch);else stream.pending=batch;};port.start();emit('ready',message.requestId,{});return;
+      port.onmessage=event=>{const batch=event.data||{};if(batch.generation!==generation)return;if(batch.type==='sourceChanged'){cancel();port.close();port=null;return;}if(!stream||batch.requestId!==stream.requestId)return;if(batch.type==='error'){stream.reject?.(new Error(batch.error));return;}if(stream.resolve)stream.resolve(batch);else stream.pending=batch;};port.start();emit('ready',message.requestId,{});return;
     }
     if(message.generation!==generation)return;
     if(message.type==='cancel'){cancel();return;}

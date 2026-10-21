@@ -92,7 +92,7 @@ function importExportFiles(files,button=document.getElementById('load-zip-btn'),
     if(session!==exportSession&&!fresh)return;
     if(fresh)await newExportArchive();
     let manifestFile=files.find(f=>/^manifest.*\.json$/i.test(f.name));
-    if(!manifestFile)for(const f of files.filter(f=>/\.json$/i.test(f.name)&&f.size<1024*1024)){try{if(Array.isArray(JSON.parse(await f.text()).data_files)){manifestFile=f;break;}}catch{}}
+    if(!manifestFile)for(const f of files.filter(f=>/\.json$/i.test(f.name)&&f.size<1024*1024&&!/(?:^|\/)projects\//.test(f.webkitRelativePath||''))){try{const value=JSON.parse(await f.text());if(value?.version==='1.0'&&Array.isArray(value.data_files)){exportFormat.manifest(value);manifestFile=f;break;}}catch{}}
     if(manifestFile)await openExportManifest(manifestFile);
     const active=exportSession,zips=files.filter(f=>/\.zip$/i.test(f.name));
     if(!zips.length&&manifestFile){button.textContent=t('下载清单');return;}

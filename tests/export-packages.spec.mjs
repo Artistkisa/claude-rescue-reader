@@ -89,3 +89,30 @@ test('HTTP checklist and package import work without fetching official links',as
     await add(page,await zip('conversations.zip',{'conversations.json':[conv()]}),1);await expect(page.locator('.export-status')).toContainText('已导入');expect(requests).toEqual([]);
   }finally{await new Promise(resolve=>server.close(resolve));}
 });
+
+test('project data_files fields are not mistaken for a download manifest',async({page})=>{
+  await setup(page);await add(page,await zip('valid.zip',{'conversations.json':[conv()]}),1);
+  await page.evaluate(async()=>{const file=new File([JSON.stringify({uuid:'extra',name:'Project with custom fields',data_files:[]})],'extra.json');Object.defineProperty(file,'webkitRelativePath',{value:'export/projects/extra.json'});await importExportFiles([file]);});
+  expect(await page.evaluate(()=>({conversations:allConvs.length,projects:allProjects.length,manifest:exportSession.manifest}))).toEqual({conversations:1,projects:1,manifest:null});
+});
+
+test('semantic duplicate commits yield and notify acknowledged record consumers before closing',async({page})=>{
+  await setup(page);
+  const result=await page.evaluate(async()=>{
+    const data=Array.from({length:300},(_,i)=>({uuid:'duplicate-'+i,chat_messages:Array.from({length:200},(_,j)=>({uuid:'message-'+j,text:'synthetic '.repeat(15)}))}));
+    const generation=++dataLoadGeneration;useDataWorkerGeneration(generation);await dataWorkerRequest('ingest',JSON.stringify(data));
+    const channel=new MessageChannel(),events=[];channel.port2.onmessage=e=>events.push(e.data);await dataWorkerRequest('recordsConnect',{id:'commit-test',port:channel.port1},[channel.port1]);channel.port2.postMessage({type:'streamStart',generation,requestId:123});
+    await dataWorkerRequest('packageStart',{id:'semantic',filename:'pretty.zip',accounts:[]});await dataWorkerRequest('ingestStart');const bytes=new TextEncoder().encode(JSON.stringify(data,null,2));await dataWorkerRequest('ingestChunk',bytes.buffer,[bytes.buffer]);await dataWorkerRequest('ingestEnd');
+    const commit=dataWorkerRequest('packageCommit'),during=await dataWorkerRequest('debugState'),summary=await commit;await new Promise(resolve=>setTimeout(resolve,30));channel.port2.close();
+    return{yielded:during.revision===0,count:summary.conversations.length,conflicts:summary.conflicts.length,notified:events.some(e=>e.type==='sourceChanged'&&e.requestId===123),consumers:(await dataWorkerRequest('debugState')).consumers};
+  });expect(result).toEqual({yielded:true,count:300,conflicts:0,notified:true,consumers:0});
+});
+
+test('record source invalidation cancels a waiting Worker task',async({page})=>{
+  await setup(page);
+  const outcome=await page.evaluate(async()=>{
+    const script='('+featureWorkerRuntime.toString()+')({configure(){}},async(type,payload,token)=>{for await(const record of token.records()){};return {done:true};})';
+    const url=URL.createObjectURL(new Blob([script],{type:'text/javascript'})),worker=new Worker(url),channel=new MessageChannel();
+    try{return await new Promise((resolve,reject)=>{worker.onerror=e=>reject(Error(e.message));worker.onmessage=e=>{if(e.data.type==='ready')worker.postMessage({type:'scan',generation:1,requestId:2});if(e.data.requestId===2&&['result','error','canceled'].includes(e.data.type))resolve(e.data.type);};channel.port2.onmessage=e=>{if(e.data.type==='streamStart')channel.port2.postMessage({type:'sourceChanged',generation:1});};worker.postMessage({type:'init',generation:1,requestId:1,port:channel.port1},[channel.port1]);});}finally{worker.terminate();channel.port2.close();URL.revokeObjectURL(url);}
+  });expect(outcome).toBe('canceled');
+});
