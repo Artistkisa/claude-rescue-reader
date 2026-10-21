@@ -93,12 +93,14 @@ test('sandbox location changes cannot navigate to a remote destination',async({p
 
 for(const mode of ['file','http'])test(mode+' redaction controls use CSP-compatible code listeners',async({page})=>{
   await page.goto(mode==='file'?pathToFileURL(path.join(root,'viewer.html')).href:origin);
-  const sample={name:'Synthetic export',chat_messages:[{sender:'human',content:[{type:'text',text:'Contact synthetic@example.invalid'}]}]};
+  const sample={name:'Synthetic export',chat_messages:[{sender:'human',content:[{type:'text',text:'Contact synthetic@example.invalid\n联系人：张三。\nＡＬＰＨＡＰＥＲＳＯＮ'}]}]};
   await page.evaluate(sample=>{window.dialogResult=undefined;void redactionDialog(sample).then(result=>window.dialogResult=result);},sample);
   expect(await page.locator('#redaction-modal [onclick]').count()).toBe(0);
   await page.locator('[data-style="scp"]').click();await expect(page.locator('[data-style="scp"]')).toHaveClass(/active/);
   await page.locator('[data-action="strength"]').click();await expect(page.locator('[data-action="strength"]')).toHaveClass(/active/);
   await page.locator('[data-action="cancel"]').click();expect(await page.evaluate(()=>window.dialogResult)).toBeNull();
   await page.evaluate(sample=>{void redactionDialog(sample).then(result=>window.dialogResult=result);},sample);
-  await page.locator('[data-action="export"]').click();expect(await page.evaluate(()=>window.dialogResult)).toMatchObject({style:'standard',strict:false,total:1});
+  await expect(page.locator('[data-action="context"]')).toHaveAttribute('aria-pressed','false');await expect(page.locator('[data-action="similarity"]')).toHaveAttribute('aria-pressed','false');
+  await page.locator('[data-action="context"]').click();await page.locator('[data-action="similarity"]').click();await page.locator('#redaction-custom').fill('AlphaPerson');
+  await page.locator('[data-action="export"]').click();expect(await page.evaluate(()=>window.dialogResult)).toMatchObject({style:'standard',strict:false,total:3,includeContextCandidates:true,customSimilarity:true});
 });
