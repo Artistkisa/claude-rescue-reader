@@ -22,6 +22,8 @@
 
 预览只返回分类计数及最多 100 个完全遮罩的样例，不显示原值首尾；动态字段名不会出现在预览路径。被整体移除的工具元数据会单独计数，其中识别到的敏感内容也可计入相应分类。标题、Thinking、摘要、注入上下文、未知内容块及结构化工具结果都参与扫描。安全 Markdown 文件名和 PDF 标题使用脱敏后的标题。
 
+带明确外层引号的认证头只替换引号内的值，保留 curl 命令后方公开目标；无法确定引号边界时继续保守移除整行头值。Cookie/Set-Cookie 的全部头值（含其他 Cookie 及属性）一并移除，避免通过未预设的 Cookie 名漏掉凭据。
+
 规则无法识别所有上下文隐私，也不执行模型推断、OCR 或任意编码解密。安全 PDF 不重新挂载阅读缓存中的原始附件图片；内嵌二进制数据被移除。正文中的姓名、别名、业务代号等应按需要加入自定义词，并在分享前检查导出结果。
 
 ## English
@@ -41,3 +43,5 @@ Coverage includes provider credentials, JWT/private keys, Basic/Bearer authentic
 New scans use overlapping windows up to 32 KiB and yield under the Worker's approximately 8 ms budget. More than 4096 distinct candidate verifications in a window marks the scan incomplete and blocks safe export; turn similarity off and rescan to continue. Multiline private-key matching remains intact. Both options are included in the four-entry summary cache and never persisted.
 
 Previews return counts and at most 100 fully masked findings. Dynamic keys are omitted from finding paths. Safe filenames and PDF titles use the redacted title. Safe PDFs omit original attachment images; embedded binary data is removed rather than OCR-scanned. Review the output before sharing, and supply custom terms for context-specific identities that format rules cannot infer.
+
+Explicit outer header quotes preserve a curl command's public target; ambiguous boundaries retain conservative whole-line masking. Entire Cookie/Set-Cookie values, including other cookies and attributes, are removed to avoid leaking credentials under unfamiliar names.

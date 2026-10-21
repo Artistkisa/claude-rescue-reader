@@ -2,7 +2,7 @@
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8">
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-JgXNt1Vq1FOtsM0IUNJQTBrNGJ/A59qz8StFanSQvMQ=' 'sha256-tMIvewdj4Er6it91vRKx68b9zhu5Sxm35MV7o9YOuqs=' https://cdn.jsdelivr.net https://unpkg.com https://cdnjs.cloudflare.com blob:; script-src-attr 'none'; style-src 'unsafe-inline' https://cdn.jsdelivr.net https://unpkg.com https://cdnjs.cloudflare.com; img-src blob: data:; font-src data:; connect-src blob:; worker-src blob:; frame-src blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-O7Uvdb1af8eDfcnhwBReoLJ4/UhXdiZRhuAaPwmadQ8=' 'sha256-tMIvewdj4Er6it91vRKx68b9zhu5Sxm35MV7o9YOuqs=' https://cdn.jsdelivr.net https://unpkg.com https://cdnjs.cloudflare.com blob:; script-src-attr 'none'; style-src 'unsafe-inline' https://cdn.jsdelivr.net https://unpkg.com https://cdnjs.cloudflare.com; img-src blob: data:; font-src data:; connect-src blob:; worker-src blob:; frame-src blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="referrer" content="no-referrer">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Claude Rescue Reader — Local Claude Export Viewer</title>
@@ -1238,7 +1238,7 @@ function* redactText(text,state,path,style,strict=false){
   scan(QUERY_SECRET_RE,m=>add(m.index+m[1].length,m.index+m[0].length,'URL 查询令牌','敏感查询参数'));
   scan(/(https:\/\/claude\.ai\/export\/[A-Za-z0-9-]+\/download\/)([A-Za-z0-9-]+)/gi,m=>add(m.index+m[1].length,m.index+m[0].length,'下载令牌','官方导出下载令牌'));
   scan(/\b[a-z][a-z0-9+.-]*:\/\/([^\s/@"'<>]+)@/gi,m=>{if(m[1].includes(':'))add(m.index+m[0].indexOf('://')+3,m.index+m[0].length-1,'连接凭据','连接地址中的用户名与密码');});
-  scan(/(["']?)\b(?:Authorization|Proxy-Authorization|Cookie|Set-Cookie|X-Api-Key)\s*:\s*([^\r\n]+)/gi,m=>{const value=m[2],start=m.index+m[0].length-value.length;let length=value.length;if(m[1])for(let i=0;i<value.length;i++){if(value[i]==='\\'){i++;continue;}if(value[i]===m[1]){length=i;break;}}add(start,start+length,'认证凭据','认证头或 Cookie');});
+  scan(/(["']?)\b(?:Authorization|Proxy-Authorization|Cookie|Set-Cookie|X-Api-Key)\s*:\s*([^\r\n]+)/gi,m=>{const value=m[2],start=m.index+m[0].length-value.length;let length=value.length;const quoted=m[1]&&(m.index===0||/[\s,(=]/.test(text[m.index-1]));if(quoted)for(let i=0;i<value.length;i++){if(value[i]==='\\'&&(value[i+1]===m[1]||value[i+1]==='\\')){i++;continue;}if(value[i]===m[1]){length=i;break;}}add(start,start+length,'认证凭据','认证头或 Cookie');});
   const connections=spans.filter(s=>s.label==='连接凭据').sort((a,b)=>a.start-b.start);let connectionIndex=0;
   for(const [label,re,validate]of [...SENSITIVE_PATTERNS,...(strict?STRICT_SENSITIVE_PATTERNS:[])])scan(re,m=>{if(label==='邮箱'){while(connections[connectionIndex]?.end<=m.index)connectionIndex++;const connection=connections[connectionIndex];if(connection&&connection.start<m.index+m[0].length)return;}if(!validate||validate(m[0]))add(m.index,m.index+m[0].length,label,strict?'格式匹配；强力规则可能误伤':'敏感格式匹配');});
   if(strict)scan(STRICT_CONTEXT_RE,m=>{const label=/老师|教师|教授|班主任|校长|姓名|名字|联系人|name/i.test(m[1])?'个人姓名':/学校|学院|大学|中学|小学|幼儿园|公司|单位|部门/i.test(m[1])?'学校或单位':/微信|wechat|qq|微博|抖音/i.test(m[1])?'社交账号':/phone|telephone|mobile/i.test(m[1])?'手机号':/uid|用户|account|open|social/i.test(m[1])?'用户标识':/地址|住址|address/i.test(m[1])?'详细地址':'身份证件';add(m.index+m[1].length,m.index+m[0].length,label,'宽泛隐私规则，可能误伤普通文本');});
