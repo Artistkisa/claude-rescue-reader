@@ -7,6 +7,7 @@ export function validateBenchmarkReports({readme,workers,analytics,zh,en,workerD
   const finite=value=>typeof value==='number'&&Number.isFinite(value);
   const runs=value=>Number.isSafeInteger(value)&&value>0;
   const close=(a,b)=>finite(a)&&finite(b)&&Math.abs(a-b)<=1e-9*Math.max(1,Math.abs(b));
+  const keysEqual=(value,keys)=>value&&JSON.stringify(Object.keys(value).sort())===JSON.stringify([...keys].sort());
   for(const [label,report]of [['README',readme],['Workers',workers],['Analytics',analytics]])check(report&&typeof report==='object',label+': report missing');
   for(const text of [zh,en,workerDoc,analyticsDoc])check(typeof text==='string','Benchmark documentation missing');
   if(failures.length)return failures;
@@ -25,6 +26,12 @@ export function validateBenchmarkReports({readme,workers,analytics,zh,en,workerD
     check(Number.isSafeInteger(result.sizeMiB)&&result.sizeMiB>0&&!sizes.has(result.sizeMiB),'README benchmark has invalid/duplicate size');sizes.add(result.sizeMiB);
     check(finite(result.cpuThrottle)&&result.cpuThrottle>0,'README benchmark has invalid CPU rate');
     check(result.runs===readme.method?.runs,'README benchmark run count differs from method');
+    const metrics=['initialListMs','openConversationMs','searchMs','heapMiB'];
+    check(keysEqual(result.median,metrics),'README benchmark median metric schema differs');
+    if(Array.isArray(result.samples)){
+      for(const row of result.samples){check(keysEqual(row,['run','hits',...metrics]),'README benchmark sample metric schema differs');check(Number.isSafeInteger(row?.hits)&&row.hits>=0,'README benchmark sample hits missing or invalid');}
+      check(result.samples.map(row=>row?.run).sort((a,b)=>a-b).every((run,i)=>run===i+1),'README benchmark run identifiers must cover 1..runs exactly once');
+    }
     samples('README '+result.sizeMiB,result.samples,result.runs,result.median);
   }
   // README promises these three published scenarios; a partial report cannot

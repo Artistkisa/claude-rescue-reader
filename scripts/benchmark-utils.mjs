@@ -1,3 +1,5 @@
+import path from 'node:path';
+
 export function parseRuns(raw){
   if(raw===undefined)return 3;
   const count=Number(raw);
@@ -16,4 +18,11 @@ export function parseSizes(raw){
   const parts=String(raw).split(','),sizes=parts.map(Number);
   if(parts.some(part=>!/^\d+$/.test(part))||sizes.some(size=>!Number.isSafeInteger(size)||size<1||!Number.isSafeInteger(size*1024*1024))||new Set(sizes).size!==sizes.length)throw new RangeError('Invalid --sizes: expected a comma-separated list of distinct positive safe integers in MiB.');
   return sizes;
+}
+
+export function readmeBenchmarkOutput(root,sizes,raw){
+  if(raw==='')throw new RangeError('Invalid --output: expected a report file path.');
+  const published=path.resolve(root,'docs/benchmarks/readme-performance.json'),output=raw===undefined?published:path.resolve(root,raw);
+  if(path.relative(published,output)===''&&[...sizes].sort((a,b)=>a-b).join(',')!=='50,150,300')throw new RangeError('Custom --sizes require --output=... outside the published README report.');
+  return output;
 }

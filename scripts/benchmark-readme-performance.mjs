@@ -4,10 +4,9 @@ import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import {createRequire} from 'node:module';
-import {parseRuns,parseSizes,median} from './benchmark-utils.mjs';
+import {parseRuns,parseSizes,median,readmeBenchmarkOutput} from './benchmark-utils.mjs';
 
 const root=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'..');
-const output=path.join(root,'docs','benchmarks','readme-performance.json');
 // Use installed Playwright Chromium by default on every platform. Windows
 // system Chrome is no longer auto-detected; select it explicitly via CHROME_PATH.
 const executablePath=process.env.CHROME_PATH;
@@ -16,6 +15,9 @@ try{runs=parseRuns(process.argv.find(argument=>argument.startsWith('--runs='))?.
 catch(error){console.error(error.message);process.exit(1);}
 let requested;
 try{requested=parseSizes(process.argv.find(arg=>arg.startsWith('--sizes='))?.slice('--sizes='.length));}
+catch(error){console.error(error.message);process.exit(1);}
+let output;
+try{output=readmeBenchmarkOutput(root,requested,process.argv.find(arg=>arg.startsWith('--output='))?.slice('--output='.length));}
 catch(error){console.error(error.message);process.exit(1);}
 const scenarios=requested.map(sizeMiB=>({sizeMiB,cpuThrottle:sizeMiB===50?4:6}));
 const rootParent='00000000-0000-4000-8000-000000000000';

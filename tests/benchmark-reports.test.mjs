@@ -50,3 +50,9 @@ test('analytics retains unrounded even-sample medians including fractional tenth
   data.analyticsDoc=data.analyticsDoc.join('\n');assert.equal(report.medians.after.nextPage,0.25);assert.deepEqual(validateBenchmarkReports(data),[]);
   report.medians.after.nextPage=0.3;assert.ok(validateBenchmarkReports(data).some(message=>message.includes('stale median nextPage')));
 });
+
+test('README evidence requires all metrics and unique sequential run identifiers',()=>{
+  for(const change of [data=>{for(const row of data.readme.results[0].samples)delete row.heapMiB;delete data.readme.results[0].median.heapMiB;},data=>{delete data.readme.results[0].samples[0].hits;},data=>{data.readme.results[0].samples[1].run=1;},data=>{data.readme.results[0].samples[0].run=0;}]){
+    const data=fixture();change(data);assert.ok(validateBenchmarkReports(data).length);
+  }
+});
