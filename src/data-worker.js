@@ -4,7 +4,7 @@ function dataWorkerMain(){
   const parsedCache=new Map(),PARSED_CACHE_LIMIT=3;
   const list=value=>Array.isArray(value)?value:[];
   const shared=archiveAnalysisCore();
-  const consumers=new Set();let auxiliaryRecords=[];
+  const consumers=new Set();let auxiliaryRecords=[],largestImportChunk=0;
   let analyticsPort=null,analyticsStream=null,importPort=null;
   function closeAnalyticsPort(){analyticsStream=null;if(analyticsPort){analyticsPort.close();for(const state of consumers)if(state.port===analyticsPort)consumers.delete(state);}analyticsPort=null;}
   function connectRecords(port,id){
@@ -105,7 +105,7 @@ function dataWorkerMain(){
   const responseGeneration=request=>Number(request.generation)||generation;
   const reply=(request,result)=>(request._port||self).postMessage({requestId:request.requestId,generation:responseGeneration(request),type:'result',result});
   const fail=(request,error)=>(request._port||self).postMessage({requestId:request.requestId,generation:responseGeneration(request),type:'error',error:error?.message||String(error)});
-  function reset(nextGeneration){closeAnalyticsPort();for(const state of consumers)state.port.close();consumers.clear();auxiliaryRecords=[];searchPromise=null;generation=Number(nextGeneration)||generation+1;records=[];byUuid=new Map();decoder=null;textChunks=[];searchIndex=null;parsedCache.clear();}
+  function reset(nextGeneration){closeAnalyticsPort();for(const state of consumers)state.port.close();consumers.clear();auxiliaryRecords=[];largestImportChunk=0;searchPromise=null;generation=Number(nextGeneration)||generation+1;records=[];byUuid=new Map();decoder=null;textChunks=[];searchIndex=null;parsedCache.clear();}
   function cacheDb(){return new Promise((resolve,reject)=>{if(!self.indexedDB){resolve(null);return;}const request=indexedDB.open(CACHE_DB,1);request.onupgradeneeded=()=>{const db=request.result;if(!db.objectStoreNames.contains(CACHE_STORE))db.createObjectStore(CACHE_STORE);};request.onsuccess=()=>resolve(request.result);request.onerror=()=>reject(request.error);});}
   async function cacheGet(key){const db=await cacheDb();if(!db)return null;try{return await new Promise((resolve,reject)=>{const request=db.transaction(CACHE_STORE,'readonly').objectStore(CACHE_STORE).get(key);request.onsuccess=()=>resolve(request.result||null);request.onerror=()=>reject(request.error);});}finally{db.close();}}
   async function cachePut(key,value){const db=await cacheDb();if(!db)return false;try{await new Promise((resolve,reject)=>{const transaction=db.transaction(CACHE_STORE,'readwrite');transaction.objectStore(CACHE_STORE).put(value,key);transaction.oncomplete=()=>resolve();transaction.onerror=()=>reject(transaction.error);transaction.onabort=()=>reject(transaction.error||new Error('cache transaction aborted'));});return true;}finally{db.close();}}
@@ -125,6 +125,7 @@ importPort?.close();importPort=null;reset(request.generation);reply(request,{ok:
       if(request.type==='ingestStart'){reset(request.generation);decoder=new TextDecoder();reply(request,{ok:true});return;}
       if(request.type==='ingestChunk'){
         if(Number(request.generation)!==generation||!decoder)throw new Error('stale data generation');
+        largestImportChunk=Math.max(largestImportChunk,request.payload?.byteLength||0);
         textChunks.push(decoder.decode(request.payload,{stream:true}));reply(request,{received:request.payload?.byteLength||0});return;
       }
       if(request.type==='ingestEnd'){
@@ -156,7 +157,7 @@ const record=byUuid.get(request.payload?.uuid);if(!record)throw new Error('conve
       if(request.type==='analyticsConnect'){connectAnalytics(request.payload.port);reply(request,{ok:true});return;}
       if(request.type==='analyticsDisconnect'){closeAnalyticsPort();reply(request,{ok:true});return;}
       if(request.type==='projectIndex'){const result=await shared.calculateProjectIndex(records,materialize,request.payload?.projects||[],request.payload?.memoryData||null,()=>new Promise(resolve=>setTimeout(resolve,0)));parsedCache.clear();reply(request,result);return;}
-      if(request.type==='debugState'){reply(request,{records:records.length,parsed:parsedCache.size,indexed:searchIndex?.size||0,consumers:consumers.size,lazy:true});return;}
+      if(request.type==='debugState'){reply(request,{records:records.length,parsed:parsedCache.size,indexed:searchIndex?.size||0,consumers:consumers.size,largestImportChunk,lazy:true});return;}
       throw new Error('unknown data worker request: '+request.type);
     }).catch(error=>fail(request,error));
   };

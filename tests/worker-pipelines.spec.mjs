@@ -127,3 +127,33 @@ test('branch changes and source changes invalidate search without stale page upd
   });
   expect(result).toEqual({unicode:'tail',longest:1,full:2,stale:true,workers:0,consumers:0});
 });
+test('explicit task operations keep reading and archive search responsive at 4x CPU',async({page})=>{
+  await load(page);await page.evaluate(()=>openConv('small'));
+  const cdp=await page.context().newCDPSession(page);await cdp.send('Emulation.setCPUThrottlingRate',{rate:4});
+  const results=await page.evaluate(async()=>{
+    const operations=[['preview',{uuid:'large',strict:true}],['export',{uuid:'large',safe:true}],['projectExport',{project:{name:'Synthetic project'},stats:{conversations:2,messages:10002,chars:1,range:'Synthetic'},uuids:['large','small']}],['quality',{uuid:'large'}]];
+    const rows=[];
+    for(const [type,payload]of operations){
+      let progress=0;const task=featureRequest('task',type,payload,()=>progress++);
+      const started=performance.now();await openConv('small');const search=await dataWorkerRequest('search',{query:'syntheticneedle'});const elapsed=performance.now()-started;
+      const output=await task;rows.push({type,elapsed,progress,hits:search.uuids.length,output:type==='preview'?output.total>=0:type==='quality'?!!output.counts:output.blob.size>0});
+    }
+    return rows;
+  });
+  for(const result of results){expect(result.elapsed,result.type).toBeLessThan(2000);expect(result.hits).toBe(2);expect(result.progress).toBeGreaterThan(0);expect(result.output).toBe(true);}
+});
+test('large compressed ZIP streams progress without delivering raw records to main',async({page})=>{
+  const messages=Array.from({length:10000},(_,i)=>({uuid:'zip'+i,parent_message_uuid:i?'zip'+(i-1):root,sender:'assistant',content:[{type:'text',text:'Synthetic ZIP '+i+' payload'.repeat(150)}]}));
+  const zip=new JSZip();zip.file('nested/conversations.json',JSON.stringify([{uuid:'zip-large',name:'Large synthetic ZIP',chat_messages:messages},{uuid:'zip-small',name:'Small synthetic ZIP',chat_messages:messages.slice(0,2)}]));
+  const buffer=await zip.generateAsync({type:'nodebuffer',compression:'DEFLATE'});
+  await page.goto(viewer);await page.route('https://**',route=>route.abort());
+  const cdp=await page.context().newCDPSession(page);await cdp.send('Emulation.setCPUThrottlingRate',{rate:4});
+  await page.evaluate(()=>{window.importProbe={progress:0,raw:false};const original=ensureFeature;ensureFeature=async kind=>{const state=await original(kind);if(kind==='import'&&!state.observed){state.observed=true;state.worker.addEventListener('message',event=>{if(event.data.type==='progress')importProbe.progress++;if(JSON.stringify(event.data).includes('"chat_messages"'))importProbe.raw=true;});}return state;};});
+  const started=Date.now();await page.setInputFiles('#zip-input',{name:'large-synthetic.zip',mimeType:'application/zip',buffer});
+  await page.waitForFunction(()=>allConvs.length===2);expect(Date.now()-started).toBeLessThan(20000);
+  const probe=await page.evaluate(async()=>({...importProbe,worker:await dataWorkerRequest('debugState')}));
+  expect(probe.raw).toBe(false);expect(probe.progress).toBeGreaterThanOrEqual(2);
+  expect(probe.worker.largestImportChunk).toBe(4*1024*1024);
+  const opened=await page.evaluate(async()=>{const start=performance.now();await openConv('zip-small');return performance.now()-start;});
+  expect(opened).toBeLessThan(2000);expect(await page.locator('#messages .msg-wrap').count()).toBe(2);
+});

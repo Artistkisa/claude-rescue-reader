@@ -7,14 +7,18 @@ function importWorkerMain(){
   async function extractConversation(entry,request,current){
     await rpc('ingestStart');
     await new Promise((resolve,reject)=>{
-      const stream=entry.internalStream('uint8array');let chunks=[],bytes=0,chain=Promise.resolve();
-      const flush=()=>{if(!bytes)return;const buffer=new Uint8Array(bytes);let at=0;for(const chunk of chunks){buffer.set(chunk,at);at+=chunk.length;}chunks=[];bytes=0;return rpc('ingestChunk',buffer.buffer,[buffer.buffer]);};
+      const stream=entry.internalStream('uint8array');let chunks=[],bytes=0,queued=0,ended=false,chain=Promise.resolve();
+      const flush=percent=>{
+        if(!bytes)return;const buffer=new Uint8Array(bytes);let at=0;for(const chunk of chunks){buffer.set(chunk,at);at+=chunk.length;}chunks=[];bytes=0;queued++;stream.pause();
+        // Pako may emit several output chunks before a compressed input chunk finishes, even after pause.
+        // Detach each bounded batch now; serialize sends and resume only after every queued batch is acknowledged.
+        chain=chain.then(async()=>{if(current!==operation)throw Object.assign(new Error('Canceled'),{canceled:true});await rpc('ingestChunk',buffer.buffer,[buffer.buffer]);emit('progress',request,{progress:{phase:'extract',percent}});queued--;if(!queued&&!ended)stream.resume();});chain.catch(reject);
+      };
       stream.on('data',(chunk,metadata)=>{
         if(current!==operation){stream.pause();reject(Object.assign(new Error('Canceled'),{canceled:true}));return;}
-        chunks.push(chunk);bytes+=chunk.byteLength;
-        if(bytes>=4*1024*1024){stream.pause();chain=chain.then(flush).then(()=>{emit('progress',request,{progress:{phase:'extract',percent:metadata.percent}});if(current!==operation)throw Object.assign(new Error('Canceled'),{canceled:true});stream.resume();}).catch(reject);}
+        for(let offset=0;offset<chunk.byteLength;){const size=Math.min(chunk.byteLength-offset,4*1024*1024-bytes);chunks.push(chunk.subarray(offset,offset+size));bytes+=size;offset+=size;if(bytes===4*1024*1024)flush(metadata.percent);}
       });
-      stream.on('error',reject);stream.on('end',()=>{chain.then(flush).then(resolve,reject);});stream.resume();
+      stream.on('error',reject);stream.on('end',()=>{ended=true;flush(100);chain.then(resolve,reject);});stream.resume();
     });
     await check(current);return rpc('ingestEnd');
   }

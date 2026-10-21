@@ -48,3 +48,7 @@ test('worker Markdown preserves HTML/link/image security rules',()=>{
   assert.ok(!/href="javascript:/i.test(result));
   assert.ok(!/src="https:\/\/example.invalid/.test(result));
 });
+test('quality scans keep repetition, missing-parent and empty-message counts',async()=>{
+  const result=await core.quality({messages:[{uuid:'a',sender:'assistant',text:'same'},{uuid:'b',parent_message_uuid:'a',sender:'assistant',text:'same'},{uuid:'c',parent_message_uuid:'missing',sender:'human',content:[]}]},async()=>{});
+  assert.equal(result.counts.repeated,1);assert.equal(result.counts.orphan,1);assert.equal(result.counts.empty,1);
+});
