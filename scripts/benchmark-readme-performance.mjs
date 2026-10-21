@@ -4,14 +4,16 @@ import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import {createRequire} from 'node:module';
-import {parseSizes} from './benchmark-utils.mjs';
+import {parseRuns,parseSizes,median} from './benchmark-utils.mjs';
 
 const root=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'..');
 const output=path.join(root,'docs','benchmarks','readme-performance.json');
 // Use installed Playwright Chromium by default on every platform. Windows
 // system Chrome is no longer auto-detected; select it explicitly via CHROME_PATH.
 const executablePath=process.env.CHROME_PATH;
-const runs=Math.max(1,Number(process.argv.find(arg=>arg.startsWith('--runs='))?.split('=')[1]||3));
+let runs;
+try{runs=parseRuns(process.argv.find(argument=>argument.startsWith('--runs='))?.slice('--runs='.length));}
+catch(error){console.error(error.message);process.exit(1);}
 let requested;
 try{requested=parseSizes(process.argv.find(arg=>arg.startsWith('--sizes='))?.slice('--sizes='.length));}
 catch(error){console.error(error.message);process.exit(1);}
@@ -49,7 +51,6 @@ async function buildFixture(file,targetBytes){
   return{records:index,bytes:(await fs.stat(file)).size};
 }
 
-const median=values=>{const sorted=[...values].sort((a,b)=>a-b);return sorted[Math.floor(sorted.length/2)];};
 const round=value=>Math.round(value*10)/10;
 const browser=await chromium.launch({headless:true,...(executablePath?{executablePath}:{})});
 const temp=await fs.mkdtemp(path.join(os.tmpdir(),'crr-readme-benchmark-'));

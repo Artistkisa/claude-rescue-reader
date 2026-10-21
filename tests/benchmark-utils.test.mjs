@@ -27,7 +27,7 @@ test('medians handle odd and even sample counts without mutating samples',()=>{
 });
 
 test('invalid CLI run count fails before trying to launch Chromium',()=>{
-  const script=new URL('../scripts/benchmark-analytics-performance.mjs',import.meta.url);
+  for(const script of['benchmark-analytics-performance.mjs','benchmark-readme-performance.mjs'].map(name=>new URL('../scripts/'+name,import.meta.url)))
   for(const input of ['abc','0','-1','1.5','','Infinity']){
     const result=spawnSync(process.execPath,[fileURLToPath(script),'--runs='+input],{
       encoding:'utf8',env:{...process.env,CHROME_PATH:'invalid-synthetic-browser-path'},timeout:10000
