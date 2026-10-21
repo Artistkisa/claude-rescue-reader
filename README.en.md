@@ -247,7 +247,7 @@ claude-export/
 ### Large-export performance
 - `conversations.json` is read in 4 MiB chunks and transferred to a persistent Data Worker with Transferable `ArrayBuffer`s
 - Initial import scans only the top-level array and returns titles, timestamps, summaries, and message counts; full messages are parsed only when a conversation is opened
-- Parsed records are cached locally in IndexedDB behind a source-size, modification-time, and edge-content fingerprint; changed sources cannot reuse stale cache entries
+- Raw conversation JSON (including message text) and any built full-text index are cached in local IndexedDB behind a source-size, modification-time, and edge-content fingerprint; changed sources cannot reuse stale entries. The fingerprint does not mean that only metadata is stored
 - The cache never leaves the current browser and can be removed at any time with **Clear local parse cache** in the sidebar
 - Syntax highlighting, Mermaid, Artifact iframes, and ZIP parsing load only when their feature or viewport requires them, keeping the initial conversation list responsive
 
@@ -298,9 +298,12 @@ github-dark.min.css    ← https://cdn.jsdelivr.net/npm/highlight.js@11.11.1/sty
 
 ## Privacy & Security
 
-- ✅ Runs entirely locally — no backend, no telemetry, no network requests (CDN excepted)
+- ✅ Local analysis with no backend or telemetry; the single file loads pinned CDN dependencies on demand, while the complete offline bundle needs no network
 - ✅ Your data is never uploaded or shared
-- ✅ Nothing persists after closing the browser except theme and UI-language preferences (`localStorage` stores only `cv-theme` / `cv-lang`)
+- ⚠️ The parse cache stores conversation text and any built search index in local IndexedDB (`claude-rescue-reader-data-v1`) and persists after the browser closes. Use “Clear local parse cache” in the sidebar before leaving a shared device
+- ✅ `localStorage` retains theme (`cv-theme`), language (`cv-lang`), and manual project assignments (`claude-rescue-reader-project-overrides-v1`). Clearing the parse cache keeps these preferences; remove site data in the browser to delete them
+- ✅ Imported remote images do not load automatically; external links open only on user action. Artifact previews run in an isolated sandbox with networking blocked
+- Generated HTML/SVG files remain downloadable as source and use the Artifact sandbox for previews. HTML preview PNG export falls back to source download so its page stays outside the main document
 - ✅ Safe export shows finding type, masked preview, location, and reason without exposing the full sensitive value
 - ✅ Optional aggressive filtering also handles names, schools/organizations, detailed addresses, identity data, UIDs, social accounts, and links, with an explicit over-redaction warning
 - ✅ SCP dossier mode uses black bars and `[DATA EXPUNGED]`; PDF exports add a `CONFIDENTIAL` watermark and classified badge

@@ -181,7 +181,7 @@ test('weekly and monthly averages use their labeled daily scale for every metric
 
 test('cancel, debounce, stale generations, failure retry and bounded cache',async({page})=>{
   await load(page,Array.from({length:70},(_,index)=>conversation('cancel-'+index,Array.from({length:30},(_,item)=>message('m-'+item,'2026-01-02T20:00:00Z',item%2?'model-a':'model-b')))));
-  await page.evaluate(()=>{document.querySelector('[data-analytics-tab]').click();document.querySelector('.tab-btn[onclick*="convs"]').click();});
+  await page.evaluate(()=>{document.querySelector('[data-analytics-tab]').click();document.querySelector('.tab-btn[data-ui-value="convs"]').click();});
   await page.waitForTimeout(50);
   expect(await page.evaluate(()=>analyticsExploreResult)).toBeNull();
   await openAnalytics(page);

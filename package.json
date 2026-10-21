@@ -17,7 +17,7 @@
     "benchmark:readme": "node scripts/benchmark-readme-performance.mjs",
     "benchmark:analytics": "node scripts/benchmark-analytics-performance.mjs",
     "build:demo": "node scripts/build-synthetic-demo.mjs",
-    "test:smoke": "npm run test:benchmark && playwright test tests/browser-smoke.spec.mjs tests/analytics.spec.mjs tests/worker-performance.spec.mjs",
+    "test:smoke": "npm run test:benchmark && playwright test tests/browser-smoke.spec.mjs tests/analytics.spec.mjs tests/worker-performance.spec.mjs tests/rendering-recovery.spec.mjs",
     "test:benchmark": "node --test tests/benchmark-utils.test.mjs",
     "test:offline": "playwright test tests/offline-release.spec.mjs"
   },

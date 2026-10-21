@@ -1,4 +1,5 @@
 import fs from 'node:fs';
+import {viewerPolicy} from './viewer-policy.mjs';
 
 const html=fs.readFileSync('viewer.html','utf8');
 const worker=fs.readFileSync('src/analytics-worker.js','utf8').trim();
@@ -6,6 +7,9 @@ const dataWorker=fs.readFileSync('src/data-worker.js','utf8').trim();
 const core=fs.readFileSync('src/analysis-core.js','utf8').trim();
 const failures=[];
 const fail=m=>failures.push(m);
+if(!/<meta http-equiv="Content-Security-Policy" content="[^"]+">/.test(html))fail('Missing viewer content policy');
+if(viewerPolicy(html)!==html)fail('Content policy hashes differ from the viewer scripts; rebuild the single file');
+if(!html.includes('script-src-attr \'none\''))fail('Content policy must prohibit inline event handlers');
 const generatedCore=html.match(/\/\/ BEGIN GENERATED ANALYSIS CORE[^\r\n]*\r?\n([\s\S]*?)\r?\n\/\/ END GENERATED ANALYSIS CORE/);
 if(!generatedCore||generatedCore[1].trim().replace(/\r\n/g,'\n')!==core.replace(/\r\n/g,'\n'))fail('Embedded analysis core differs from src/analysis-core.js');
 

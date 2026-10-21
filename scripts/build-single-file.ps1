@@ -31,8 +31,12 @@ if (-not $match.Success) {
 $built = $viewer.Substring(0, $match.Index) + $match.Groups[1].Value + $worker +
   $match.Groups[2].Value + $viewer.Substring($match.Index + $match.Length)
 if ($built -eq $originalViewer) {
+  & node (Join-Path $PSScriptRoot 'update-viewer-policy.mjs')
+  if ($LASTEXITCODE -ne 0) { throw 'Content policy generation failed.' }
   Write-Output 'viewer.html is already up to date.'
   exit 0
 }
 [System.IO.File]::WriteAllText($viewerPath, $built, [System.Text.UTF8Encoding]::new($false))
+& node (Join-Path $PSScriptRoot 'update-viewer-policy.mjs')
+if ($LASTEXITCODE -ne 0) { throw 'Content policy generation failed.' }
 Write-Output 'Embedded Worker sources into viewer.html.'
