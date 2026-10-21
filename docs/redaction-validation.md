@@ -22,10 +22,10 @@ Windows 本地 Node，270,000 个 UTF-16 字符的重复中英文及 emoji 正�
 
 | 模式 / Mode | 中位耗时 / Median |
 | --- | ---: |
-| 旧版默认 / Previous default | 0.81 ms |
-| 新版默认 / New default | 1.35 ms |
-| 新版＋100 个自定义词近似匹配 / New + 100 custom terms with similarity | 34.67 ms |
+| 旧版默认 / Previous default | 0.84 ms |
+| 新版默认 / New default | 1.41 ms |
+| 新版＋100 个自定义词近似匹配 / New + 100 custom terms with similarity | 33.72 ms |
 
-单文件从 768,558 增至 787,066 字节（增加 18,508 字节，约 18.1 KiB）。第三方库版本和运行时网络依赖没有变化。Task Worker 按需创建，新扫描分段检查取消，不在主线程执行。候选较密集时可能达到每窗口 4096 次验证上限，此时必须提示未完成并阻止安全导出。
+单文件从 768,558 增至 787,240 字节（增加 18,682 字节，约 18.2 KiB）。第三方库版本和运行时网络依赖没有变化。Task Worker 按需创建，新扫描分段检查取消，不在主线程执行。候选较密集时可能达到每窗口 4096 次验证上限，此时必须提示未完成并阻止安全导出。
 
 These are small, fixed synthetic regression sets, not a claim of real-world accuracy. Reproduce functional coverage with `npm run test:worker-core`, `npm run test:smoke`, `npm run build:offline` and `npm run test:offline`. The local timing comparison uses seven synchronous scans of 270,000 UTF-16 characters and reports medians; it does not measure browser main-thread blocking. Weak candidates and similarity are opt-in, and incomplete scans fail closed.

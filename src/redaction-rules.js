@@ -67,7 +67,7 @@ function redactionRules(){
                 for(let size=term.length-limit;size<=term.length+limit;size++){
                   const end=start+size;if(end>chars.length)continue;
                   const key=ref.id+':'+lineMatch.index+':'+start+':'+end;if(seen.has(key))continue;seen.add(key);
-                  if(++consumed>LIMIT){incomplete();return;}if(consumed%64===0)yield;
+                  if(++consumed>LIMIT){incomplete();yield;return;}if(consumed%64===0)yield;
                   const a=map.starts[start],b=map.ends[end-1];if(b-a>512||start>0&&map.starts[start-1]===a||end<chars.length&&map.ends[end]===b)continue;
                   const candidate=chars.slice(start,end),equal=candidate.join('')===term.join('');
                   const boundary=(!/[a-z0-9]/.test(term[0])||!/[a-z0-9]/i.test(line[a-1]||''))&&(!/[a-z0-9]/.test(term[term.length-1])||!/[a-z0-9]/i.test(line[b]||''));

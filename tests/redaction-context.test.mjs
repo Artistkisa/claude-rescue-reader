@@ -41,6 +41,12 @@ test('provider labels, passport variants, supervisor and spaced social phrases r
   assert.ok(!body(base).includes('@fictional_user'));assert.ok(body(base).includes('赵小云'));assert.ok(!body(opted).includes('赵小云'));
 });
 
+test('quoted curl headers remove secrets while preserving the public command target',()=>{
+  for(const quote of ['"',"'"]){const secret='fiction-'+ 'x'.repeat(30),input='curl -H '+quote+'Authorization: Bearer '+secret+quote+' https://public.example.invalid',result=body(run(input));assert.ok(!result.includes(secret));assert.ok(result.includes(quote+' https://public.example.invalid'));}
+  assert.ok(!body(run('Authorization: Bearer "fiction-value"')).includes('fiction-value'));
+  assert.ok(!body(run('Cookie: session=fiction; other=value')).includes('fiction'));
+});
+
 test('generic statements stay readable while category-specific formatting variants are removed',()=>{
   for(const input of ['我叫外卖。','我在这家公司。','My name is Anonymous.'])assert.equal(run(input).total,0);
   for(const input of ['fiction [at] example.invalid','fiction＠example．invalid','1 3 8 0 0 1 2 3 4 5 6'])assert.equal(run(input).total,1);
@@ -81,6 +87,9 @@ test('window ownership handles context triggers and Unicode matches across bound
     assert.equal(result.total,2,'boundary '+length);assert.equal(body(result),prefix+'我叫[REDACTED:个人姓名]。🙂[REDACTED:自定义敏感词]。');
   }
   assert.equal(run('my name is\nAlice Smith.').total,0);
+  // The first ownership interval ends before the first chunk does. A short
+  // trailing interval still gets its own iteration; it must never be skipped.
+  const tail=run('。'.repeat(31750)+'ＡＬＰＨＡＰＥＲＳＯＮ',{customTerms:['AlphaPerson'],customSimilarity:true});assert.equal(tail.total,1);assert.equal(body(tail).slice(31750),'[REDACTED:自定义敏感词]');
 });
 
 test('oversubscribed similarity is explicit, bounded, cancellable, and independent of normal scans',async()=>{
