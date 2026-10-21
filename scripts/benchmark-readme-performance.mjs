@@ -3,13 +3,16 @@ import {fileURLToPath,pathToFileURL} from 'node:url';
 import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
+import {createRequire} from 'node:module';
+import {parseSizes} from './benchmark-utils.mjs';
 
 const root=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'..');
 const output=path.join(root,'docs','benchmarks','readme-performance.json');
-const systemChrome=process.platform==='win32'?'C:/Program Files/Google/Chrome/Application/chrome.exe':undefined;
-const executablePath=process.env.CHROME_PATH||systemChrome;
+const executablePath=process.env.CHROME_PATH;
 const runs=Math.max(1,Number(process.argv.find(arg=>arg.startsWith('--runs='))?.split('=')[1]||3));
-const requested=(process.argv.find(arg=>arg.startsWith('--sizes='))?.split('=')[1]||'50,150,300').split(',').map(Number).filter(Boolean);
+let requested;
+try{requested=parseSizes(process.argv.find(arg=>arg.startsWith('--sizes='))?.slice('--sizes='.length));}
+catch(error){console.error(error.message);process.exit(1);}
 const scenarios=requested.map(sizeMiB=>({sizeMiB,cpuThrottle:sizeMiB===50?4:6}));
 const rootParent='00000000-0000-4000-8000-000000000000';
 const payload='SyntheticBenchmarkNeedle fictional local-only payload for reproducible performance measurement. '.repeat(36);
@@ -68,7 +71,7 @@ try{
     results.push({...scenario,actualBytes:fixture.bytes,records:fixture.records,runs,samples,median:{initialListMs:median(samples.map(x=>x.initialListMs)),openConversationMs:median(samples.map(x=>x.openConversationMs)),searchMs:median(samples.map(x=>x.searchMs)),heapMiB:median(samples.map(x=>x.heapMiB))}});
     console.log(`${scenario.sizeMiB} MiB @ ${scenario.cpuThrottle}x: list ${results.at(-1).median.initialListMs} ms, open ${results.at(-1).median.openConversationMs} ms, search ${results.at(-1).median.searchMs} ms`);
   }
-  const report={generatedAt:new Date().toISOString(),browser:browser.version(),playwright:'1.62.0',node:process.version,method:{runs,aggregation:'median',fixture:'ASCII-only synthetic conversations; 100 alternating human/assistant messages per full record; exact target byte size; one shared search needle per message.',privacy:'No real export, title, path, account data, or hardware model is read or recorded.'},results};
+  const report={generatedAt:new Date().toISOString(),browser:browser.version(),playwright:createRequire(import.meta.url)('playwright/package.json').version,playwrightVersionSource:'installed-package',node:process.version,method:{runs,aggregation:'median',fixture:'ASCII-only synthetic conversations; 100 alternating human/assistant messages per full record; exact target byte size; one shared search needle per message.',privacy:'No real export, title, path, account data, or hardware model is read or recorded.'},results};
   await fs.mkdir(path.dirname(output),{recursive:true});await fs.writeFile(output,JSON.stringify(report,null,2)+'\n');
   console.log(`Benchmark report written to ${path.relative(root,output)}`);
 }finally{await browser.close();await fs.rm(temp,{recursive:true,force:true});}

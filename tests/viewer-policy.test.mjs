@@ -41,3 +41,13 @@ test('policy rejects missing, duplicate and dynamic Artifact templates and missi
   assert.ok(viewerPolicy(html,{offline:true}).includes("'self'"));
   assert.ok(!viewerPolicy(html,{offline:true}).includes('https://cdn.jsdelivr.net'));
 });
+
+
+test('online and offline parent policies preserve inherited local Artifact script permission',()=>{
+  for(const offline of [false,true]){
+    const policy=viewerPolicy(fixture(''),{offline}).match(/content="([^"]+)"/)[1];
+    assert.ok(policy.split(';').find(d=>d.trim().startsWith('script-src ')).split(/\s+/).includes('blob:'));
+    assert.ok(policy.includes('worker-src blob:'));assert.ok(policy.includes('frame-src blob:'));
+    assert.ok(policy.includes("script-src-attr 'none'"));assert.ok(!policy.includes("'unsafe-eval'"));
+  }
+});

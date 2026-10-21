@@ -10,3 +10,10 @@ export function median(values){
   const sorted=[...values].sort((first,second)=>first-second),middle=Math.floor(sorted.length/2);
   return sorted.length%2?sorted[middle]:(sorted[middle-1]+sorted[middle])/2;
 }
+
+export function parseSizes(raw){
+  if(raw===undefined)return [50,150,300];
+  const parts=String(raw).split(','),sizes=parts.map(Number);
+  if(parts.some(part=>!/^\d+$/.test(part))||sizes.some(size=>!Number.isSafeInteger(size)||size<1||!Number.isSafeInteger(size*1024*1024))||new Set(sizes).size!==sizes.length)throw new RangeError('Invalid --sizes: expected a comma-separated list of distinct positive safe integers in MiB.');
+  return sizes;
+}

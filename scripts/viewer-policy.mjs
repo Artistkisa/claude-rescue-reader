@@ -25,6 +25,10 @@ export function viewerPolicySources(html){
 export function viewerPolicy(html,{offline=false}={}){
   const scripts=viewerPolicySources(html).map(source=>"'sha256-"+createHash('sha256').update(source).digest('base64')+"'");
   const hosts=offline?"'self'":"https://cdn.jsdelivr.net https://unpkg.com https://cdnjs.cloudflare.com";
+  // Opaque blob/srcdoc Artifact frames inherit this policy in addition to their
+  // own restrictive CSP. Their local-script runner uses blob URLs; removing
+  // script-src blob: here blocks those scripts even if the child permits them.
+  // worker-src/frame-src do not grant permission to execute scripts in frames.
   const policy="default-src 'none'; script-src "+scripts.join(' ')+" "+hosts+" blob:; script-src-attr 'none'; style-src 'unsafe-inline' "+hosts+"; img-src blob: data:; font-src data:; connect-src blob:; worker-src blob:; frame-src blob:; object-src 'none'; base-uri 'none'; form-action 'none'";
   return html.replace(/(<meta http-equiv="Content-Security-Policy" content=")[^"]*(">)/,(_,before,after)=>before+policy+after);
 }

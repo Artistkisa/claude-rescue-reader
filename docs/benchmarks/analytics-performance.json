@@ -1,0 +1,72 @@
+{
+  "provenance": "Transcribed from the previously published Markdown table; not a new measurement. Playwright version was not recorded.",
+  "baseline": "e9b127ff3a4ebe1315d429efe36a7212a651f81e",
+  "runs": 3,
+  "cpuThrottle": 4,
+  "browser": "151.0.7922.34",
+  "node": "v24.16.0",
+  "samples": {
+    "before": [
+      {
+        "first": 11052,
+        "filtered": 6423,
+        "firstDrill": 6350,
+        "nextPage": 6375,
+        "listIds": 6392
+      },
+      {
+        "first": 15476,
+        "filtered": 12470,
+        "firstDrill": 7656,
+        "nextPage": 6299,
+        "listIds": 6318
+      },
+      {
+        "first": 10967,
+        "filtered": 6377,
+        "firstDrill": 6353,
+        "nextPage": 6329,
+        "listIds": 6341
+      }
+    ],
+    "after": [
+      {
+        "first": 206.9,
+        "filtered": 11.3,
+        "firstDrill": 3.4,
+        "nextPage": 0.3,
+        "listIds": 0.2
+      },
+      {
+        "first": 207.3,
+        "filtered": 12.6,
+        "firstDrill": 3.5,
+        "nextPage": 0.4,
+        "listIds": 0.2
+      },
+      {
+        "first": 200.5,
+        "filtered": 11.8,
+        "firstDrill": 3.6,
+        "nextPage": 0.2,
+        "listIds": 0.4
+      }
+    ]
+  },
+  "medians": {
+    "before": {
+      "first": 11052,
+      "filtered": 6423,
+      "firstDrill": 6353,
+      "nextPage": 6329,
+      "listIds": 6341
+    },
+    "after": {
+      "first": 206.9,
+      "filtered": 11.8,
+      "firstDrill": 3.5,
+      "nextPage": 0.3,
+      "listIds": 0.2
+    }
+  }
+}

@@ -35,6 +35,11 @@ Build with `npm ci` then `powershell -File scripts/build-single-file.ps1`. `npm 
 
 使用上述命令重新生成单文件并校验；生成结果包含源码、依赖版本与哈希、CSP 哈希和第三方许可证。专项测试覆盖深链、异常树、代码和 Thinking 搜索、跨窗口定位、全文导出、脱敏上限、取消、背压、附件及 Worker 重建。
 
-`node scripts/benchmark-worker-pipelines.mjs --runs=3` compares the base commit with the current single file under 4× CPU throttling. It uses synthetic data (15,900 messages), including a 10,000-message conversation with a legacy root for baseline compatibility. Results in [worker-pipelines.json](benchmarks/worker-pipelines.json) include file size, main-thread long tasks and main-thread heap. Heap figures exclude worker heaps; measurements are local observations, not device-independent guarantees. A separate 12,000-message canonical-root test verifies iterative traversal without the baseline's recursive stack limit.
+`npm run benchmark:workers -- --runs=3` compares the base commit with the current single file under 4× CPU throttling. It uses synthetic data (15,900 messages), including a 10,000-message conversation with a legacy root for baseline compatibility. Results in [worker-pipelines.json](benchmarks/worker-pipelines.json) include file size, main-thread long tasks and main-thread heap. Heap figures exclude worker heaps; measurements are local observations, not device-independent guarantees. A separate 12,000-message canonical-root test verifies iterative traversal without the baseline's recursive stack limit.
 
 基准使用三次测量的中位数，数据完全合成，一万条长对话采用旧根格式以便旧版可执行。报告记录单文件体积、主线程长任务和主线程堆内存；堆数据不包含 Worker，结果只代表本机观测。另有 12,000 条标准根深链测试，验证新实现不受旧递归栈限制。
+
+
+The parent document keeps `script-src blob:` because opaque Artifact frames inherit its CSP in addition to their own policy. The local Artifact script runner executes Blob scripts inside that frame; a child policy cannot relax an inherited restriction. Both file and HTTP regression tests verify script execution, opaque origin and blocked networking. Removing the parent permission breaks both paths. This permission is separate from `worker-src` and `frame-src`.
+
+主文档保留 `script-src blob:`：Artifact 的不透明来源帧同时受父文档继承策略及帧内策略约束，帧内策略无法放宽继承限制。本地脚本在帧内通过 Blob 执行；移除父策略许可会导致 file 和 HTTP 两种模式的交互失效。现有回归同时验证执行、不透明来源和网络隔离；此许可与 Worker、帧加载许可分别生效。

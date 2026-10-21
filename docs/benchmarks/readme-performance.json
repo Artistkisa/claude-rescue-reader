@@ -127,5 +127,6 @@
         "heapMiB": 4.2
       }
     }
-  ]
+  ],
+  "playwrightVersionSource": "legacy-hardcoded-unverified"
 }
