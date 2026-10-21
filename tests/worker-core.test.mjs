@@ -23,6 +23,8 @@ test('search strips markdown syntax but includes original code, thinking and Uni
   assert.ok(!fields[0].text.includes('https://'));
   assert.ok(fields[0].text.includes('const needle = "中文🙂";'));
   assert.equal(fields[1].text,'thought needle');
+  assert.deepEqual(Array.from(core.matches('İ中文🙂tail','tail'),hit=>[hit.offset,hit.length]),[[5,4]]);
+  assert.deepEqual(Array.from(core.matches('İ中文🙂tail','i'),hit=>[hit.offset,hit.length]),[[0,1],[7,1]]);
 });
 test('preview masks and caps findings; full exports and PDF preserve giant content',async()=>{
   const conv={name:'Synthetic',chat_messages:[{content:[{type:'text',text:Array.from({length:130},(_,i)=>`user${i}@example.invalid`).join('\n')}]}]};

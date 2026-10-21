@@ -40,14 +40,14 @@ function readerWorkerMain(){
         for(let i=0;i<selected.ids.length;i++){
           if(i%128===0)await token.checkpoint({loaded:i,total:selected.ids.length});const id=selected.ids[i];
           if(!fields.has(id))fields.set(id,core.searchFields(conversation.chat_messages[id]));
-          let count=0;if(needle)for(const f of fields.get(id)){const lower=f.text.toLowerCase();let at=0;while((at=lower.indexOf(needle,at))!==-1){count++;at+=needle.length;}}
+          let count=0;if(needle)for(const f of fields.get(id))for(const hit of core.matches(f.text,needle))count++;
           queryCounts.push(count);total+=count;
         }
       }
       const page=Math.max(0,Number(payload.page)||0),offset=page*100,rows=[];let ordinal=0;
       if(needle)for(let i=0;i<selected.ids.length&&rows.length<100;i++){
         if(ordinal+queryCounts[i]<=offset){ordinal+=queryCounts[i];continue;}
-        const id=selected.ids[i];for(const f of fields.get(id)){const lower=f.text.toLowerCase();let at=0,fieldOrdinal=0;while((at=lower.indexOf(needle,at))!==-1){if(ordinal>=offset&&rows.length<100)rows.push({ordinal,sourceIndex:id,linearIndex:i,key:f.key,offset:at,length:needle.length,fieldOrdinal});ordinal++;fieldOrdinal++;at+=needle.length;}}
+        const id=selected.ids[i];for(const f of fields.get(id)){let fieldOrdinal=0;for(const hit of core.matches(f.text,needle)){if(ordinal>=offset&&rows.length<100)rows.push({ordinal,sourceIndex:id,linearIndex:i,key:f.key,...hit,fieldOrdinal});ordinal++;fieldOrdinal++;}}
       }
       return{total,page,rows};
     }

@@ -11,88 +11,88 @@
   "samples": {
     "before": [
       {
-        "importMs": 181.3947,
-        "openMs": 316.0969,
-        "searchMs": 4490.720600000001,
+        "importMs": 193.48240000000004,
+        "openMs": 353.3198,
+        "searchMs": 5297.678,
         "mounted": 10000,
         "longTasks": 3,
-        "longTaskMs": 4407,
-        "maxLongTaskMs": 4233,
-        "mainHeapMiB": 15.55929946899414
+        "longTaskMs": 5201,
+        "maxLongTaskMs": 5033,
+        "mainHeapMiB": 9.16617202758789
       },
       {
-        "importMs": 165.79479999999967,
-        "openMs": 292.1297999999997,
-        "searchMs": 4689.568499999999,
+        "importMs": 169.40499999999975,
+        "openMs": 283.14739999999983,
+        "searchMs": 5082.268899999999,
         "mounted": 10000,
         "longTasks": 3,
-        "longTaskMs": 4596,
-        "maxLongTaskMs": 4428,
-        "mainHeapMiB": 9.1639404296875
+        "longTaskMs": 4989,
+        "maxLongTaskMs": 4829,
+        "mainHeapMiB": 9.166732788085938
       },
       {
-        "importMs": 189.29379999999946,
-        "openMs": 281.7670999999991,
-        "searchMs": 4569.344000000001,
+        "importMs": 165.97769999999946,
+        "openMs": 312.15209999999934,
+        "searchMs": 5059.088500000002,
         "mounted": 10000,
         "longTasks": 3,
-        "longTaskMs": 4470,
-        "maxLongTaskMs": 4308,
-        "mainHeapMiB": 9.067691802978516
+        "longTaskMs": 4967,
+        "maxLongTaskMs": 4798,
+        "mainHeapMiB": 9.164630889892578
       }
     ],
     "after": [
       {
-        "importMs": 181.6296000000002,
-        "openMs": 194.6075000000019,
-        "searchMs": 341.0625,
+        "importMs": 165.87900000000081,
+        "openMs": 192.73179999999775,
+        "searchMs": 349.1785999999993,
         "mounted": 60,
         "longTasks": 1,
         "longTaskMs": 50,
         "maxLongTaskMs": 50,
-        "mainHeapMiB": 6.294670104980469
+        "mainHeapMiB": 3.824237823486328
       },
       {
-        "importMs": 166.1385999999984,
-        "openMs": 200.1771000000008,
-        "searchMs": 334.5144,
-        "mounted": 60,
-        "longTasks": 1,
-        "longTaskMs": 54,
-        "maxLongTaskMs": 54,
-        "mainHeapMiB": 3.83209228515625
-      },
-      {
-        "importMs": 164.58759999999893,
-        "openMs": 193.8866999999991,
-        "searchMs": 334.3104999999996,
+        "importMs": 173.03069999999934,
+        "openMs": 184.39809999999852,
+        "searchMs": 338.7185000000027,
         "mounted": 60,
         "longTasks": 0,
         "longTaskMs": 0,
         "maxLongTaskMs": 0,
-        "mainHeapMiB": 3.809978485107422
+        "mainHeapMiB": 3.8004150390625
+      },
+      {
+        "importMs": 190.79449999999997,
+        "openMs": 193.77430000000095,
+        "searchMs": 338.5099999999984,
+        "mounted": 60,
+        "longTasks": 1,
+        "longTaskMs": 51,
+        "maxLongTaskMs": 51,
+        "mainHeapMiB": 3.865245819091797
       }
     ]
   },
   "bytes": {
     "before": 294345,
-    "after": 708746
+    "after": 709294
   },
   "medians": {
     "before": {
-      "importMs": 181.4,
-      "openMs": 292.1,
-      "searchMs": 4569.3,
+      "importMs": 169.4,
+      "openMs": 312.2,
+      "searchMs": 5082.3,
       "mounted": 10000,
       "longTasks": 3,
-      "longTaskMs": 4470,
-      "maxLongTaskMs": 4308,
+      "longTaskMs": 4989,
+      "maxLongTaskMs": 4829,
       "mainHeapMiB": 9.2
     },
     "after": {
-      "importMs": 166.1,
-      "openMs": 194.6,
-      "searchMs": 334.5,
+      "importMs": 173,
+      "openMs": 192.7,
+      "searchMs": 338.7,
       "mounted": 60,
       "longTasks": 1,
       "longTaskMs": 50,

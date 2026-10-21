@@ -117,12 +117,13 @@ test('attachment cache evicts oldest unmounted entries while pinning mounted ima
 test('branch changes and source changes invalidate search without stale page updates',async({page})=>{
   await load(page,2);
   const result=await page.evaluate(async()=>{
-    await featureRequest('reader','open',{conversation:{uuid:'branches',chat_messages:[{uuid:'r',parent_message_uuid:'00000000-0000-4000-8000-000000000000',text:'root'},{uuid:'a',parent_message_uuid:'r',text:'branchNeedle'},{uuid:'b',parent_message_uuid:'r',text:'branchNeedle'}]}});
+    await featureRequest('reader','open',{conversation:{uuid:'branches',chat_messages:[{uuid:'r',parent_message_uuid:'00000000-0000-4000-8000-000000000000',text:'İ中文🙂tail'},{uuid:'a',parent_message_uuid:'r',text:'branchNeedle'},{uuid:'b',parent_message_uuid:'r',text:'branchNeedle'}]}});
     currentConv={uuid:'branches',_readerBacked:true};
+    await renderReaderWindow();await readerSearch('tail');const unicode=document.querySelector('mark.cs.active')?.textContent;
     const longest=await featureRequest('reader','search',{query:'branchNeedle',mode:'longest'}),full=await featureRequest('reader','search',{query:'branchNeedle',mode:'full'});
     const stale=featureRequest('task','behavior').then(()=>false,error=>error.name==='AbortError');
     nextDataWorkerGeneration();await dataWorkerRequest('reset');
-    return{longest:longest.total,full:full.total,stale:await stale,workers:featureWorkers.size,consumers:(await dataWorkerRequest('debugState')).consumers};
+    return{unicode,longest:longest.total,full:full.total,stale:await stale,workers:featureWorkers.size,consumers:(await dataWorkerRequest('debugState')).consumers};
   });
-  expect(result).toEqual({longest:1,full:2,stale:true,workers:0,consumers:0});
+  expect(result).toEqual({unicode:'tail',longest:1,full:2,stale:true,workers:0,consumers:0});
 });
