@@ -46,7 +46,8 @@ test('quoted curl headers remove secrets while preserving the public command tar
   assert.ok(!body(run('Authorization: Bearer "fiction-value"')).includes('fiction-value'));
   const cookie=body(run('Cookie: session=fiction; other=value; HttpOnly'));assert.ok(!cookie.includes('fiction'));assert.ok(!cookie.includes('other=value'));assert.ok(!cookie.includes('HttpOnly'));
   // Arbitrary embedded quote characters cannot narrow a whole-header scan.
-  assert.ok(!body(run('x"Authorization: Bearer fiction" trailing-private')).includes('trailing-private'));
+  for(const prefix of ['x','🙂']){const result=body(run(prefix+'"Authorization: Bearer fiction" trailing-private'));assert.ok(!result.includes('trailing-private'));assert.ok(!result.includes('fiction'));}
+  const spaced=body(run('🙂 curl -H "Authorization: Bearer fiction" https://public.example.invalid'));assert.ok(!spaced.includes('fiction'));assert.ok(spaced.includes('https://public.example.invalid'));
 });
 
 test('generic statements stay readable while category-specific formatting variants are removed',()=>{
