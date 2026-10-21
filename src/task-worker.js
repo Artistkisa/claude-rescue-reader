@@ -6,6 +6,7 @@ function taskWorkerMain(){
     throw new Error('Conversation not found');
   };
   featureWorkerRuntime(core,async(type,payload,token)=>{
+    if(type==='memoryView'){await token.checkpoint();return{html:core.renderMarkdown(payload.text)};}
     if(type==='highlight'){await token.checkpoint();return{html:hljs.getLanguage(payload.language)?hljs.highlight(payload.code,{language:payload.language}).value:core.esc(payload.code)};}
     if(type==='behavior')return core.behavior(token.records(),()=>token.checkpoint({loaded:token.loadedRecords||0,total:token.totalRecords||0}));
     if(type==='preview'){

@@ -24,7 +24,7 @@ function featureWorkerRuntime(core,handler){
     const message=event.data||{};
     if(message.type==='init'){
       stop();port?.close();generation=message.generation;port=message.port||null;
-      if(port){port.onmessage=event=>{const batch=event.data||{};if(batch.generation!==generation||batch.requestId!==stream?.requestId)return;if(batch.type==='error'){stream.reject?.(new Error(batch.error));return;}if(stream.resolve)stream.resolve(batch);else stream.pending=batch;};port.start();}
+      if(port){port.onmessage=event=>{const batch=event.data||{};if(batch.generation!==generation)return;if(batch.type==='sourceChanged'){stop();port.close();port=null;return;}if(batch.requestId!==stream?.requestId)return;if(batch.type==='error'){stream.reject?.(new Error(batch.error));return;}if(stream.resolve)stream.resolve(batch);else stream.pending=batch;};port.start();}
       emit('ready',message);return;
     }
     if(message.generation!==generation)return;

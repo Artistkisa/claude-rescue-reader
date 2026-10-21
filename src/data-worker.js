@@ -6,13 +6,14 @@ function dataWorkerMain(){
   const shared=archiveAnalysisCore();
   const consumers=new Set();let auxiliaryRecords=[],largestImportChunk=0;
   let analyticsPort=null,analyticsStream=null,importPort=null;
-  function closeAnalyticsPort(){analyticsStream=null;if(analyticsPort){analyticsPort.close();for(const state of consumers)if(state.port===analyticsPort)consumers.delete(state);}analyticsPort=null;}
+  function closeRecordPort(state){state.port.postMessage({type:'sourceChanged',generation,requestId:state.stream?.requestId});state.port.close();consumers.delete(state);}
+  function closeAnalyticsPort(){analyticsStream=null;if(analyticsPort){for(const state of consumers)if(state.port===analyticsPort)closeRecordPort(state);analyticsPort.close();}analyticsPort=null;}
   function connectRecords(port,id){
     const state={port,id,stream:null};consumers.add(state);
     port.onmessage=event=>{
       const message=event.data||{};if(message.generation!==generation)return;
       if(message.type==='streamCancel'){if(state.stream?.requestId===message.requestId)state.stream=null;return;}
-      if(message.type==='streamStart')state.stream={requestId:message.requestId,index:0,awaiting:false,batchId:0,source:message.uuids?message.uuids.map(id=>byUuid.get(id)).filter(Boolean):records};
+      if(message.type==='streamStart')state.stream={requestId:message.requestId,index:0,awaiting:false,batchId:0,source:message.uuids?message.uuids.map(id=>byUuid.get(id)).filter(Boolean):records.filter(r=>!r.meta._design)};
       else if(message.type==='batchAck'&&state.stream?.requestId===message.requestId&&message.batchId===state.stream.batchId){if(state.stream.index>=state.stream.source.length){state.stream=null;return;}state.stream.awaiting=false;}else return;
       const stream=state.stream;if(!stream||stream.awaiting)return;
       try{const items=[];let bytes=0;while(stream.index<stream.source.length&&items.length<4){const record=stream.source[stream.index],size=(record.bytes??=new TextEncoder().encode(record.raw).byteLength);if(items.length&&bytes+size>512*1024)break;items.push({raw:record.raw,meta:record.meta});bytes+=size;stream.index++;if(bytes>=512*1024)break;}stream.awaiting=true;port.postMessage({type:'batch',generation,requestId:stream.requestId,batchId:++stream.batchId,items,bytes,done:stream.index===stream.source.length,total:stream.source.length,loaded:stream.index});}catch(error){port.postMessage({type:'error',generation,requestId:stream.requestId,error:error.message});state.stream=null;}
@@ -62,6 +63,8 @@ function dataWorkerMain(){
       index=skipWs(raw,keyEnd);if(raw[index++]!==':')throw new Error('Invalid conversation object');index=skipWs(raw,index);
       const start=index,end=valueEnd(raw,index);
       if(key==='chat_messages'&&raw[start]==='[')meta.message_count=countArrayItems(raw,start,end);
+      else if(key==='account')meta.accountUuid=JSON.parse(raw.slice(start,end))?.uuid||'';
+      else if(key==='_design')meta._design=JSON.parse(raw.slice(start,end));
       else if(key==='uuid'||key==='name'||key==='summary'||key==='created_at'||key==='updated_at'){
         const value=JSON.parse(raw.slice(start,end));meta[key]=typeof value==='string'?value:'';
       }
@@ -87,7 +90,7 @@ function dataWorkerMain(){
     if(parsedCache.has(record.meta.uuid)){
       const value=parsedCache.get(record.meta.uuid);parsedCache.delete(record.meta.uuid);parsedCache.set(record.meta.uuid,value);return value;
     }
-    const value=JSON.parse(record.raw);parsedCache.set(record.meta.uuid,value);
+    const value=JSON.parse(record.raw);if(record.meta._sourcePackage)value._sourcePackage=record.meta._sourcePackage;parsedCache.set(record.meta.uuid,value);
     while(parsedCache.size>PARSED_CACHE_LIMIT)parsedCache.delete(parsedCache.keys().next().value);
     return value;
   }
@@ -99,8 +102,8 @@ function dataWorkerMain(){
   let searchPromise=null;
   async function buildSearchIndex(){
     if(searchIndex)return searchIndex;if(searchPromise)return searchPromise;
-    const source=records,sourceGeneration=generation;
-    const job=(async()=>{const index=new Map();let processed=0;for(const record of source){const conversation=materialize(record),parts=[record.meta.name,record.meta.summary];for(const message of list(conversation.chat_messages)){if(processed++%128===0){await new Promise(resolve=>setTimeout(resolve,0));if(generation!==sourceGeneration)throw new Error('stale data generation');}parts.push(messageText(message));}index.set(record.meta.uuid,parts.join('\n').toLowerCase());}if(generation!==sourceGeneration)throw new Error('stale data generation');searchIndex=index;return index;})();searchPromise=job;try{return await job;}finally{if(searchPromise===job)searchPromise=null;}
+    const source=records,sourceGeneration=generation,revision=contentRevision;
+    const job=(async()=>{const index=new Map();let processed=0;for(const record of source){const conversation=materialize(record),parts=[record.meta.name,record.meta.summary];for(const message of list(conversation.chat_messages)){if(processed++%128===0){await new Promise(resolve=>setTimeout(resolve,0));if(generation!==sourceGeneration||revision!==contentRevision)throw new Error('stale data generation');}parts.push(messageText(message));}index.set(record.meta.uuid,parts.join('\n').toLowerCase());}if(generation!==sourceGeneration||revision!==contentRevision)throw new Error('stale data generation');searchIndex=index;return index;})();searchPromise=job;try{return await job;}finally{if(searchPromise===job)searchPromise=null;}
   }
   const responseGeneration=request=>Number(request.generation)||generation;
   const reply=(request,result)=>(request._port||self).postMessage({requestId:request.requestId,generation:responseGeneration(request),type:'result',result});
@@ -110,8 +113,10 @@ function dataWorkerMain(){
   async function cacheGet(key){const db=await cacheDb();if(!db)return null;try{return await new Promise((resolve,reject)=>{const request=db.transaction(CACHE_STORE,'readonly').objectStore(CACHE_STORE).get(key);request.onsuccess=()=>resolve(request.result||null);request.onerror=()=>reject(request.error);});}finally{db.close();}}
   async function cachePut(key,value){const db=await cacheDb();if(!db)return false;try{await new Promise((resolve,reject)=>{const transaction=db.transaction(CACHE_STORE,'readwrite');transaction.objectStore(CACHE_STORE).put(value,key);transaction.oncomplete=()=>resolve();transaction.onerror=()=>reject(transaction.error);transaction.onabort=()=>reject(transaction.error||new Error('cache transaction aborted'));});return true;}finally{db.close();}}
   async function cacheDeleteAll(){const db=await cacheDb();if(!db)return false;try{await new Promise((resolve,reject)=>{const request=db.transaction(CACHE_STORE,'readwrite').objectStore(CACHE_STORE).clear();request.onsuccess=()=>resolve();request.onerror=()=>reject(request.error);});return true;}finally{db.close();}}
-  function ingestSummary(cacheHit=false){let totalMsgs=0,minDate='',maxDate='';for(const record of records){const meta=record.meta;totalMsgs+=meta.message_count;const date=meta.created_at;if(date&&(!minDate||date<minDate))minDate=date;if(date&&(!maxDate||date>maxDate))maxDate=date;}return{conversations:records.map(record=>record.meta),totalMsgs,minDate,maxDate,lazy:true,cacheHit};}
+  function ingestSummary(cacheHit=false){let totalMsgs=0,minDate='',maxDate='';for(const record of records){const meta=record.meta;if(meta._design)continue;totalMsgs+=meta.message_count;const date=meta.created_at;if(date&&(!minDate||date<minDate))minDate=date;if(date&&(!maxDate||date>maxDate))maxDate=date;}return{conversations:records.map(record=>record.meta),totalMsgs,minDate,maxDate,lazy:true,cacheHit};}
+  let packageStage=null,contentRevision=0,archiveAccounts=new Set(),packageIds=new Set();
   function finishIngest(request,text){
+    if(packageStage){packageStage.records.push(...scanTopLevelArray(text));reply(request,{staged:true});return;}
     records=scanTopLevelArray(text);byUuid=new Map(records.map(record=>[record.meta.uuid,record]));searchIndex=null;parsedCache.clear();
     reply(request,ingestSummary(false));
   }
@@ -120,9 +125,38 @@ function dataWorkerMain(){
     Promise.resolve().then(async()=>{
       if(Number(request.generation)<generation||request._port&&(request._port!==importPort||Number(request.generation)!==generation))throw new Error('stale data generation');
       if(request.type==='importConnect'){importPort?.close();const port=importPort=request.payload.port;port.onmessage=event=>self.onmessage({data:{...event.data,_port:port}});port.start();reply(request,{ok:true});return;}
+      if(request.type==='packageAbort'){packageStage=null;decoder=null;textChunks=[];reply(request,{ok:true});return;}
+      if(request.type==='packageStart'){
+        if(packageStage)throw new Error('Another package is being imported');
+        for(const record of records)if(record.meta.accountUuid)archiveAccounts.add(record.meta.accountUuid);
+        const incoming=request.payload.accounts||[];
+        if(archiveAccounts.size&&incoming.some(id=>!archiveAccounts.has(id)))throw new Error('Account mismatch: open as a new archive');
+        packageStage={...request.payload,records:[]};reply(request,{ok:true});return;
+      }
+      if(request.type==='packageCommit'){
+        const stage=packageStage;if(!stage)throw new Error('No package transaction');
+        if(packageIds.has(stage.id)){packageStage=null;reply(request,{...ingestSummary(false),revision:contentRevision,conflicts:[],duplicate:true});return;}
+        const accounts=new Set(stage.accounts||[]);
+        for(const record of stage.records){const id=record.meta.accountUuid;if(id)accounts.add(id);}
+        if(accounts.size>1||archiveAccounts.size&&[...accounts].some(id=>!archiveAccounts.has(id)))throw new Error('Account mismatch: open as a new archive');
+        const additions=[],conflicts=[],sourceGeneration=generation,revision=contentRevision;let yieldedAt=performance.now();const next=new Map(byUuid);
+        for(const record of stage.records){
+          // Semantic dedup can parse large records. Yield between records so a batch
+          // of conflicts cannot monopolize Data Worker, and retire stale transactions.
+          if(performance.now()-yieldedAt>=8){await new Promise(resolve=>setTimeout(resolve,0));yieldedAt=performance.now();}
+          if(packageStage!==stage||generation!==sourceGeneration||contentRevision!==revision)throw new Error('Canceled package transaction');
+          const previous=next.get(record.meta.uuid);if(previous){if(previous.raw===record.raw||JSON.stringify(JSON.parse(previous.raw))===JSON.stringify(JSON.parse(record.raw)))continue;
+            const original=record.meta.uuid,alias=original+'~'+stage.id;const value=JSON.parse(record.raw);value.uuid=alias;record.raw=JSON.stringify(value);record.meta={...record.meta,uuid:alias,name:record.meta.name+' ['+stage.filename+']',original_uuid:original};conflicts.push(original);
+          }
+          record.meta.source=stage.filename;record.meta._sourcePackage=stage.id;next.set(record.meta.uuid,record);additions.push(record);
+        }
+        records=records.concat(additions);byUuid=next;for(const id of accounts)archiveAccounts.add(id);packageIds.add(stage.id);packageStage=null;contentRevision++;searchIndex=null;searchPromise=null;parsedCache.clear();closeAnalyticsPort();for(const consumer of consumers)closeRecordPort(consumer);
+        reply(request,{...ingestSummary(false),revision:contentRevision,conflicts});return;
+      }
       if(request.type==='reset'){
+packageStage=null;contentRevision=0;archiveAccounts.clear();packageIds.clear();
 importPort?.close();importPort=null;reset(request.generation);reply(request,{ok:true});return;}
-      if(request.type==='ingestStart'){reset(request.generation);decoder=new TextDecoder();reply(request,{ok:true});return;}
+      if(request.type==='ingestStart'){if(!packageStage)reset(request.generation);decoder=new TextDecoder();textChunks=[];reply(request,{ok:true});return;}
       if(request.type==='ingestChunk'){
         if(Number(request.generation)!==generation||!decoder)throw new Error('stale data generation');
         largestImportChunk=Math.max(largestImportChunk,request.payload?.byteLength||0);
@@ -160,7 +194,7 @@ const record=byUuid.get(request.payload?.uuid);if(!record)throw new Error('conve
       if(request.type==='analyticsConnect'){connectAnalytics(request.payload.port);reply(request,{ok:true});return;}
       if(request.type==='analyticsDisconnect'){closeAnalyticsPort();reply(request,{ok:true});return;}
       if(request.type==='projectIndex'){const result=await shared.calculateProjectIndex(records,materialize,request.payload?.projects||[],request.payload?.memoryData||null,()=>new Promise(resolve=>setTimeout(resolve,0)));parsedCache.clear();reply(request,result);return;}
-      if(request.type==='debugState'){reply(request,{records:records.length,parsed:parsedCache.size,indexed:searchIndex?.size||0,consumers:consumers.size,largestImportChunk,lazy:true});return;}
+      if(request.type==='debugState'){reply(request,{records:records.length,revision:contentRevision,packages:packageIds.size,parsed:parsedCache.size,indexed:searchIndex?.size||0,consumers:consumers.size,largestImportChunk,lazy:true});return;}
       throw new Error('unknown data worker request: '+request.type);
     }).catch(error=>fail(request,error));
   };
