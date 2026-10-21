@@ -247,7 +247,7 @@ claude-export/
 ### Large-export performance
 - `conversations.json` is read in 4 MiB chunks and transferred to a persistent Data Worker with Transferable `ArrayBuffer`s
 - Initial import scans only the top-level array and returns titles, timestamps, summaries, and message counts; full messages are parsed only when a conversation is opened
-- Raw conversation JSON (including message text) and any built full-text index are cached in local IndexedDB behind a source-size, modification-time, and edge-content fingerprint; changed sources cannot reuse stale entries. The fingerprint does not mean that only metadata is stored
+- Raw conversation JSON (including message text) and any built full-text index are cached in local IndexedDB using file size, modification time, and the first/last 64 KiB. This is not a full-file digest: middle-only changes with identical size and modification time can reuse stale entries; clear the cache using the sidebar button. The fingerprint does not mean that only metadata is stored
 - The cache never leaves the current browser and can be removed at any time with **Clear local parse cache** in the sidebar
 - Syntax highlighting, Mermaid, Artifact iframes, and ZIP parsing load only when their feature or viewport requires them, keeping the initial conversation list responsive
 

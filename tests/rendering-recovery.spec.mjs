@@ -23,6 +23,7 @@ for(const mode of ['file','http'])test(mode+' viewer keeps imported rendering in
   });
   const state=await page.evaluate(()=>({probe:window.renderProbe,events:[...document.querySelectorAll('#messages *,#conv-list *')].flatMap(el=>[...el.attributes].filter(a=>a.name.startsWith('on')).map(a=>a.name)),links:[...document.querySelectorAll('#messages a')].map(a=>a.getAttribute('href')),images:[...document.querySelectorAll('#messages img')].map(el=>el.src),uuid:document.querySelector('[data-design-uuid]').dataset.designUuid}));
   expect(state.probe).toBeUndefined();expect(state.events).toEqual([]);expect(state.links.every(url=>url.startsWith('https:'))).toBe(true);expect(state.images).toEqual([]);expect(state.uuid).toBe('design" onmouseover="window.renderProbe=6');expect(requests).toEqual([]);
+  expect(state.links).toContain('https://example.invalid/path?q=1');expect(state.links).toContain('https://archive.example.invalid/image.png');
   await expect(page.locator('.code-lang')).toHaveText('text"<img/src=x/onerror=window.renderProbe=1>');
   await page.locator('#theme-btn').click();expect(await page.evaluate(()=>document.documentElement.dataset.theme)).toBe('dark');
   await page.evaluate(()=>{const script=document.createElement('script');script.textContent='window.cspProbe=1';document.body.appendChild(script);const img=document.createElement('img');img.setAttribute('onerror','window.cspProbe=2');img.src='data:image/png;base64,broken';document.body.appendChild(img);});
@@ -77,4 +78,24 @@ test('generated HTML files preview in the sandbox and still download their sourc
   await page.locator('.files > details > summary').click();const frame=page.frameLocator('iframe');await frame.locator('#local').click();await expect(frame.locator('#local')).toHaveText('done');
   expect(await page.locator('.files .fbtns a[target="_blank"]').count()).toBe(0);
   const download=page.waitForEvent('download');await page.locator('.files .fbtns a[download]').click();expect((await download).suggestedFilename()).toBe('synthetic.html');
+});
+
+test('sandbox location changes cannot navigate to a remote destination',async({page})=>{
+  const requests=[];await page.route('https://archive.example.invalid/**',route=>{requests.push(route.request().url());return route.abort();});
+  await page.goto(origin);await page.evaluate(()=>{
+    window.navigationAttempted=false;window.addEventListener('message',event=>{if(event.source===document.querySelector('iframe').contentWindow&&event.data==='synthetic-navigation-attempt')window.navigationAttempted=true;});
+    document.getElementById('messages').innerHTML=renderVisual({kind:'html',code:'<script>parent.postMessage("synthetic-navigation-attempt","*");setTimeout(()=>location.href="https://archive.example.invalid/navigation?probe=synthetic",20)<\/script>'});activateVisualFrame(document.querySelector('iframe'));
+  });await page.waitForFunction(()=>window.navigationAttempted);await page.waitForTimeout(300);expect(requests).toEqual([]);
+});
+
+for(const mode of ['file','http'])test(mode+' redaction controls use CSP-compatible code listeners',async({page})=>{
+  await page.goto(mode==='file'?pathToFileURL(path.join(root,'viewer.html')).href:origin);
+  const sample={name:'Synthetic export',chat_messages:[{sender:'human',content:[{type:'text',text:'Contact synthetic@example.invalid'}]}]};
+  await page.evaluate(sample=>{window.dialogResult=undefined;void redactionDialog(sample).then(result=>window.dialogResult=result);},sample);
+  expect(await page.locator('#redaction-modal [onclick]').count()).toBe(0);
+  await page.locator('[data-style="scp"]').click();await expect(page.locator('[data-style="scp"]')).toHaveClass(/active/);
+  await page.locator('[data-action="strength"]').click();await expect(page.locator('[data-action="strength"]')).toHaveClass(/active/);
+  await page.locator('[data-action="cancel"]').click();expect(await page.evaluate(()=>window.dialogResult)).toBeNull();
+  await page.evaluate(sample=>{void redactionDialog(sample).then(result=>window.dialogResult=result);},sample);
+  await page.locator('[data-action="export"]').click();expect(await page.evaluate(()=>window.dialogResult)).toMatchObject({style:'standard',strict:false,total:1});
 });
