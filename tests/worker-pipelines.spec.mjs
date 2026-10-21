@@ -15,6 +15,8 @@ async function load(page,count=10000){
 test('workers are lazy; 10k search and cross-page navigation only mount a window',async({page})=>{
   await load(page);
   expect(await page.evaluate(()=>[...featureWorkers.keys()])).toEqual([]);
+  expect(await page.evaluate(()=>dataWorkerRequest('search',{query:'  '}))).toEqual({uuids:[],indexed:0});
+  expect(await page.evaluate(async()=>(await dataWorkerRequest('debugState')).indexed)).toBe(0);
   await page.evaluate(()=>openConv('large'));
   await page.waitForFunction(()=>messageRenderState?.total===10000);
   expect(await page.evaluate(()=>({keys:[...featureWorkers.keys()],raw:'chat_messages' in currentConv}))).toEqual({keys:['reader'],raw:false});

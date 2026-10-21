@@ -31,7 +31,9 @@ try{
     await page.evaluate(()=>openConv('bench0'));await page.waitForFunction(()=>document.querySelectorAll('#messages .msg-wrap').length>0);
     const searchStart=performance.now();
     await page.evaluate(()=>{if(typeof readerSearch==='function')return readerSearch('SyntheticNeedle');return cSearch('SyntheticNeedle');});
-    await page.waitForTimeout(250);
+    await page.waitForFunction(()=>typeof readerSearchState!=='undefined'
+      ?readerSearchState.total===10000&&document.getElementById('csearch-count').textContent==='1 / 10000'&&!!document.querySelector('mark.cs.active')
+      :CS.matches.length===10000&&!!document.querySelector('mark.cs.active'));
     const searchMs=performance.now()-searchStart;
     const state=await page.evaluate(()=>({mounted:document.querySelectorAll('#messages .msg-wrap').length,longTasks:benchLongTasks.length,longTaskMs:benchLongTasks.reduce((a,b)=>a+b,0),maxLongTaskMs:Math.max(0,...benchLongTasks)}));
     const metrics=await cdp.send('Performance.getMetrics');state.mainHeapMiB=metrics.metrics.find(m=>m.name==='JSHeapUsedSize').value/1024/1024;

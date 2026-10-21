@@ -151,8 +151,11 @@ const record=byUuid.get(request.payload?.uuid);if(!record)throw new Error('conve
       if(request.type==='releaseConversation'){parsedCache.delete(request.payload?.uuid);reply(request,{ok:true});return;}
       if(request.type==='search'){
         const query=String(request.payload?.query||'').trim().toLowerCase(),matches=[];
-        if(query)for(const [uuid,text]of await buildSearchIndex())if(text.includes(query))matches.push(uuid);
-        reply(request,{uuids:matches,indexed:searchIndex.size});return;
+        if(!query){reply(request,{uuids:matches,indexed:searchIndex?.size||0});return;}
+        const index=await buildSearchIndex();
+        if(Number(request.generation)!==generation)throw new Error('stale data generation');
+        for(const [uuid,text]of index)if(text.includes(query))matches.push(uuid);
+        reply(request,{uuids:matches,indexed:index.size});return;
       }
       if(request.type==='analyticsConnect'){connectAnalytics(request.payload.port);reply(request,{ok:true});return;}
       if(request.type==='analyticsDisconnect'){closeAnalyticsPort();reply(request,{ok:true});return;}
