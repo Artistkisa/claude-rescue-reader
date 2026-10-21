@@ -1,6 +1,7 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import {viewerPolicy} from './viewer-policy.mjs';
+import {workerNotices} from './build-worker-assets.mjs';
 
 const root=path.resolve(import.meta.dirname,'..');
 const out=path.join(root,'dist','offline');
@@ -32,5 +33,5 @@ for(const [source,name] of copies)await fs.copyFile(path.join(root,source),path.
 await fs.writeFile(path.join(out,'viewer.html'),viewer);
 await fs.writeFile(path.join(out,'README.txt'),`Claude Rescue Reader Offline Bundle\n\nOpen viewer.html directly. Keep the vendor folder beside it.\n直接打开 viewer.html，并保持 vendor 文件夹与它位于同一目录。\n\nAll analysis stays in your browser. Artifact previews block network resources. The parse cache contains conversation text and persists until you clear it in the sidebar.\n所有分析都在浏览器本地完成；Artifact 预览禁止加载网络资源。解析缓存包含对话原文，会保留至您通过侧栏清除。\n`);
 const versions=await Promise.all(['marked','jszip','@highlightjs/cdn-assets','mermaid'].map(async dependency=>JSON.parse(await fs.readFile(path.join(root,'node_modules',dependency,'package.json'),'utf8')).version));
-await fs.writeFile(path.join(out,'THIRD_PARTY_NOTICES.txt'),`Bundled browser dependencies:\n- marked ${versions[0]} (MIT)\n- JSZip ${versions[1]} (MIT/GPLv3)\n- highlight.js CDN assets ${versions[2]} (BSD-3-Clause)\n- Mermaid ${versions[3]} (MIT)\n\nSee each package in node_modules for its complete license text.\n`);
+await fs.writeFile(path.join(out,'THIRD_PARTY_NOTICES.txt'),`Bundled browser dependencies:\n- marked ${versions[0]} (MIT)\n- JSZip ${versions[1]} (MIT/GPLv3)\n- highlight.js CDN assets ${versions[2]} (BSD-3-Clause)\n- Mermaid ${versions[3]} (MIT)\n\n${workerNotices()}\n\nMermaid license\n${await fs.readFile(path.join(root,'node_modules/mermaid/LICENSE'),'utf8')}\n`);
 console.log(`Offline bundle built at ${out}`);

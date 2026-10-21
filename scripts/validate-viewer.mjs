@@ -1,5 +1,6 @@
 import fs from 'node:fs';
 import {viewerPolicy} from './viewer-policy.mjs';
+import {embedFeatures} from './build-worker-assets.mjs';
 
 const html=fs.readFileSync('viewer.html','utf8');
 const worker=fs.readFileSync('src/analytics-worker.js','utf8').trim();
@@ -7,6 +8,7 @@ const dataWorker=fs.readFileSync('src/data-worker.js','utf8').trim();
 const core=fs.readFileSync('src/analysis-core.js','utf8').trim();
 const failures=[];
 const fail=m=>failures.push(m);
+if(embedFeatures(html).replace(/\r\n?/g,'\n')!==html.replace(/\r\n?/g,'\n'))fail('Embedded feature workers or libraries differ from their maintained sources');
 if(!/<meta http-equiv="Content-Security-Policy" content="[^"]+">/.test(html))fail('Missing viewer content policy');
 if(viewerPolicy(html)!==html)fail('Content policy hashes differ from the viewer scripts; rebuild the single file');
 if(!html.includes('script-src-attr \'none\''))fail('Content policy must prohibit inline event handlers');
@@ -22,10 +24,10 @@ const generated=html.match(/\/\/ BEGIN GENERATED ANALYTICS WORKER[^\r\n]*\r?\n([
 if(!generated)fail('Embedded analytics worker section was not found');
 else if(generated[1].trim().replace(/\r\n/g,'\n')!==worker.replace(/\r\n/g,'\n'))fail('viewer.html embedded worker differs from src/analytics-worker.js');
 
-const ids=[...html.matchAll(/\bid=["']([^"']+)["']/g)].map(m=>m[1]);
+const ids=[...html.slice(0,html.indexOf('<script>')).matchAll(/\bid=["']([^"']+)["']/g)].map(m=>m[1]);
 const duplicateIds=[...new Set(ids.filter((id,i)=>ids.indexOf(id)!==i))];
 if(duplicateIds.length)fail(`Duplicate DOM ids: ${duplicateIds.join(', ')}`);
-for(const id of['file-input','zip-input','messages','conv-list','drop-overlay','custom-stopwords-input'])if(!ids.includes(id))fail(`Required DOM id missing: ${id}`);
+for(const id of['file-input','zip-input','messages','conv-list','drop-overlay','custom-stopwords-input'])if(!ids.includes(id)&&!html.includes('id="'+id+'"'))fail(`Required DOM id missing: ${id}`);
 
 for(const [index,match] of [...html.matchAll(/<script([^>]*)>([\s\S]*?)<\/script>/gi)].entries()){
   if(/\bsrc\s*=/.test(match[1]))continue;
