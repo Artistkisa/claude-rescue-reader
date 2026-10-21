@@ -285,13 +285,22 @@ claude-export/
 
 普通的 `viewer.html` 仍保持单文件发行方式，适合联网环境或只需要基础浏览的场景。历史 Artifact 自身写死的外部资源不属于查看器依赖，离线时仍可能不可用。
 
-如需手动制作离线版，也可以在 `viewer.html` 同目录下放置以下文件并修改引用路径：
+如需从源码制作离线版，在仓库目录运行以下命令（需要 Node.js 22.12.0 或更高版本）：
+
+```bash
+npm ci
+npm run build:offline
+```
+
+构建脚本会替换依赖路径并重新生成内容安全策略（CSP）的脚本哈希；完成后打开 `dist/offline/viewer.html`，保留同目录下的 `vendor/` 文件夹。请通过构建脚本更新路径和策略，手改脚本会使已有哈希失效。
+
+以下是离线包 `vendor/` 中的依赖文件及其对应固定版本地址：
 
 ```
-marked.min.js          ← https://cdn.jsdelivr.net/npm/marked/marked.min.js
+marked.umd.js          ← https://cdn.jsdelivr.net/npm/marked@18.0.11/lib/marked.umd.js
 highlight.min.js       ← https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.11.1/build/highlight.min.js
 jszip.min.js           ← https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js
-mermaid.min.js         ← https://cdn.jsdelivr.net/npm/mermaid@11.16.0/dist/mermaid.min.js
+mermaid.min.js         ← https://cdn.jsdelivr.net/npm/mermaid@12.2.0/dist/mermaid.min.js
 github.min.css         ← https://cdn.jsdelivr.net/npm/highlight.js@11.11.1/styles/github.min.css
 github-dark.min.css    ← https://cdn.jsdelivr.net/npm/highlight.js@11.11.1/styles/github-dark.min.css
 ```
