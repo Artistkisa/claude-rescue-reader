@@ -1,0 +1,41 @@
+Object.assign(EN,{
+  'Webhook 令牌':'Webhook tokens',
+  '内嵌二进制':'Embedded binary data','二进制内容不做 OCR，安全导出移除原始数据':'Binary data is not OCR-scanned; original data is omitted from safe exports',
+  '一致化名':'Consistent aliases','相同内容使用相同代号，仅在本次导出内有效。':'The same value uses the same alias within this export only.',
+  '自定义敏感词':'Custom sensitive text','每行一项，区分大小写，按原文精确替换。最多 100 项；仅保留在当前弹窗，不保存。':'One exact, case-sensitive value per line. Up to 100 values; kept only in this dialog, never saved.',
+  '规则扫描不等于匿名化；图片内容不做 OCR。安全 PDF 不嵌入原始附件图片。':'Rule-based scanning does not guarantee anonymity. Image contents are not OCR-scanned; safe PDFs omit original attachment images.',
+  '重新扫描':'Scan again','认证凭据':'Authentication credentials','JWT 令牌':'JWT tokens','下载令牌':'Download tokens','连接凭据':'Connection credentials','个人信息字段':'Personal data field',
+  '敏感字段名与值同时出现':'Sensitive field and value','官方导出下载令牌':'Official export download token','连接地址中的用户名与密码':'Username and password in a connection URL','认证头或 Cookie':'Authentication header or cookie',
+  '敏感格式匹配':'Sensitive format match','格式匹配；强力规则可能误伤':'Format match; aggressive rules may over-redact','用户指定的精确文本':'User-specified exact text','附件图片已从安全导出中省略':'Attachment image omitted from safe export'
+});
+function redactConversation(conv,style='standard',strict=false,options={}){const core=workerDomainCore();core.configure({lang:currentLang,labels:EN});return core.redactConversation(conv,style,strict,options);}
+function redactionDialog(conv){
+  const host=document.getElementById('redaction-modal'),generation=dataWorkerGeneration,previousFocus=document.activeElement;
+  let style='standard',strict=false,version=0,closed=false,lastScan=null,timer,resolveDialog;
+  const promise=new Promise(resolve=>{resolveDialog=resolve;});
+  const el=(tag,className,text)=>{const node=document.createElement(tag);if(className)node.className=className;if(text!==undefined)node.textContent=text;return node;};
+  const button=(text,action,className)=>{const node=el('button',className,text);node.type='button';if(action)node.dataset.action=action;return node;};
+  const backdrop=el('div','redaction-backdrop'),dialog=el('section','redaction-dialog');dialog.setAttribute('role','dialog');dialog.setAttribute('aria-modal','true');dialog.setAttribute('aria-labelledby','redaction-title');
+  const title=el('h2',null,'🔐 '+t('脱敏预览'));title.id='redaction-title';dialog.append(title,el('p',null,t('仅展示遮罩后的片段；原始敏感值不会出现在预览中。')));
+  const styles=el('div','redaction-styles');for(const [value,label,example]of [['standard','标准脱敏','[REDACTED:类型]'],['scp','SCP 档案模式','████ / '+t('数据删除')],['pseudonym','一致化名','[ID_1] / [ID_2]']]){const node=button(undefined,null,'redaction-style');node.dataset.style=value;node.append(el('b',null,t(label)),el('span',null,example));styles.append(node);}
+  dialog.append(styles,el('p',null,t('相同内容使用相同代号，仅在本次导出内有效。')));
+  const strengthButton=button(undefined,'strength','redaction-strength');strengthButton.append(el('b',null,'⚠️ '+t('强力隐私过滤（可能误伤）')),el('span',null,t('额外匹配姓名、学校、单位、地址、证件、账号等宽泛个人信息。')));dialog.append(strengthButton);
+  const custom=el('label','redaction-custom'),input=el('textarea');input.id='redaction-custom';input.rows=3;input.maxLength=8192;input.autocomplete='off';input.spellcheck=false;custom.append(el('b',null,t('自定义敏感词')),input,el('span',null,t('每行一项，区分大小写，按原文精确替换。最多 100 项；仅保留在当前弹窗，不保存。')));
+  const statusNode=el('div','redaction-status');statusNode.setAttribute('role','status');const actions=el('div','redaction-actions'),exportButton=button(t('确认安全导出'),'export','primary');exportButton.disabled=true;actions.append(button(t('取消'),'cancel'),exportButton);
+  dialog.append(custom,statusNode,el('div','redaction-results'),el('p','redaction-note',t('规则扫描不等于匿名化；图片内容不做 OCR。安全 PDF 不嵌入原始附件图片。')),actions);backdrop.append(dialog);host.replaceChildren(backdrop);host.style.display='';
+  const terms=host.querySelector('textarea'),status=host.querySelector('.redaction-status'),results=host.querySelector('.redaction-results'),confirm=host.querySelector('[data-action="export"]');
+  const close=value=>{if(closed)return;closed=true;version++;clearTimeout(timer);cancelFeature('task','preview');host.style.display='none';host.replaceChildren();host.removeEventListener('click',click);host.removeEventListener('keydown',key);previousFocus?.focus();resolveDialog(value);};
+  const scan=async request=>{
+    try{
+      const result=await featureRequest('task','preview',{...conversationTaskPayload(conv),style,strict,customTerms:terms.value});
+      if(closed||request!==version)return;if(generation!==dataWorkerGeneration){close(null);return;}
+      lastScan=result;status.textContent=t('共检测到')+' '+result.total+' '+t('项；导出时将全部替换。');
+      const summary=el('div','redaction-summary');for(const [label,count]of Object.entries(result.stats))summary.append(el('span','redaction-chip',t(label)+': '+count));
+      const findings=el('div','redaction-findings');for(const m of result.matches){const finding=el('div','redaction-finding'),head=el('div','redaction-finding-head');head.append(el('b',null,t(m.label)),el('span',null,m.path));finding.append(head,el('div','redaction-preview',m.preview),el('div','redaction-reason',t(m.reason)));findings.append(finding);}if(!result.matches.length)findings.append(el('div','redaction-finding',t('未发现异常')));results.replaceChildren(summary,findings);confirm.disabled=false;
+    }catch(error){if(closed||request!==version)return;if(generation!==dataWorkerGeneration){close(null);return;}status.textContent=error.name==='AbortError'?t('已取消：已选择更新的数据'):error.message;const retry=document.createElement('button');retry.className='export-button';retry.dataset.action='retry';retry.textContent=t('重新扫描');results.replaceChildren(retry);}
+  };
+  const queue=(delay=0)=>{const request=++version;clearTimeout(timer);lastScan=null;confirm.disabled=true;cancelFeature('task','preview');status.textContent=t('扫描中…');results.replaceChildren();host.querySelectorAll('[data-style]').forEach(b=>{const active=b.dataset.style===style;b.classList.toggle('active',active);b.setAttribute('aria-pressed',String(active));});const strength=host.querySelector('[data-action="strength"]');strength.classList.toggle('active',strict);strength.setAttribute('aria-pressed',String(strict));timer=setTimeout(()=>void scan(request),delay);};
+  const click=event=>{const button=event.target.closest('button');if(!button)return;if(generation!==dataWorkerGeneration){close(null);return;}if(button.dataset.style){style=button.dataset.style;queue();return;}switch(button.dataset.action){case 'strength':strict=!strict;queue();break;case 'retry':queue();break;case 'cancel':close(null);break;case 'export':if(lastScan&&!confirm.disabled)close({...lastScan,safe:true,style,strict,customTerms:terms.value});break;}};
+  const key=event=>{if(event.key==='Escape'){event.preventDefault();close(null);}if(event.key==='Tab'){const focusable=[...host.querySelectorAll('button:not(:disabled),textarea')],first=focusable[0],last=focusable[focusable.length-1];if(event.shiftKey&&document.activeElement===first){event.preventDefault();last.focus();}else if(!event.shiftKey&&document.activeElement===last){event.preventDefault();first.focus();}}};
+  terms.addEventListener('input',()=>queue(250));host.addEventListener('click',click);host.addEventListener('keydown',key);queue();host.querySelector('[data-style="standard"]').focus();return promise;
+}

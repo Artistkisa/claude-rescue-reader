@@ -40,7 +40,7 @@ You can also select the extracted folder. Chrome, Edge, and Firefox are supporte
 | 📊 **History insights** | Activity trends, model/tool distribution, word frequency, longest chats, profiles, and health reports |
 | 🧭 **Project reconstruction** | Memories, knowledge files, evidence, confidence, local corrections, and reference graphs |
 | 🧪 **Claude behavior audit** | Tool timelines, hidden-result probes, Thinking integrity, and answer evidence chains |
-| 🛡️ **Safe sharing** | Finding previews, standard/aggressive redaction, SCP styling, and safe PDF/Markdown export |
+| 🛡️ **Safe sharing** | Expanded credential detection, standard/aggressive redaction, consistent aliases, custom sensitive text, and safe PDF/Markdown; [guide](docs/redaction.md) |
 
 > 🔒 Parsing, search, analytics, and redaction all run locally in your browser. There is no backend and your conversations are never uploaded.
 

@@ -10,9 +10,9 @@ function taskWorkerMain(){
     if(type==='highlight'){await token.checkpoint();return{html:hljs.getLanguage(payload.language)?hljs.highlight(payload.code,{language:payload.language}).value:core.esc(payload.code)};}
     if(type==='behavior')return core.behavior(token.records(),()=>token.checkpoint({loaded:token.loadedRecords||0,total:token.totalRecords||0}));
     if(type==='preview'){
-      const key=JSON.stringify([token.generation,payload.uuid,payload.conversation?null:payload.lang,payload.style,payload.strict,payload.ruleVersion||1]);
+      const options=core.redactionOptions(payload),key=JSON.stringify([token.generation,payload.uuid,core.language,payload.style,payload.strict,core.redactionRuleVersion,options.customTerms]);
       if(!payload.conversation&&cache.has(key)){const hit=cache.get(key);cache.delete(key);cache.set(key,hit);return hit;}
-      const result=await core.redactAsync(await materialize(payload,token),payload.style||'standard',!!payload.strict,token.checkpoint,true);
+      const result=await core.redactAsync(await materialize(payload,token),payload.style||'standard',!!payload.strict,token.checkpoint,true,options);
       if(!payload.conversation){cache.set(key,result);while(cache.size>4)cache.delete(cache.keys().next().value);}
       return result;
     }
@@ -35,12 +35,12 @@ function taskWorkerMain(){
     }
     if(type==='pdfPage'&&pdf?.id===payload.pdfId){const start=payload.start||0,messages=pdf.messages.slice(start,start+50).map(message=>core.prepare(message,{},true)),total=pdf.messages.length;if(start+messages.length>=total)pdf=null;return {messages,total};}
     let conversation=await materialize(payload,token);
-    if(payload.safe)conversation=(await core.redactAsync(conversation,payload.style||'standard',!!payload.strict,token.checkpoint)).conv;
-    if(type==='export')return{blob:new Blob([await core.markdown(conversation,payload.mode,payload.choices,token.checkpoint)],{type:'text/markdown;charset=utf-8'})};
+    if(payload.safe)conversation=(await core.redactAsync(conversation,payload.style||'standard',!!payload.strict,token.checkpoint,false,payload)).conv;
+    if(type==='export')return{filename:((conversation.name||'conversation').replace(/[\\/:*?"<>|\u0000-\u001f]/g,'_').slice(0,80)||'conversation')+(payload.safe?'_safe':'')+'.md',blob:new Blob([await core.markdown(conversation,payload.mode,payload.choices,token.checkpoint)],{type:'text/markdown;charset=utf-8'})};
     if(type==='pdfPage'){
       const selected=core.tree(conversation,payload.mode,payload.choices),start=payload.start||0;
       if(start+50<selected.ids.length)pdf={id:payload.pdfId,messages:selected.messages};else pdf=null;
-      return {messages:selected.messages.slice(start,start+50).map(message=>core.prepare(message,{},true)),total:selected.ids.length};
+      return {title:conversation.name||core.t('对话'),messages:selected.messages.slice(start,start+50).map(message=>core.prepare(message,{},true)),total:selected.ids.length};
     }
     throw new Error('Unknown task: '+type);
   });
