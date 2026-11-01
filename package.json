@@ -28,7 +28,7 @@
     "@highlightjs/cdn-assets": "^11.11.1",
     "@playwright/test": "1.62.1",
     "highlight.js": "^11.11.1",
-    "jszip": "3.10.1",
+    "jszip": "3.10.2",
     "marked": "^18.0.11",
     "mermaid": "^12.2.0"
   }
