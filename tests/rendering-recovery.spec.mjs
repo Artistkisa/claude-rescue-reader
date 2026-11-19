@@ -5,6 +5,14 @@ import {pathToFileURL} from 'node:url';
 import http from 'node:http';
 
 const root=path.resolve(import.meta.dirname,'..');
+// Synthetic quiz with the same exported schema as quiz_display_v0, never an executable widget.
+const historyQuiz={title:'历史小知识测试',description:'5道中外历史小题',questions:[
+  ['秦始皇统一六国后，下列哪项不是他推行的措施？',['统一文字、度量衡','废除分封制，设立郡县制','推行科举制选拔官员','修筑驰道，统一车轨'],'c','科举制创立于隋唐时期。','想想科举制最早出现在哪个朝代。'],
+  ['哥伦布第一次横渡大西洋到达美洲是在哪一年？',['1392年','1492年','1592年','1692年'],'b','1492年抵达加勒比海地区。','1492，哥伦布航行蓝色海洋。'],
+  ['四大发明中，哪项用于文字的大规模复制？',['指南针','火药','印刷术','造纸术'],'c','印刷术让书籍可以大量复制。','题目问的是复制文字。'],
+  ['古埃及的金字塔主要是用来做什么的？',['法老的陵墓','军事瞭望塔','粮食仓库','天文观测台'],'a','金字塔是法老和王室的陵墓。','与来世观念有关。'],
+  ['欧洲战事以哪一年德国投降而结束？',['1943年','1944年','1945年','1946年'],'c','1945年5月，德国无条件投降。','和日本投降是同一年。']
+].map(([prompt,texts,correct_option_id,explanation,hint],i)=>({id:'q'+i,question_type:'multiple_choice',prompt,options:texts.map((text,j)=>({id:'abcd'[j],text})),correct_option_id,explanation,hint}))};
 let server,origin;
 test.beforeAll(async()=>{
   const viewer=await fs.readFile(path.join(root,'viewer.html'));
@@ -13,8 +21,58 @@ test.beforeAll(async()=>{
 });
 test.afterAll(async()=>{if(server?.listening)await new Promise(resolve=>server.close(resolve));});
 
+for(const mode of ['file','http'])test(mode+' quiz tool renders offline with hints, grading and flashcards',async({page})=>{
+  await page.route('https://**',route=>route.abort());
+  await page.goto(mode==='file'?pathToFileURL(path.join(root,'viewer.html')).href:origin);
+  await page.evaluate(async quiz=>{
+    await ingestData(JSON.stringify([{uuid:'synthetic-quiz',name:'History quiz',chat_messages:[
+      {uuid:'call',sender:'assistant',content:[{type:'tool_use',id:'quiz-call',name:'quiz_display_v0',input:quiz}]},
+      {uuid:'result',parent_message_uuid:'call',sender:'assistant',content:[{type:'tool_result',tool_use_id:'quiz-call',content:[{type:'text',text:JSON.stringify(quiz)}]}]}
+    ]}]),[],null,[],{textContent:''});await openConv('synthetic-quiz');
+  },historyQuiz);
+  const widget=page.locator('.quiz-widget');await expect(widget).toHaveCount(1);await expect(widget.locator('h3')).toHaveText(historyQuiz.title);
+  await expect(widget.locator('[data-quiz-action="previous"]')).toBeDisabled();
+  await widget.getByRole('button',{name:'提示',exact:true}).click();await expect(widget.locator('.quiz-feedback')).toHaveText(historyQuiz.questions[0].hint);
+  await widget.screenshot({path:test.info().outputPath('quiz-widget.png')});
+  const choices=[2,1,2,0,0];
+  for(let i=0;i<5;i++){
+    await expect(widget.locator('h4')).toHaveText(historyQuiz.questions[i].prompt);
+    await widget.locator('.quiz-option').nth(choices[i]).click();await expect(widget.locator('.quiz-option').first()).toBeDisabled();
+    await expect(widget.locator('.quiz-feedback')).toContainText(historyQuiz.questions[i].explanation);
+    if(i<4)await widget.getByRole('button',{name:'下一题',exact:true}).click();
+  }
+  await widget.getByRole('button',{name:'查看评分与解析',exact:true}).click();await expect(widget.locator('h4')).toContainText('4 / 5 · 80%');await expect(widget.locator('.quiz-review li')).toHaveCount(5);
+  await widget.getByRole('button',{name:'闪卡',exact:true}).click();await expect(widget.locator('.quiz-option')).toHaveCount(0);
+  await widget.getByRole('button',{name:'显示答案',exact:true}).click();await expect(widget.locator('.quiz-feedback')).toContainText('1945年');
+  await widget.getByRole('button',{name:'测验',exact:true}).click();await expect(widget.locator('h4')).toContainText('80%');
+  await widget.getByRole('button',{name:'重新开始',exact:true}).click();await expect(widget.locator('.quiz-progress')).toHaveText('1 / 5');await expect(widget.locator('.quiz-option').first()).toBeEnabled();
+  await widget.getByRole('button',{name:'下一题',exact:true}).click();await widget.getByRole('button',{name:'上一题',exact:true}).click();await expect(widget.locator('.quiz-progress')).toHaveText('1 / 5');
+  await widget.locator('.quiz-source summary').click();await expect(widget.locator('[data-quiz-source]')).toContainText('correct_option_id');
+});
+
+test('quiz validation keeps unsupported data readable and renders imported strings inert',async({page})=>{
+  await page.goto(origin);
+  const state=await page.evaluate(quiz=>{
+    const result=content=>({type:'tool_result',name:'quiz_display_v0',content});
+    const invalid=structuredClone(quiz);invalid.questions[0].correct_option_id='missing';
+    const duplicate=structuredClone(quiz);duplicate.questions[0].options[1].id='a';
+    const unsupported=structuredClone(quiz);unsupported.questions[0].question_type='free_text';
+    const negative=[renderBlock(result('not JSON')),renderBlock(result(JSON.stringify(invalid))),renderBlock(result(JSON.stringify(duplicate))),renderBlock(result(JSON.stringify(unsupported))),renderBlock({...result(JSON.stringify(quiz)),name:'ordinary_tool'})];
+    const malicious=structuredClone(quiz);malicious.title='<img src=x onerror="window.quizProbe=1">';malicious.questions[0].prompt='<script>window.quizProbe=1<\/script>';malicious.questions[0].options[0].text='<a href="javascript:window.quizProbe=1">answer</a>';
+    document.getElementById('messages').innerHTML=renderBlock(result([{type:'text',text:JSON.stringify(malicious)}]))+renderBlock({type:'tool_result',name:'quiz_display_v0',structured_content:quiz});
+    return{negative,probe:window.quizProbe,imgs:document.querySelectorAll('.quiz-widget img,.quiz-widget script,.quiz-widget a').length};
+  },historyQuiz);
+  expect(state.negative.every(html=>!html.includes('quiz-widget'))).toBe(true);expect(state.negative[0]).toContain('not JSON');expect(state.probe).toBeUndefined();expect(state.imgs).toBe(0);
+  await expect(page.locator('.quiz-widget')).toHaveCount(2);
+  await page.locator('.quiz-widget').first().locator('.quiz-option').first().click();expect(await page.evaluate(()=>window.quizProbe)).toBeUndefined();
+  await page.evaluate(()=>{currentLang='en';document.getElementById('messages').innerHTML=renderBlock({type:'tool_result',name:'quiz_display_v0',structured_content:JSON.parse(document.querySelectorAll('[data-quiz-source]')[1].textContent).structured_content});});
+  await expect(page.getByRole('button',{name:'Flashcards',exact:true})).toBeVisible();
+});
+
 for(const mode of ['file','http'])test(mode+' viewer keeps imported rendering inert and remote images local',async({page})=>{
   const requests=[];await page.route('https://archive.example.invalid/**',route=>{requests.push(route.request().url());return route.abort();});
+  const markdown=await fs.readFile(path.join(root,'node_modules/marked/lib/marked.umd.js'));
+  await page.route(/https:\/\/(?:cdn\.jsdelivr\.net|unpkg\.com)\/(?:npm\/)?marked@/,route=>route.fulfill({body:markdown,contentType:'application/javascript',headers:{'access-control-allow-origin':'*'}}));
   await page.goto(mode==='file'?pathToFileURL(path.join(root,'viewer.html')).href:origin);
   expect(await page.evaluate(()=>ensureMarked())).toBe(true);
   await page.evaluate(()=>{

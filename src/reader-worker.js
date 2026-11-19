@@ -10,6 +10,10 @@ function readerWorkerMain(){
       if(payload.conversation)conversation=payload.conversation;
       else{conversation=null;for await(const record of token.records([payload.uuid])){conversation=JSON.parse(record.raw);if(record.meta._sourcePackage)conversation._sourcePackage=record.meta._sourcePackage;break;}}
       if(!conversation)throw new Error('Conversation not found');selectionKey='';fields=new Map();query='';offsets.clear();core.clearCodes();
+      // Result blocks may omit names; resolve only explicit tool IDs, never infer from JSON shape.
+      const quizTools=new Map();
+      for(const message of conversation.chat_messages||[]){for(const block of message.content||[])if((block?.type==='tool_use'||block?.type==='server_tool_use')&&block.id){const previous=quizTools.get(block.id);quizTools.set(block.id,quizTools.has(block.id)&&previous!==block.name?null:block.name);}await token.checkpoint();}
+      for(const message of conversation.chat_messages||[]){for(const block of message.content||[])if(block?.type==='tool_result'&&!block.name){const name=quizTools.get(block.tool_use_id);if(/^quiz_display(?:_v\d+)?$/.test(String(name||'').split('.').pop()))block.name=name;}await token.checkpoint();}
       const {chat_messages,...meta}=conversation;select(payload);
       return {meta:{...meta,_summaryHtml:meta.summary?marked.parse(meta.summary):'',message_count:chat_messages?.length||0,_readerBacked:true},total:selection.ids.length};
     }

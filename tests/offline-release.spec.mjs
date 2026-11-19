@@ -11,6 +11,13 @@ let fixtureDir;
 test.beforeAll(async()=>{fixtureDir=await fs.mkdtemp(path.join(os.tmpdir(),'crr-offline-'));await fs.writeFile(path.join(fixtureDir,'conversations.json'),JSON.stringify(conversations));});
 test.afterAll(async()=>{if(fixtureDir)await fs.rm(fixtureDir,{recursive:true,force:true});});
 
+test('offline quiz tool grades answers without network or executable content',async({page})=>{
+  const network=[];await page.route(/^https?:/,route=>{network.push(route.request().url());return route.abort();});
+  await page.goto(pathToFileURL(path.join(root,'dist','offline','viewer.html')).href);
+  await page.evaluate(()=>{document.getElementById('messages').innerHTML=renderBlock({type:'tool_result',name:'quiz_display_v0',structured_content:{title:'Synthetic quiz',questions:[{question_type:'multiple_choice',prompt:'1 + 1 = ?',options:[{id:'a',text:'2'},{id:'b',text:'3'}],correct_option_id:'a',explanation:'Synthetic explanation'}]}});});
+  const quiz=page.locator('.quiz-widget');await quiz.locator('.quiz-option').first().click();await quiz.getByRole('button',{name:'查看评分与解析',exact:true}).click();await expect(quiz.locator('h4')).toContainText('100%');expect(network).toEqual([]);
+});
+
 test('offline bundle loads all optional features without network',async({page})=>{
   const network=[];await page.route('http://**',route=>{network.push(route.request().url());return route.abort();});await page.route('https://**',route=>{network.push(route.request().url());return route.abort();});
   const errors=[];page.on('pageerror',error=>errors.push(error.message));
