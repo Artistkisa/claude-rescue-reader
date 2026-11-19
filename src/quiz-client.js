@@ -68,6 +68,38 @@ function renderQuiz(block,location=''){
   quizStates.delete(key);quizStates.set(key,state);while(quizStates.size>32)quizStates.delete(quizStates.keys().next().value);
   return '<section class="quiz-widget" data-quiz-state="'+state.id+'" aria-label="'+escAttr(quiz.title||quizLabel('测验','Quiz'))+'"><h3>'+esc(quiz.title||quizLabel('测验','Quiz'))+'</h3><p>'+esc(quiz.description)+'</p><div class="quiz-stage">'+quizStage(state)+'</div><details class="quiz-source"><summary>'+esc(quizLabel('查看原始测验数据','View original quiz data'))+'</summary><pre data-quiz-source>'+esc(JSON.stringify(source,null,2))+'</pre></details></section>';
 }
+// Interactive updates use DOM construction: imported strings only enter textContent.
+function quizStageDOM(state){
+  const fragment=document.createDocumentFragment();
+  const add=(parent,tag,text,cls)=>{const el=document.createElement(tag);if(text!==undefined)el.textContent=text;if(cls)el.className=cls;parent.append(el);return el;};
+  const button=(parent,action,text,disabled=false)=>{const el=add(parent,'button',text);el.type='button';el.dataset.quizAction=action;el.disabled=disabled;return el;};
+  const {quiz,index,answers,mode,results,hint,flipped}=state,q=quiz.questions[index],picked=answers[index],answered=picked!==undefined;
+  const tabs=add(fragment,'div',undefined,'quiz-tabs');tabs.setAttribute('role','group');tabs.setAttribute('aria-label',quizLabel('学习模式','Study mode'));
+  for(const [action,zh,en] of [['quiz','测验','Quiz'],['flashcards','闪卡','Flashcards']])button(tabs,action,quizLabel(zh,en)).setAttribute('aria-pressed',String(mode===action));
+  const heading=text=>{const el=add(fragment,'h4',text,'quiz-focus');el.tabIndex=-1;};
+  if(results&&mode==='quiz'){
+    const score=quiz.questions.filter((question,i)=>answers[i]===question.answer).length;
+    heading(quizLabel('得分','Score')+': '+score+' / '+quiz.questions.length+' · '+Math.round(100*score/quiz.questions.length)+'%');
+    const list=add(fragment,'ol',undefined,'quiz-review');
+    quiz.questions.forEach((question,i)=>{const row=add(list,'li'),answer=question.options.find(o=>o.id===answers[i]),correct=question.options.find(o=>o.id===question.answer),ok=answers[i]===question.answer;
+      add(row,'p',question.prompt);add(row,'p',(ok?quizLabel('回答正确','Correct'):quizLabel('回答错误','Incorrect'))+' · '+(answer?.text||quizLabel('未作答','Unanswered')),ok?'quiz-correct':'quiz-incorrect');add(row,'p',quizLabel('正确答案：','Correct answer: ')+correct.text);add(row,'p',question.explanation);
+    });button(fragment,'restart',quizLabel('重新开始','Try again'));return fragment;
+  }
+  add(fragment,'p',(index+1)+' / '+quiz.questions.length,'quiz-progress');heading(q.prompt);
+  if(mode==='flashcards'){
+    if(flipped){const feedback=add(fragment,'div',undefined,'quiz-feedback');add(feedback,'strong',q.options.find(o=>o.id===q.answer).text);add(feedback,'p',q.explanation);}
+    button(fragment,'flip',flipped?quizLabel('隐藏答案','Hide answer'):quizLabel('显示答案','Show answer'));
+  }else{
+    const options=add(fragment,'div',undefined,'quiz-options');options.setAttribute('role','group');options.setAttribute('aria-label',quizLabel('选择答案','Choose an answer'));
+    q.options.forEach((option,i)=>{const el=button(options,'answer','',answered);el.className='quiz-option'+(answered?(option.id===q.answer?' quiz-correct':option.id===picked?' quiz-incorrect':''):'');el.dataset.quizOption=String(i);el.setAttribute('aria-pressed',String(picked===option.id));add(el,'span',String.fromCharCode(65+i));el.append(document.createTextNode(option.text));});
+    if(answered){const feedback=add(fragment,'div',undefined,'quiz-feedback');feedback.setAttribute('role','status');add(feedback,'strong',picked===q.answer?quizLabel('回答正确','Correct'):quizLabel('回答错误','Incorrect'));add(feedback,'p',q.explanation);}
+    else if(q.hint){button(fragment,'hint',quizLabel('提示','Hint'));if(hint)add(fragment,'p',q.hint,'quiz-feedback');}
+  }
+  const navigation=add(fragment,'div',undefined,'quiz-navigation');button(navigation,'previous',quizLabel('上一题','Back'),index===0);
+  if(index+1<quiz.questions.length)button(navigation,'next',quizLabel('下一题','Next'));
+  else if(mode==='quiz')button(navigation,'results',quizLabel('查看评分与解析','View results'),answers.filter(a=>a!==undefined).length!==quiz.questions.length);
+  return fragment;
+}
 document.addEventListener('click',event=>{
   const button=event.target.closest('[data-quiz-action]'),root=button?.closest('.quiz-widget');if(!root||button.disabled)return;
   const state=[...quizStates.values()].find(s=>s.id===root.dataset.quizState);if(!state)return;
@@ -80,7 +112,6 @@ document.addEventListener('click',event=>{
   else if(action==='restart'){state.answers=[];state.index=0;state.results=false;state.hint=false;state.flipped=false;}
   else if(action==='quiz'||action==='flashcards')state.mode=action==='quiz'?'quiz':'flashcards';
   else return;
-  // quizStage emits only fixed markup and escaped text; imported values never become markup or handlers.
-  root.querySelector('.quiz-stage').innerHTML=quizStage(state);
+  root.querySelector('.quiz-stage').replaceChildren(quizStageDOM(state));
   root.querySelector('.quiz-focus')?.focus({preventScroll:true});
 });
