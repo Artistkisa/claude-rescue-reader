@@ -4,9 +4,9 @@
 
 **本地 Claude 导出历史查看器**
 
-支持新版 `manifest-*.json` 下载清单、多个 ZIP 分包、独立记忆 ZIP 和 Artifact 历史版本。[新版导入说明](docs/new-export-import.md)
+**已适配 Claude 新版分包导出**：下载清单 → 官方分包下载页 → 批量导入 ZIP。支持两种记忆导出入口与 Artifact 历史版本，继续兼容旧版 ZIP / 文件夹。[新版导入说明](docs/new-export-import.md)
 
-> **把 Claude 官方导出的 ZIP，变成可搜索、可分析、可安全分享的本地对话档案。**
+> **把 Claude 官方导出的清单与 ZIP 分包，变成可搜索、可分析、可安全分享的本地对话档案。**
 
 无需安装 · 单文件打开 · ZIP 免解压 · 纯本地处理 · 支持大型历史
 
@@ -27,11 +27,25 @@
 
 ## 30 秒开始
 
-1. 从 Claude 下载官方数据导出 ZIP。
-2. [直接下载 `viewer.html`](https://github.com/Artistkisa/claude-rescue-reader/releases/latest/download/viewer.html)，双击用浏览器打开。
-3. 把 ZIP 拖进页面——**不用解压，不用上传，不用安装。**
+1. [直接下载 `viewer.html`](https://github.com/Artistkisa/claude-rescue-reader/releases/latest/download/viewer.html)，双击用浏览器打开。
+2. **新版导出拿到 JSON 清单？** 点击侧栏「下载与导入」→「导入下载清单」，选择 `manifest-*.json`；逐项点击「打开下载页」，在新标签页中手动下载官方 ZIP。
+3. 一次选择或拖入下载好的多个 ZIP——**不用解压，不用上传，不用安装。** 后续分包用「追加分包」加入同一档案。
 
-也可以选择解压后的整个文件夹；Chrome、Edge 和 Firefox 均可使用。
+**旧版只有一个 ZIP？** 直接拖入即可，无需清单；解压后的整个文件夹也能导入。Chrome、Edge 和 Firefox 均可使用。
+
+### 新旧 Claude 导出都能读
+
+| 拿到的文件 | 如何使用 |
+|---|---|
+| 新版 `manifest-*.json` | 专门的下载清单页显示类别、分包和导入状态；按钮打开官方地址，不自动请求链接，也不把打开页面当作下载完成 |
+| 新版多个 ZIP 分包 | 对话、项目、记忆、作品（`frames`）和账户资料可按任意顺序追加；没有清单也能识别导入，缺包不阻止查看已有内容 |
+| 账户导出中的记忆 | 读取 `memories/<账号>.json` 的 `memory_files`，保留主题、来源和可用时间 |
+| 独立记忆 ZIP | 读取 Markdown 目录与 frontmatter；可单独打开或明确追加到当前档案，不同正文保留可切换版本 |
+| 旧版 ZIP / 导出文件夹 | 继续支持 `conversations.json`、`memories.json`、项目文件和 Design，原入口仍可使用 |
+
+新版还支持 **Artifact 独立作品列表与历史版本选择**、导出中明确存在的 Thinking 状态、折叠的注入上下文，以及本地只读账户资料和分页登录记录。缺失模型显示「未提供」，不会推测补齐。
+
+下载链接可能在 24 小时内或使用后提前失效，请在浏览器中完成官方下载。另一份档案用「打开新档案」，同一份档案的后续包用「追加分包」。[完整流程与兼容说明](docs/new-export-import.md)
 
 | 你会得到 | 不只是“能打开” |
 |---|---|
@@ -180,7 +194,7 @@ Claude 的导出文件是这样的：
 
 </details>
 
-导出文件夹结构如下：
+旧版导出文件夹结构示例（新版按类别分包，不要求这些文件位于同一个 ZIP）：
 
 ```
 claude-export/
@@ -194,9 +208,10 @@ claude-export/
 ### 第二步：打开查看器
 
 1. 下载 [`viewer.html`](viewer.html)，直接用浏览器打开（推荐 Chrome / Edge / Firefox）
-2. 二选一加载数据：
-   - 点击「🗜️ 直接选择 ZIP 压缩包」，选择邮件里下载的 ZIP（**免解压**）
-   - 或点击「📂 选择导出文件夹」，选择手动解压后的整个文件夹
+2. 按导出格式加载：
+   - **新版清单**：进入「下载与导入」，导入 `manifest-*.json`，打开官方分包下载页；下载后批量选择 ZIP，用「追加分包」补充内容
+   - **已有 ZIP**：直接选择或拖入一个或多个 ZIP（**免解压，不要求清单**）
+   - **已有文件夹**：点击「📂 选择导出文件夹」，选择解压后的整个目录；旧版格式继续兼容
 3. 等待加载完成（大文件约需数秒，150MB 约 3–5 秒）
 
 > **注意**：需要网络连接以加载渲染依赖（来自 jsDelivr CDN）。离线使用请参考下方[离线模式](#离线模式)说明。
@@ -358,6 +373,12 @@ github-dark.min.css    ← https://cdn.jsdelivr.net/npm/highlight.js@11.11.1/sty
 - [MIT License](LICENSE)
 
 ## Changelog
+
+**v1.5** *(2026-10-21)*
+- **适配 Claude 新版导出**：manifest 下载清单、专门的下载页面、多个 ZIP 分包批量导入与追加
+- 同时支持账户分包记忆与独立 Markdown 记忆 ZIP，保留主题来源与可切换版本；兼容旧 `memories.json`
+- 新增 Artifact 作品及历史版本、本地账户资料与分页登录记录，适配 Thinking 和注入上下文字段
+- 保留旧版 ZIP、文件夹和 Design 导入，以及单文件与完整离线发行方式
 
 **v1.4** *(2026-07-30)*
 - 增强图片补挂载、项目自定义指令、项目文件下载和更完整的统计洞察
