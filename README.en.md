@@ -4,9 +4,9 @@
 
 **A local Claude Export History Viewer**
 
-Supports new `manifest-*.json` download checklists, partitioned ZIPs, standalone memory ZIPs, and Artifact versions. [Import guide](docs/new-export-import.md)
+**Updated for Claude's new partitioned exports**: manifest checklist → official package downloads → batch ZIP import. Read both memory export formats and Artifact versions, with continued support for legacy ZIPs and folders. [Import guide](docs/new-export-import.md)
 
-> **Turn Claude's official export ZIP into a searchable, analyzable, privacy-safe local archive.**
+> **Turn Claude's official export manifests and ZIP packages into a searchable, analyzable, privacy-safe local archive.**
 
 No installation · one file · ZIP without extraction · local-only · built for large histories
 
@@ -27,11 +27,25 @@ No installation · one file · ZIP without extraction · local-only · built for
 
 ## Start in 30 seconds
 
-1. Download your official Claude data export ZIP.
-2. [Download `viewer.html` directly](https://github.com/Artistkisa/claude-rescue-reader/releases/latest/download/viewer.html) and open it in your browser.
-3. Drop the ZIP onto the page — **no extraction, upload, or installation required.**
+1. [Download `viewer.html` directly](https://github.com/Artistkisa/claude-rescue-reader/releases/latest/download/viewer.html) and open it in your browser.
+2. **Received a JSON manifest?** Open **Download & import** → **Import download manifest**, select `manifest-*.json`, then use **Open download page** for each package. Download the official ZIPs manually in the new tabs.
+3. Select or drop the downloaded ZIPs together — **no extraction, upload, or installation required.** Use **Add packages** for later parts of the same archive.
 
-You can also select the extracted folder. Chrome, Edge, and Firefox are supported.
+**Have a legacy single ZIP?** Drop it directly; no manifest is needed. Extracted folders also work. Chrome, Edge, and Firefox are supported.
+
+### New and legacy Claude exports
+
+| Files you received | How to use them |
+|---|---|
+| New `manifest-*.json` | A dedicated checklist shows categories, parts and import status. Buttons open official downloads; the viewer never fetches them automatically or treats an opened page as a completed download |
+| Multiple new ZIP packages | Append conversations, projects, memories, artifacts (`frames`) and account metadata in any order. Import without a manifest too; missing packages do not block available content |
+| Memory in an account export | Read `memory_files` from `memories/<account>.json`, preserving topics, sources and available timestamps |
+| Standalone memory ZIP | Read Markdown directories and frontmatter. Open separately or explicitly append to the current archive; differing bodies remain selectable versions |
+| Legacy ZIP / extracted folder | Continue importing `conversations.json`, `memories.json`, project files and Design through the existing entries |
+
+New-format support also includes a **separate Artifact library with historical version selection**, explicitly exported Thinking states, folded injected context, and local read-only account details with paged login history. Missing models stay **Not provided**.
+
+Download links may expire within 24 hours or earlier after use; complete official downloads in your browser. Use **Open new archive** for another archive and **Add packages** for later parts of the same one. [Full workflow and compatibility details](docs/new-export-import.md)
 
 | What you get | More than “it opens” |
 |---|---|
@@ -180,7 +194,7 @@ So you need to explain to Anthropic what you were using Claude for, so they can 
 
 </details>
 
-The export folder structure:
+Example legacy export folder (new exports are split by category; these files need not share one ZIP):
 
 ```
 claude-export/
@@ -194,9 +208,10 @@ claude-export/
 ### Step 2: Open the Viewer
 
 1. Download [`viewer.html`](viewer.html) and open it directly in a browser (Chrome / Edge / Firefox recommended)
-2. Load your data either way:
-   - Click **"🗜️ Select ZIP Archive"** and pick the ZIP from the email (**no unzipping needed**)
-   - Or click **"📂 Select Export Folder"** and choose the manually unzipped folder
+2. Choose the flow for your export:
+   - **New manifest:** open **Download & import**, import `manifest-*.json`, and open the official package pages. Select downloaded ZIPs together and use **Add packages** for later parts
+   - **Existing ZIPs:** select or drop one or more ZIPs directly (**no extraction or manifest required**)
+   - **Existing folder:** choose **📂 Select Export Folder** and select the extracted directory; legacy formats remain supported
 3. Wait for loading to complete (a few seconds for large files; ~3–5s for 150MB)
 
 > **Note:** An internet connection is required to load rendering dependencies (from jsDelivr CDN). For offline use, see [Offline Mode](#offline-mode) below.
@@ -358,6 +373,12 @@ Five lazy Workers (Data, Import, Task, Reader, Analytics) and their shared algor
 - [MIT License](LICENSE)
 
 ## Changelog
+
+**v1.5** *(2026-10-21)*
+- **Support for Claude's new export format:** manifest checklists, a dedicated download page, batch ZIP imports and package appending
+- Read account-package memory and standalone Markdown memory ZIPs with source tracking and selectable versions; retain legacy `memories.json` support
+- Add Artifact libraries and historical versions, local account details and paged login history, plus Thinking and injected-context field support
+- Keep legacy ZIP, folder and Design imports, the single-file viewer and the complete offline distribution
 
 **v1.4** *(2026-07-30)*
 - Expanded image reattachment, project instructions, project-file downloads, and richer analytics insights
