@@ -2,7 +2,7 @@ import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import vm from 'node:vm';
-const core=vm.runInNewContext(fs.readFileSync(new URL('../src/worker-core.js',import.meta.url),'utf8')+';workerDomainCore()',{structuredClone,Map,Set,Blob});
+const core=vm.runInNewContext(fs.readFileSync(new URL('../src/redaction-rules.js',import.meta.url),'utf8')+'\n'+fs.readFileSync(new URL('../src/worker-core.js',import.meta.url),'utf8')+';workerDomainCore()',{structuredClone,Map,Set,Blob});
 const sample=text=>({name:'Synthetic',chat_messages:[{uuid:'m',sender:'human',content:[{type:'text',text}]}]});
 const text=result=>result.conv.chat_messages[0].content[0].text;
 

@@ -22,7 +22,7 @@
     "test:benchmark": "node --test tests/benchmark-utils.test.mjs tests/benchmark-reports.test.mjs",
     "test:policy": "node --test tests/viewer-policy.test.mjs",
     "test:offline": "playwright test tests/offline-release.spec.mjs",
-    "test:worker-core": "node --test tests/worker-core.test.mjs tests/export-format.test.mjs tests/redaction.test.mjs"
+    "test:worker-core": "node --test tests/worker-core.test.mjs tests/export-format.test.mjs tests/redaction.test.mjs tests/redaction-context.test.mjs"
   },
   "devDependencies": {
     "@highlightjs/cdn-assets": "^11.11.1",

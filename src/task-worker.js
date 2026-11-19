@@ -10,7 +10,7 @@ function taskWorkerMain(){
     if(type==='highlight'){await token.checkpoint();return{html:hljs.getLanguage(payload.language)?hljs.highlight(payload.code,{language:payload.language}).value:core.esc(payload.code)};}
     if(type==='behavior')return core.behavior(token.records(),()=>token.checkpoint({loaded:token.loadedRecords||0,total:token.totalRecords||0}));
     if(type==='preview'){
-      const options=core.redactionOptions(payload),key=JSON.stringify([token.generation,payload.uuid,core.language,payload.style,payload.strict,core.redactionRuleVersion,options.customTerms]);
+      const options=core.redactionOptions(payload),key=JSON.stringify([token.generation,payload.uuid,core.language,payload.style,payload.strict,core.redactionRuleVersion,options.customTerms,options.includeContextCandidates,options.customSimilarity]);
       if(!payload.conversation&&cache.has(key)){const hit=cache.get(key);cache.delete(key);cache.set(key,hit);return hit;}
       const result=await core.redactAsync(await materialize(payload,token),payload.style||'standard',!!payload.strict,token.checkpoint,true,options);
       if(!payload.conversation){cache.set(key,result);while(cache.size>4)cache.delete(cache.keys().next().value);}
@@ -35,7 +35,7 @@ function taskWorkerMain(){
     }
     if(type==='pdfPage'&&pdf?.id===payload.pdfId){const start=payload.start||0,messages=pdf.messages.slice(start,start+50).map(message=>core.prepare(message,{},true)),total=pdf.messages.length;if(start+messages.length>=total)pdf=null;return {messages,total};}
     let conversation=await materialize(payload,token);
-    if(payload.safe)conversation=(await core.redactAsync(conversation,payload.style||'standard',!!payload.strict,token.checkpoint,false,payload)).conv;
+    if(payload.safe){const redacted=await core.redactAsync(conversation,payload.style||'standard',!!payload.strict,token.checkpoint,false,payload);if(!redacted.complete)throw new Error(core.t('近似扫描未完成，请关闭近似匹配后重新扫描。'));conversation=redacted.conv;}
     if(type==='export')return{filename:((conversation.name||'conversation').replace(/[\\/:*?"<>|\u0000-\u001f]/g,'_').slice(0,80)||'conversation')+(payload.safe?'_safe':'')+'.md',blob:new Blob([await core.markdown(conversation,payload.mode,payload.choices,token.checkpoint)],{type:'text/markdown;charset=utf-8'})};
     if(type==='pdfPage'){
       const selected=core.tree(conversation,payload.mode,payload.choices),start=payload.start||0;

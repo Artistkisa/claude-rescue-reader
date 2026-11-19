@@ -24,6 +24,40 @@ test('preview cache includes custom rules and keeps original values out of summa
   await load(page,2);const result=await page.evaluate(async()=>{const conversation={uuid:'cache',name:'Synthetic',chat_messages:[{uuid:'one',content:[{type:'text',text:'AlphaPerson BetaPerson'}]}]};await ingestData(JSON.stringify([conversation]),[],null,[],{textContent:''});const scans=[];for(const customTerms of ['AlphaPerson','','BetaPerson','AlphaPerson'])scans.push(await featureRequest('task','preview',{uuid:'cache',customTerms}));return scans;});expect(result.map(s=>s.total)).toEqual([1,0,1,1]);expect(JSON.stringify(result)).not.toContain('AlphaPerson');expect(JSON.stringify(result)).not.toContain('BetaPerson');
 });
 
+test('context and similarity options isolate previews and agree with Markdown and PDF',async({page})=>{
+  await load(page,2);
+  const scans=await page.evaluate(async()=>{
+    await ingestData(JSON.stringify([{uuid:'contexts',name:'Synthetic',chat_messages:[{uuid:'one',sender:'human',content:[{type:'text',text:'联系人：张三。\nＡＬＰＨＡＰＥＲＳＯＮ\nabcdefghijx'}]}]}]),[],null,[],{textContent:''});
+    const results=[];
+    for(const includeContextCandidates of [false,true])for(const customSimilarity of [false,true]){
+      const payload={uuid:'contexts',safe:true,customTerms:['AlphaPerson','abcdefghijk'],includeContextCandidates,customSimilarity};
+      const preview=await featureRequest('task','preview',payload),markdown=await featureRequest('task','export',payload),pdf=await featureRequest('task','pdfPage',{...payload,pdfId:String(results.length),start:0});
+      results.push({preview,markdown:await markdown.blob.text(),pdf:JSON.stringify(pdf)});
+    }
+    await openConv('contexts');return results;
+  });
+  expect(scans.map(r=>r.preview.total)).toEqual([0,2,1,3]);expect(scans.map(r=>r.preview.candidateTotal)).toEqual([1,1,0,0]);
+  for(const [i,result]of scans.entries()){
+    expect(result.markdown.includes('张三')).toBe(i<2);expect(result.pdf.includes('张三')).toBe(i<2);
+    expect(result.markdown.includes('ＡＬＰＨＡＰＥＲＳＯＮ')).toBe(i%2===0);expect(result.pdf.includes('ＡＬＰＨＡＰＥＲＳＯＮ')).toBe(i%2===0);
+  }
+  await page.evaluate(()=>void redactionDialog(currentConv));const modal=page.locator('#redaction-modal');
+  await expect(modal.locator('.redaction-status')).toContainText('未纳入的语境候选数量: 1');
+  await modal.locator('[data-action="context"]').click();await expect(modal.locator('[data-action="context"]')).toHaveAttribute('aria-pressed','true');
+  await expect(modal.locator('.redaction-status')).toContainText('将替换数量: 1');await page.keyboard.press('Escape');
+});
+
+test('incomplete similarity blocks safe export, can be disabled, and worker can retry',async({page})=>{
+  await load(page,2);await page.evaluate(async()=>{
+    await ingestData(JSON.stringify([{uuid:'limit',name:'Synthetic',chat_messages:[{uuid:'one',sender:'human',content:[{type:'text',text:'abcdefghijx '.repeat(1000)}]}]}]),[],null,[],{textContent:''});await openConv('limit');void redactionDialog(currentConv);
+  });
+  const modal=page.locator('#redaction-modal');await modal.locator('textarea').fill('abcdefghijk');await modal.locator('[data-action="similarity"]').click();
+  await expect(modal.locator('.redaction-status')).toContainText('近似扫描未完成');await expect(modal.locator('[data-action="export"]')).toBeDisabled();
+  expect(await page.evaluate(async()=>{try{await featureRequest('task','export',{uuid:'limit',safe:true,customTerms:['abcdefghijk'],customSimilarity:true});return 'exported';}catch(error){return error.message;}})).toContain('近似扫描未完成');
+  await modal.locator('[data-action="similarity"]').click();await expect(modal.locator('[data-action="export"]')).toBeEnabled();
+  await page.evaluate(()=>destroyFeature('task'));await modal.locator('textarea').fill('different');await expect(modal.locator('[data-action="export"]')).toBeEnabled();await page.keyboard.press('Escape');
+});
+
 test('a completed redaction preview cannot confirm an export after the source changes',async({page})=>{
   await load(page,2);await page.evaluate(()=>{window.staleRedaction=undefined;void redactionDialog({name:'old@example.invalid',chat_messages:[]}).then(value=>window.staleRedaction=value);});await expect(page.locator('#redaction-modal [data-action="export"]')).toBeEnabled();await page.evaluate(()=>newExportArchive());await page.locator('#redaction-modal [data-action="export"]').click();expect(await page.evaluate(()=>window.staleRedaction)).toBeNull();
 });
