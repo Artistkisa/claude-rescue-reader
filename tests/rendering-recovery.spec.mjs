@@ -32,12 +32,15 @@ for(const mode of ['file','http'])test(mode+' quiz tool renders offline with hin
   },historyQuiz);
   const widget=page.locator('.quiz-widget');await expect(widget).toHaveCount(1);await expect(widget.locator('h3')).toHaveText(historyQuiz.title);
   await expect(widget.locator('[data-quiz-action="previous"]')).toBeDisabled();
+  await expect(widget.locator('.quiz-feedback')).toHaveCount(0);
   await widget.getByRole('button',{name:'提示',exact:true}).click();await expect(widget.locator('.quiz-feedback')).toHaveText(historyQuiz.questions[0].hint);
   await widget.screenshot({path:test.info().outputPath('quiz-widget.png')});
   const choices=[2,1,2,0,0];
   for(let i=0;i<5;i++){
     await expect(widget.locator('h4')).toHaveText(historyQuiz.questions[i].prompt);
-    await widget.locator('.quiz-option').nth(choices[i]).click();await expect(widget.locator('.quiz-option').first()).toBeDisabled();
+    await widget.locator('.quiz-option').nth(choices[i]).click();await expect(widget.locator('.quiz-option:disabled')).toHaveCount(4);
+    await widget.locator('.quiz-option').nth((choices[i]+1)%4).evaluate(button=>button.dispatchEvent(new MouseEvent('click',{bubbles:true})));
+    await expect(widget.locator('.quiz-option[aria-pressed="true"]')).toHaveText(new RegExp(historyQuiz.questions[i].options[choices[i]].text));
     await expect(widget.locator('.quiz-feedback')).toContainText(historyQuiz.questions[i].explanation);
     if(i<4)await widget.getByRole('button',{name:'下一题',exact:true}).click();
   }
@@ -46,8 +49,27 @@ for(const mode of ['file','http'])test(mode+' quiz tool renders offline with hin
   await widget.getByRole('button',{name:'显示答案',exact:true}).click();await expect(widget.locator('.quiz-feedback')).toContainText('1945年');
   await widget.getByRole('button',{name:'测验',exact:true}).click();await expect(widget.locator('h4')).toContainText('80%');
   await widget.getByRole('button',{name:'重新开始',exact:true}).click();await expect(widget.locator('.quiz-progress')).toHaveText('1 / 5');await expect(widget.locator('.quiz-option').first()).toBeEnabled();
-  await widget.getByRole('button',{name:'下一题',exact:true}).click();await widget.getByRole('button',{name:'上一题',exact:true}).click();await expect(widget.locator('.quiz-progress')).toHaveText('1 / 5');
+  await widget.getByRole('button',{name:'下一题',exact:true}).click();await expect(widget.locator('.quiz-option:enabled')).toHaveCount(4);await expect(widget.locator('.quiz-option[aria-pressed="true"]')).toHaveCount(0);await widget.getByRole('button',{name:'上一题',exact:true}).click();await expect(widget.locator('.quiz-progress')).toHaveText('1 / 5');
   await widget.locator('.quiz-source summary').click();await expect(widget.locator('[data-quiz-source]')).toContainText('correct_option_id');
+});
+
+test('quiz limits, result type, source fidelity and progress survive rerender',async({page})=>{
+  await page.goto(origin);
+  await page.evaluate(quiz=>{window.syntheticQuizBlock={type:'tool_result',_quizToolName:'quiz_display_v0',content:[{type:'text',text:JSON.stringify(quiz)}]};document.getElementById('messages').innerHTML=renderBlock(window.syntheticQuizBlock,'stable');},historyQuiz);
+  const widget=page.locator('.quiz-widget');await widget.locator('.quiz-option').nth(2).click();await widget.getByRole('button',{name:'下一题',exact:true}).click();
+  await page.evaluate(()=>{currentLang='en';document.getElementById('messages').innerHTML=renderBlock(window.syntheticQuizBlock,'stable');});
+  await expect(widget.locator('.quiz-progress')).toHaveText('2 / 5');await widget.getByRole('button',{name:'Back',exact:true}).click();await expect(widget.locator('.quiz-option:disabled')).toHaveCount(4);
+  const result=await page.evaluate(quiz=>{
+    const source=JSON.parse(document.querySelector('[data-quiz-source]').textContent);
+    const huge={type:'tool_result',name:'quiz_display_v0',content:'x'.repeat(300000)};
+    const nonResult=renderBlock({type:'text',name:'quiz_display_v0',structured_content:quiz});
+    const oversized=renderBlock(huge);
+    const long=structuredClone(quiz);long.questions[0].prompt='x'.repeat(9000);
+    const rejected=readQuiz({type:'tool_result',name:'quiz_display_v0',structured_content:long});
+    return{source,nonResult,oversized,rejected};
+  },historyQuiz);
+  expect(result.source).not.toHaveProperty('name');expect(result.source).not.toHaveProperty('_quizToolName');expect(result.nonResult).not.toContain('quiz-widget');expect(result.oversized.length).toBeLessThan(300);expect(result.rejected).toBeNull();
+  await page.evaluate(()=>{resetFeatureWorkers();document.getElementById('messages').innerHTML=renderBlock(window.syntheticQuizBlock,'stable');});await expect(widget.locator('.quiz-progress')).toHaveText('1 / 5');await expect(widget.locator('.quiz-option:enabled')).toHaveCount(4);
 });
 
 test('quiz validation keeps unsupported data readable and renders imported strings inert',async({page})=>{

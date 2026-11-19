@@ -1,5 +1,5 @@
 function readerWorkerMain(){
-  const core=workerDomainCore();let conversation=null,selection=null,selectionKey='',fields=null,query='',queryCounts=[],total=0;const offsets=new Map();
+  const core=workerDomainCore();let conversation=null,quizNames=new Map(),selection=null,selectionKey='',fields=null,query='',queryCounts=[],total=0;const offsets=new Map();
   const select=payload=>{
     const key=JSON.stringify([payload.mode||'longest',payload.choices||{}]);
     if(key!==selectionKey){selectionKey=key;selection=core.tree(conversation,payload.mode,payload.choices);query='';}
@@ -7,13 +7,14 @@ function readerWorkerMain(){
   };
   featureWorkerRuntime(core,async(type,payload,token)=>{
     if(type==='open'){
-      if(payload.conversation)conversation=payload.conversation;
-      else{conversation=null;for await(const record of token.records([payload.uuid])){conversation=JSON.parse(record.raw);if(record.meta._sourcePackage)conversation._sourcePackage=record.meta._sourcePackage;break;}}
-      if(!conversation)throw new Error('Conversation not found');selectionKey='';fields=new Map();query='';offsets.clear();core.clearCodes();
+      let next=payload.conversation||null;
+      if(!next)for await(const record of token.records([payload.uuid])){next=JSON.parse(record.raw);if(record.meta._sourcePackage)next._sourcePackage=record.meta._sourcePackage;break;}
+      if(!next)throw new Error('Conversation not found');
       // Result blocks may omit names; resolve only explicit tool IDs, never infer from JSON shape.
       const quizTools=new Map();
-      for(const message of conversation.chat_messages||[]){for(const block of message.content||[])if((block?.type==='tool_use'||block?.type==='server_tool_use')&&block.id){const previous=quizTools.get(block.id);quizTools.set(block.id,quizTools.has(block.id)&&previous!==block.name?null:block.name);}await token.checkpoint();}
-      for(const message of conversation.chat_messages||[]){for(const block of message.content||[])if(block?.type==='tool_result'&&!block.name){const name=quizTools.get(block.tool_use_id);if(/^quiz_display(?:_v\d+)?$/.test(String(name||'').split('.').pop()))block.name=name;}await token.checkpoint();}
+      for(const message of next.chat_messages||[]){for(const block of Array.isArray(message?.content)?message.content:[])if((block?.type==='tool_use'||block?.type==='server_tool_use')&&block.id){const previous=quizTools.get(block.id);quizTools.set(block.id,quizTools.has(block.id)&&previous!==block.name?null:block.name);}await token.checkpoint();}
+      await token.checkpoint();
+      conversation=next;quizNames=quizTools;selectionKey='';fields=new Map();query='';offsets.clear();core.clearCodes();
       const {chat_messages,...meta}=conversation;select(payload);
       return {meta:{...meta,_summaryHtml:meta.summary?marked.parse(meta.summary):'',message_count:chat_messages?.length||0,_readerBacked:true},total:selection.ids.length};
     }
@@ -33,6 +34,7 @@ function readerWorkerMain(){
       const messages=[];let weight=0;
       for(let i=start;i<Math.min(end,start+100);i++){
         await token.checkpoint();const original=selected.messages[i],prepared=core.prepare(original,offsets.get(original._sourceIndex)||{});
+        for(const block of Array.isArray(prepared.content)?prepared.content:[])if(block?.type==='tool_result'&&!block.name){const name=quizNames.get(block.tool_use_id);if(/^quiz_display(?:_v\d+)?$/.test(String(name||'').split('.').pop()))block._quizToolName=name;}
         prepared._linearIndex=i;messages.push(prepared);weight+=1+Math.min(6,Math.floor(core.messageText(original).length/2500));
         if(messages.length>=8&&weight>=60)break;
       }
