@@ -7,6 +7,18 @@ import hljs from 'highlight.js';
 const core=vm.runInNewContext(fs.readFileSync(new URL('../src/redaction-rules.js',import.meta.url),'utf8')+'\n'+fs.readFileSync(new URL('../src/worker-core.js',import.meta.url),'utf8')+';workerDomainCore()',{marked,hljs,structuredClone,Date,Map,Set,Blob});
 core.configure({lang:'en'});
 const root='00000000-0000-4000-8000-000000000000';
+test('reader canceled open preserves previous conversation and malformed tool content is ignored',async()=>{
+  let handle;
+  vm.runInNewContext(fs.readFileSync(new URL('../src/reader-worker.js',import.meta.url),'utf8')+';readerWorkerMain()',{workerDomainCore:()=>core,featureWorkerRuntime:(_,handler)=>{handle=handler;},marked});
+  const token={checkpoint:async()=>{}};
+  await handle('open',{conversation:{uuid:'old',chat_messages:[{uuid:'old-message',text:'previous conversation'}]}},token);
+  let checkpoints=0;
+  await assert.rejects(handle('open',{conversation:{uuid:'new',chat_messages:[{uuid:'new-message',content:{unexpected:'object'}}]}},{checkpoint:async()=>{if(++checkpoints===1)throw new Error('Canceled');}}),/Canceled/);
+  const window=await handle('window',{start:0,end:1},token);
+  assert.equal(window.messages[0].text,'previous conversation');
+  const malformed=await handle('open',{conversation:{uuid:'malformed',chat_messages:[{uuid:'m',content:{unexpected:'object'}}]}},token);
+  assert.equal(malformed.meta.uuid,'malformed');
+});
 test('iterative tree handles deep chains, duplicate/missing ids, cycles and branch choices',()=>{
   const messages=Array.from({length:12000},(_,i)=>({uuid:String(i),parent_message_uuid:i?String(i-1):root,text:'message'}));
   assert.equal(core.tree({chat_messages:messages}).ids.length,12000);

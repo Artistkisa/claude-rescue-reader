@@ -2,7 +2,7 @@
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8">
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-O7Uvdb1af8eDfcnhwBReoLJ4/UhXdiZRhuAaPwmadQ8=' 'sha256-tMIvewdj4Er6it91vRKx68b9zhu5Sxm35MV7o9YOuqs=' https://cdn.jsdelivr.net https://unpkg.com https://cdnjs.cloudflare.com blob:; script-src-attr 'none'; style-src 'unsafe-inline' https://cdn.jsdelivr.net https://unpkg.com https://cdnjs.cloudflare.com; img-src blob: data:; font-src data:; connect-src blob:; worker-src blob:; frame-src blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-t8ayqmdPW0U48Ubq5N/ii+Q+RTnQ4ZUPpA7qtO1MDU8=' 'sha256-tMIvewdj4Er6it91vRKx68b9zhu5Sxm35MV7o9YOuqs=' https://cdn.jsdelivr.net https://unpkg.com https://cdnjs.cloudflare.com blob:; script-src-attr 'none'; style-src 'unsafe-inline' https://cdn.jsdelivr.net https://unpkg.com https://cdnjs.cloudflare.com; img-src blob: data:; font-src data:; connect-src blob:; worker-src blob:; frame-src blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="referrer" content="no-referrer">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Claude Rescue Reader — Local Claude Export Viewer</title>
@@ -446,6 +446,31 @@ mark.cs.active { background:var(--accent); color:#fff; }
 @media(max-width:700px){.quality-grid{grid-template-columns:repeat(2,minmax(0,1fr));}}
 @media(max-width:900px){.analytics-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.chart-layout{grid-template-columns:1fr}.analytics-page{padding:18px 14px 36px}}
 @media(max-width:900px){.insight-grid{grid-template-columns:1fr}}
+.quiz-widget { margin:16px 0; padding:24px; border:1px solid var(--border); border-radius:16px; background:var(--bg2); color:var(--text); }
+.quiz-widget h3 { margin:0 0 8px; font-size:18px; }
+.quiz-widget h4 { margin:18px 0; font-size:20px; line-height:1.6; outline:none; }
+.quiz-widget p { white-space:pre-wrap; overflow-wrap:anywhere; }
+.quiz-widget button { font:inherit; color:var(--text); background:var(--bg3); border:1px solid var(--border); border-radius:10px; padding:8px 14px; cursor:pointer; }
+.quiz-widget button:hover:not(:disabled),.quiz-widget button[aria-pressed="true"] { border-color:var(--accent); background:var(--bg4); }
+.quiz-widget button:focus-visible { outline:2px solid var(--accent); outline-offset:3px; }
+.quiz-widget button:disabled { cursor:default; }
+.quiz-tabs { display:flex; gap:4px; margin:20px 0 12px; }
+.quiz-progress { color:var(--text3); font-size:13px; }
+.quiz-options { display:grid; gap:10px; margin:16px 0; }
+.quiz-widget .quiz-option { display:flex; align-items:center; gap:14px; width:100%; padding:14px 16px; text-align:left; white-space:pre-wrap; overflow-wrap:anywhere; }
+.quiz-option span { flex-shrink:0; border:1px solid var(--border2); border-radius:50%; width:28px; height:28px; display:grid; place-items:center; }
+.quiz-widget .quiz-correct { color:#16803c; background:color-mix(in srgb,#22c55e 12%,var(--bg2)); border-color:#22a452; }
+.quiz-widget .quiz-incorrect { color:#ca3d3d; background:color-mix(in srgb,#ef4444 10%,var(--bg2)); border-color:#ce5858; }
+[data-theme="dark"] .quiz-widget .quiz-correct { color:#75db98; }
+[data-theme="dark"] .quiz-widget .quiz-incorrect { color:#ff9999; }
+.quiz-feedback { padding:12px 16px; border-radius:10px; background:var(--bg3); margin:12px 0; }
+.quiz-navigation { display:flex; justify-content:space-between; gap:12px; margin-top:24px; }
+.quiz-navigation button:disabled { opacity:.45; }
+.quiz-review { padding-left:24px; }
+.quiz-review li { margin:20px 0; }
+.quiz-source { margin-top:20px; color:var(--text3); font-size:12px; }
+.quiz-source pre { max-height:240px; overflow:auto; white-space:pre-wrap; }
+@media(max-width:600px) { .quiz-widget { padding:16px; } .quiz-widget h4 { font-size:17px; } }
 </style>
 </head>
 <body>
@@ -1663,7 +1688,7 @@ function taskWorkerMain(){
 }
 
 function readerWorkerMain(){
-  const core=workerDomainCore();let conversation=null,selection=null,selectionKey='',fields=null,query='',queryCounts=[],total=0;const offsets=new Map();
+  const core=workerDomainCore();let conversation=null,quizNames=new Map(),selection=null,selectionKey='',fields=null,query='',queryCounts=[],total=0;const offsets=new Map();
   const select=payload=>{
     const key=JSON.stringify([payload.mode||'longest',payload.choices||{}]);
     if(key!==selectionKey){selectionKey=key;selection=core.tree(conversation,payload.mode,payload.choices);query='';}
@@ -1671,9 +1696,14 @@ function readerWorkerMain(){
   };
   featureWorkerRuntime(core,async(type,payload,token)=>{
     if(type==='open'){
-      if(payload.conversation)conversation=payload.conversation;
-      else{conversation=null;for await(const record of token.records([payload.uuid])){conversation=JSON.parse(record.raw);if(record.meta._sourcePackage)conversation._sourcePackage=record.meta._sourcePackage;break;}}
-      if(!conversation)throw new Error('Conversation not found');selectionKey='';fields=new Map();query='';offsets.clear();core.clearCodes();
+      let next=payload.conversation||null;
+      if(!next)for await(const record of token.records([payload.uuid])){next=JSON.parse(record.raw);if(record.meta._sourcePackage)next._sourcePackage=record.meta._sourcePackage;break;}
+      if(!next)throw new Error('Conversation not found');
+      // Result blocks may omit names; resolve only explicit tool IDs, never infer from JSON shape.
+      const quizTools=new Map();
+      for(const message of next.chat_messages||[]){for(const block of Array.isArray(message?.content)?message.content:[])if((block?.type==='tool_use'||block?.type==='server_tool_use')&&block.id){const previous=quizTools.get(block.id);quizTools.set(block.id,quizTools.has(block.id)&&previous!==block.name?null:block.name);}await token.checkpoint();}
+      await token.checkpoint();
+      conversation=next;quizNames=quizTools;selectionKey='';fields=new Map();query='';offsets.clear();core.clearCodes();
       const {chat_messages,...meta}=conversation;select(payload);
       return {meta:{...meta,_summaryHtml:meta.summary?marked.parse(meta.summary):'',message_count:chat_messages?.length||0,_readerBacked:true},total:selection.ids.length};
     }
@@ -1693,6 +1723,7 @@ function readerWorkerMain(){
       const messages=[];let weight=0;
       for(let i=start;i<Math.min(end,start+100);i++){
         await token.checkpoint();const original=selected.messages[i],prepared=core.prepare(original,offsets.get(original._sourceIndex)||{});
+        for(const block of Array.isArray(prepared.content)?prepared.content:[])if(block?.type==='tool_result'&&!block.name){const name=quizNames.get(block.tool_use_id);if(/^quiz_display(?:_v\d+)?$/.test(String(name||'').split('.').pop()))block._quizToolName=name;}
         prepared._linearIndex=i;messages.push(prepared);weight+=1+Math.min(6,Math.floor(core.messageText(original).length/2500));
         if(messages.length>=8&&weight>=60)break;
       }
@@ -1860,7 +1891,7 @@ const abortFeature=()=>Object.assign(new Error(t('已取消：已选择更新的
 function destroyFeature(kind,expected){
   const state=featureWorkers.get(kind);if(!state||expected&&state!==expected)return;featureWorkers.delete(kind);if(kind!=='import'&&dataWorker&&state.generation===dataWorkerGeneration)void dataWorkerRequest('recordsDisconnect',{id:state.id}).catch(()=>{});state.worker.terminate();URL.revokeObjectURL(state.url);state.port?.close();for(const p of state.pending.values())p.reject(abortFeature());state.pending.clear();state.rejectReady?.(abortFeature());
 }
-function resetFeatureWorkers(){for(const kind of [...featureWorkers.keys()])destroyFeature(kind);openConversationGeneration++;readerWindowVersion++;readerSearchVersion++;clearTimeout(readerSearchTimer);readerSearchState={query:'',total:0,index:-1,page:0,rows:[]};zipEntries.clear();zipMediaPending.clear();for(const url of zipUncachedUrls)URL.revokeObjectURL(url);zipUncachedUrls.clear();zipMediaObserver?.disconnect();behaviorResult=null;behaviorPromise=null;qualityCache.clear();}
+function resetFeatureWorkers(){quizStates.clear();for(const kind of [...featureWorkers.keys()])destroyFeature(kind);openConversationGeneration++;readerWindowVersion++;readerSearchVersion++;clearTimeout(readerSearchTimer);readerSearchState={query:'',total:0,index:-1,page:0,rows:[]};zipEntries.clear();zipMediaPending.clear();for(const url of zipUncachedUrls)URL.revokeObjectURL(url);zipUncachedUrls.clear();zipMediaObserver?.disconnect();behaviorResult=null;behaviorPromise=null;qualityCache.clear();}
 function cancelFeature(kind,type){const state=featureWorkers.get(kind);if(state)state.worker.postMessage({type:'cancel',generation:state.generation,taskType:type});}
 function resetReaderSearch(){readerSearchVersion++;readerWindowVersion++;clearTimeout(readerSearchTimer);readerSearchState={query:'',total:0,index:-1,page:0,rows:[]};clearCSearchMarks();const input=document.getElementById('csearch');if(input)input.value='';}
 async function ensureFeature(kind){
@@ -2165,6 +2196,124 @@ function redactionDialog(conv){
   const key=event=>{if(event.key==='Escape'){event.preventDefault();close(null);}if(event.key==='Tab'){const focusable=[...host.querySelectorAll('button:not(:disabled),textarea')],first=focusable[0],last=focusable[focusable.length-1];if(event.shiftKey&&document.activeElement===first){event.preventDefault();last.focus();}else if(!event.shiftKey&&document.activeElement===last){event.preventDefault();first.focus();}}};
   terms.addEventListener('input',()=>queue(250));host.addEventListener('click',click);host.addEventListener('keydown',key);queue();host.querySelector('[data-style="standard"]').focus();return promise;
 }
+
+// Only explicit quiz tool results become interactive; arbitrary JSON stays ordinary content.
+function quizResult(block){return block?.type==='tool_result'&&!block.is_error&&/^quiz_display(?:_v\d+)?$/.test(String(block.name||block._quizToolName||'').split('.').pop());}
+// Bound parsing, source serialization and DOM work: 256 Ki UTF-16 units, 8192 per string, 20k nodes.
+function quizWithinBudget(value,maxString=8192){
+  const stack=[value],seen=new Set();let size=0,nodes=0;
+  while(stack.length){const item=stack.pop();if(++nodes>20000)return false;
+    if(typeof item==='string'){if(item.length>maxString)return false;size+=item.length;}
+    else if(item&&typeof item==='object'){if(seen.has(item))return false;seen.add(item);for(const key of Object.keys(item)){size+=key.length;stack.push(item[key]);if(stack.length>20000)return false;}}
+    if(size>262144)return false;
+  }return true;
+}
+function quizSource(block){const source={...block};for(const key of Object.keys(source))if(key.startsWith('_'))delete source[key];return source;}
+function readQuiz(block){
+  if(!quizResult(block))return null;
+  const decode=value=>{if(typeof value!=='string')return value;if(value.length>262144)return null;try{return JSON.parse(value);}catch{return null;}};
+  const candidates=[block.structured_content,block.display_content,block.content];
+  if(Array.isArray(block.content))for(const item of block.content)if(item?.type==='text')candidates.push(item.text);
+  for(const candidate of candidates){
+    const value=decode(candidate);
+    if(!quizWithinBudget(value))continue;
+    if(!value||!Array.isArray(value.questions)||!value.questions.length||value.questions.length>200)continue;
+    const questions=[];
+    for(const question of value.questions){
+      if(!question||question.question_type!=='multiple_choice'||typeof question.prompt!=='string'||!Array.isArray(question.options)||question.options.length<2||question.options.length>26)break;
+      const options=question.options;
+      if(options.some(o=>!o||typeof o.id!=='string'||typeof o.text!=='string')||new Set(options.map(o=>o.id)).size!==options.length||!options.some(o=>o.id===question.correct_option_id))break;
+      questions.push({prompt:question.prompt,options:options.map(o=>({id:o.id,text:o.text})),answer:question.correct_option_id,hint:typeof question.hint==='string'?question.hint:'',explanation:typeof question.explanation==='string'?question.explanation:''});
+    }
+    if(questions.length===value.questions.length)return{title:typeof value.title==='string'?value.title:'',description:typeof value.description==='string'?value.description:typeof value.summary==='string'?value.summary:'',questions};
+  }
+  return null;
+}
+const quizStates=new Map();let quizStateSequence=0;
+const quizLabel=(zh,en)=>currentLang==='en'?en:zh;
+function quizButton(action,label,extra=''){return '<button type="button" data-quiz-action="'+action+'" '+extra+'>'+esc(label)+'</button>';}
+function quizStage(state){
+  const {quiz,index,answers,mode,results,hint,flipped}=state,q=quiz.questions[index],picked=answers[index],answered=picked!==undefined;
+  let html='<div class="quiz-tabs" role="group" aria-label="'+escAttr(quizLabel('学习模式','Study mode'))+'">'+quizButton('quiz',quizLabel('测验','Quiz'),'aria-pressed="'+(mode==='quiz')+'"')+quizButton('flashcards',quizLabel('闪卡','Flashcards'),'aria-pressed="'+(mode==='flashcards')+'"')+'</div>';
+  if(results&&mode==='quiz'){
+    const score=quiz.questions.filter((question,i)=>answers[i]===question.answer).length;
+    html+='<h4 tabindex="-1" class="quiz-focus">'+quizLabel('得分','Score')+': '+score+' / '+quiz.questions.length+' · '+Math.round(100*score/quiz.questions.length)+'%</h4><ol class="quiz-review">';
+    for(let i=0;i<quiz.questions.length;i++){const question=quiz.questions[i],answer=question.options.find(o=>o.id===answers[i]),correct=question.options.find(o=>o.id===question.answer);html+='<li><p>'+esc(question.prompt)+'</p><p class="'+(answers[i]===question.answer?'quiz-correct':'quiz-incorrect')+'">'+esc(answers[i]===question.answer?quizLabel('回答正确','Correct'):quizLabel('回答错误','Incorrect'))+' · '+esc(answer?.text||quizLabel('未作答','Unanswered'))+'</p><p>'+esc(quizLabel('正确答案：','Correct answer: ')+correct.text)+'</p><p>'+esc(question.explanation)+'</p></li>';}
+    return html+'</ol>'+quizButton('restart',quizLabel('重新开始','Try again'));
+  }
+  html+='<p class="quiz-progress">'+(index+1)+' / '+quiz.questions.length+'</p><h4 tabindex="-1" class="quiz-focus">'+esc(q.prompt)+'</h4>';
+  if(mode==='flashcards'){
+    if(flipped)html+='<div class="quiz-feedback"><strong>'+esc(q.options.find(o=>o.id===q.answer).text)+'</strong><p>'+esc(q.explanation)+'</p></div>';
+    html+=quizButton('flip',flipped?quizLabel('隐藏答案','Hide answer'):quizLabel('显示答案','Show answer'));
+  }else{
+    html+='<div class="quiz-options" role="group" aria-label="'+escAttr(quizLabel('选择答案','Choose an answer'))+'">';
+    q.options.forEach((option,i)=>{const status=answered?(option.id===q.answer?' quiz-correct':option.id===picked?' quiz-incorrect':''):'';html+='<button type="button" class="quiz-option'+status+'" data-quiz-action="answer" data-quiz-option="'+i+'" aria-pressed="'+(picked===option.id)+'"'+(answered?' disabled':'')+'><span>'+String.fromCharCode(65+i)+'</span>'+esc(option.text)+'</button>';});
+    html+='</div>';
+    if(answered)html+='<div class="quiz-feedback" role="status"><strong>'+esc(picked===q.answer?quizLabel('回答正确','Correct'):quizLabel('回答错误','Incorrect'))+'</strong><p>'+esc(q.explanation)+'</p></div>';
+    else if(q.hint)html+=quizButton('hint',quizLabel('提示','Hint'))+(hint?'<p class="quiz-feedback">'+esc(q.hint)+'</p>':'');
+  }
+  html+='<div class="quiz-navigation">'+quizButton('previous',quizLabel('上一题','Back'),index===0?'disabled':'');
+  html+=index+1<quiz.questions.length?quizButton('next',quizLabel('下一题','Next')):mode==='quiz'?quizButton('results',quizLabel('查看评分与解析','View results'),answers.filter(a=>a!==undefined).length!==quiz.questions.length?'disabled':''):'';
+  return html+'</div>';
+}
+function renderQuiz(block,location=''){
+  if(!quizResult(block))return '';
+  const source=quizSource(block);
+  if(!quizWithinBudget(source,262144))return '<p>'+esc(quizLabel('测验数据过大，请使用复制或导出查看原文。','Quiz data exceeds the display limit. Copy or export to read the source.'))+'</p>';
+  const quiz=readQuiz(block);if(!quiz)return '';
+  const signature=JSON.stringify(quiz),key=JSON.stringify([dataWorkerGeneration,currentConv?.uuid||'',location]);
+  let state=quizStates.get(key);
+  if(!state||state.signature!==signature){state={quiz,signature,id:String(++quizStateSequence),index:0,answers:[],mode:'quiz',results:false,hint:false,flipped:false};quizStates.set(key,state);}
+  quizStates.delete(key);quizStates.set(key,state);while(quizStates.size>32)quizStates.delete(quizStates.keys().next().value);
+  return '<section class="quiz-widget" data-quiz-state="'+state.id+'" aria-label="'+escAttr(quiz.title||quizLabel('测验','Quiz'))+'"><h3>'+esc(quiz.title||quizLabel('测验','Quiz'))+'</h3><p>'+esc(quiz.description)+'</p><div class="quiz-stage">'+quizStage(state)+'</div><details class="quiz-source"><summary>'+esc(quizLabel('查看原始测验数据','View original quiz data'))+'</summary><pre data-quiz-source>'+esc(JSON.stringify(source,null,2))+'</pre></details></section>';
+}
+// Interactive updates use DOM construction: imported strings only enter textContent.
+function quizStageDOM(state){
+  const fragment=document.createDocumentFragment();
+  const add=(parent,tag,text,cls)=>{const el=document.createElement(tag);if(text!==undefined)el.textContent=text;if(cls)el.className=cls;parent.append(el);return el;};
+  const button=(parent,action,text,disabled=false)=>{const el=add(parent,'button',text);el.type='button';el.dataset.quizAction=action;el.disabled=disabled;return el;};
+  const {quiz,index,answers,mode,results,hint,flipped}=state,q=quiz.questions[index],picked=answers[index],answered=picked!==undefined;
+  const tabs=add(fragment,'div',undefined,'quiz-tabs');tabs.setAttribute('role','group');tabs.setAttribute('aria-label',quizLabel('学习模式','Study mode'));
+  for(const [action,zh,en] of [['quiz','测验','Quiz'],['flashcards','闪卡','Flashcards']])button(tabs,action,quizLabel(zh,en)).setAttribute('aria-pressed',String(mode===action));
+  const heading=text=>{const el=add(fragment,'h4',text,'quiz-focus');el.tabIndex=-1;};
+  if(results&&mode==='quiz'){
+    const score=quiz.questions.filter((question,i)=>answers[i]===question.answer).length;
+    heading(quizLabel('得分','Score')+': '+score+' / '+quiz.questions.length+' · '+Math.round(100*score/quiz.questions.length)+'%');
+    const list=add(fragment,'ol',undefined,'quiz-review');
+    quiz.questions.forEach((question,i)=>{const row=add(list,'li'),answer=question.options.find(o=>o.id===answers[i]),correct=question.options.find(o=>o.id===question.answer),ok=answers[i]===question.answer;
+      add(row,'p',question.prompt);add(row,'p',(ok?quizLabel('回答正确','Correct'):quizLabel('回答错误','Incorrect'))+' · '+(answer?.text||quizLabel('未作答','Unanswered')),ok?'quiz-correct':'quiz-incorrect');add(row,'p',quizLabel('正确答案：','Correct answer: ')+correct.text);add(row,'p',question.explanation);
+    });button(fragment,'restart',quizLabel('重新开始','Try again'));return fragment;
+  }
+  add(fragment,'p',(index+1)+' / '+quiz.questions.length,'quiz-progress');heading(q.prompt);
+  if(mode==='flashcards'){
+    if(flipped){const feedback=add(fragment,'div',undefined,'quiz-feedback');add(feedback,'strong',q.options.find(o=>o.id===q.answer).text);add(feedback,'p',q.explanation);}
+    button(fragment,'flip',flipped?quizLabel('隐藏答案','Hide answer'):quizLabel('显示答案','Show answer'));
+  }else{
+    const options=add(fragment,'div',undefined,'quiz-options');options.setAttribute('role','group');options.setAttribute('aria-label',quizLabel('选择答案','Choose an answer'));
+    q.options.forEach((option,i)=>{const el=button(options,'answer','',answered);el.className='quiz-option'+(answered?(option.id===q.answer?' quiz-correct':option.id===picked?' quiz-incorrect':''):'');el.dataset.quizOption=String(i);el.setAttribute('aria-pressed',String(picked===option.id));add(el,'span',String.fromCharCode(65+i));el.append(document.createTextNode(option.text));});
+    if(answered){const feedback=add(fragment,'div',undefined,'quiz-feedback');feedback.setAttribute('role','status');add(feedback,'strong',picked===q.answer?quizLabel('回答正确','Correct'):quizLabel('回答错误','Incorrect'));add(feedback,'p',q.explanation);}
+    else if(q.hint){button(fragment,'hint',quizLabel('提示','Hint'));if(hint)add(fragment,'p',q.hint,'quiz-feedback');}
+  }
+  const navigation=add(fragment,'div',undefined,'quiz-navigation');button(navigation,'previous',quizLabel('上一题','Back'),index===0);
+  if(index+1<quiz.questions.length)button(navigation,'next',quizLabel('下一题','Next'));
+  else if(mode==='quiz')button(navigation,'results',quizLabel('查看评分与解析','View results'),answers.filter(a=>a!==undefined).length!==quiz.questions.length);
+  return fragment;
+}
+document.addEventListener('click',event=>{
+  const button=event.target.closest('[data-quiz-action]'),root=button?.closest('.quiz-widget');if(!root||button.disabled)return;
+  const state=[...quizStates.values()].find(s=>s.id===root.dataset.quizState);if(!state)return;
+  const action=button.dataset.quizAction;
+  if(action==='answer'){const option=state.quiz.questions[state.index].options[Number(button.dataset.quizOption)];if(!option||state.answers[state.index]!==undefined)return;state.answers[state.index]=option.id;}
+  else if(action==='hint')state.hint=!state.hint;
+  else if(action==='flip')state.flipped=!state.flipped;
+  else if(action==='previous'||action==='next'){state.index=Math.max(0,Math.min(state.quiz.questions.length-1,state.index+(action==='next'?1:-1)));state.hint=false;state.flipped=false;}
+  else if(action==='results'){if(state.answers.filter(a=>a!==undefined).length!==state.quiz.questions.length)return;state.results=true;}
+  else if(action==='restart'){state.answers=[];state.index=0;state.results=false;state.hint=false;state.flipped=false;}
+  else if(action==='quiz'||action==='flashcards')state.mode=action==='quiz'?'quiz':'flashcards';
+  else return;
+  root.querySelector('.quiz-stage').replaceChildren(quizStageDOM(state));
+  root.querySelector('.quiz-focus')?.focus({preventScroll:true});
+});
 // END GENERATED FEATURE WORKERS
 
 // ── On-demand analytics: source is bundled in this single HTML, execution starts only when opened. ──
@@ -3994,7 +4143,7 @@ function renderMsg(msg){
   // 第二遍：正文渲染（跳过已消费块）
   for(const block of content){
     if(block&&block._consumed)continue;
-    inner+=renderBlock(block);
+    inner+=renderBlock(block,String(msg._sourceIndex??msg.uuid??'')+':'+content.indexOf(block));
   }
   for(const v of visuals)inner+=renderVisual(v);
   // Top-level msg.text fallback (older export format)
@@ -4027,8 +4176,9 @@ function renderMsg(msg){
     +'</div></div>';
 }
 
-function renderBlock(block){
+function renderBlock(block,location=''){
   if(!block||typeof block!=='object')return '';
+  const quiz=renderQuiz(block,location);if(quiz)return quiz;
   const blockType=block.type||'unknown';
   if(blockType==='text')return '<div'+(block._field?' data-reader-field="'+escAttr(block._field)+'"':'')+'>'+(block._html||renderMd(block.text||''))+'</div>';
   if(blockType==='thinking'){
@@ -4049,7 +4199,7 @@ function renderBlock(block){
   if(blockType==='tool_result'){
     const nm=block.name||t('结果');
     const isErr=block.is_error;
-    const content=block.content||[];
+    const content=Array.isArray(block.content)?block.content:typeof block.content==='string'?[{type:'text',text:block.content}]:block.content?[{type:'text',text:JSON.stringify(block.content,null,2)}]:[];
     let body='';
     for(const c of content){
       if(c.type==='text')body+='<div style="white-space:pre-wrap;word-break:break-word;">'+esc(c.text||'')+'</div>';
